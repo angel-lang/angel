@@ -13,11 +13,11 @@ Angel is a programming language that is being developed to be the best.
 This repository contains Angel to C++ compiler written in Python.
 
 ## How to run
-`./runnable` to run REPL.
+`./runnable.py` to run REPL.
 
-`./runnable my_file.angel` to compile `my_file.angel`.
+`./runnable.py my_file.angel` to compile `my_file.angel`.
 
-`./runnable my_file.angel | clang-format > my_file.cpp` to get pretty
+`./runnable.py my_file.angel | clang-format > my_file.cpp` to get pretty
 C++ code in `my_file.cpp`. 
 
 ## Tutorial
