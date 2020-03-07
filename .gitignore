@@ -1,1 +1,21 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+
+# mypy
+.mypy_cache/
+
+# Compiled Object files
+*.o
+
+# Executables
+*.out
+
+# Temporary files and code editors files
+.vscode/
 .idea/
+*.swp
+*~
+
+# Test files
+/test.*
