@@ -1,27 +1,20 @@
-import sys
 import typing as t
 
-from . import nodes, cpp_nodes
-
-
-def _error_base(message: str) -> t.NoReturn:
-    print(f"Translation Error: {message}")
-    sys.exit(1)
-
-
-def _error_not_implemented(message: str) -> t.NoReturn:
-    _error_base(message + " feature is not implemented")
-
-
-def _error_unknown_node_type(node_type: type, func: t.Callable) -> t.NoReturn:
-    _error_base(f"cannot dispatch node type '{node_type}' in func '{func}'")
-
+from . import nodes, cpp_nodes, environment, environment_entries as entries, errors
+from .utils import dispatch
 
 BUILTIN_TYPE_TO_CPP_TYPE = {
     nodes.BuiltinType.i8.value: cpp_nodes.StdName.int_fast8_t,
     nodes.BuiltinType.i16.value: cpp_nodes.StdName.int_fast16_t,
     nodes.BuiltinType.i32.value: cpp_nodes.StdName.int_fast32_t,
     nodes.BuiltinType.i64.value: cpp_nodes.StdName.int_fast64_t,
+
+    nodes.BuiltinType.u8.value: cpp_nodes.StdName.uint_fast8_t,
+    nodes.BuiltinType.u16.value: cpp_nodes.StdName.uint_fast16_t,
+    nodes.BuiltinType.u32.value: cpp_nodes.StdName.uint_fast32_t,
+    nodes.BuiltinType.u64.value: cpp_nodes.StdName.uint_fast64_t,
+
+    nodes.BuiltinType.string.value: cpp_nodes.StdName.string,
 }
 
 
@@ -30,53 +23,97 @@ class Translator:
     main_function_body: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
 
-    def repl_eval(self, node: nodes.Node) -> t.Any:
-        dispatcher: t.Dict[type, t.Callable[[nodes.Node], t.Any]] = {
-            nodes.ConstantDeclaration: lambda n: None,
-            nodes.FunctionCall: self._repl_eval_function_call,
+    def __init__(self, lines: t.List[str]) -> None:
+        self.env = environment.Environment()
+        self.lines = lines
+        self.current_line = 1
+
+        # REPL eval
+        repl_eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
+            nodes.BuiltinFunc.print.value: lambda args: self.repl_eval_expression(args[0]),
         }
-        func = dispatcher.get(type(node), lambda n: _error_unknown_node_type(type(n), self.repl_eval))
-        return func(node)
 
-    def _repl_eval_function_call(self, node: nodes.Node) -> t.Any:
-        assert isinstance(node, nodes.FunctionCall)
-        function_path_dispatcher: t.Dict[type, t.Callable[[nodes.Expression, t.List[nodes.Expression]], t.Any]] = {
-            nodes.Name: self._repl_eval_function_as_name_call
+        repl_eval_function_call_dispatcher_by_function_path = {
+            nodes.BuiltinFunc: lambda path, args: dispatch(
+                repl_eval_builtin_function_call_dispatcher, path.value, args
+            ),
         }
-        func = function_path_dispatcher.get(
-            type(node.function_path),
-            lambda path, _: _error_unknown_node_type(type(path), self._repl_eval_function_call))
-        return func(node.function_path, node.args)
 
-    def _repl_eval_function_as_name_call(self, path: nodes.Expression, args: t.List[nodes.Expression]) -> t.Any:
-        assert isinstance(path, nodes.Name)
-        builtin_func_dispatcher: t.Dict[str, t.Callable[[nodes.Name, t.List[nodes.Expression]], cpp_nodes.Node]] = {
-            nodes.BuiltinFunc.print.value: self._repl_eval_print_call
+        repl_eval_assignment_by_left = {
+            nodes.Name: self.repl_eval_name_assignment,
         }
-        func = builtin_func_dispatcher.get(path.member)
-        if func is None:
-            _error_not_implemented("user-defined functions")
-        return func(path, args)
 
-    def _repl_eval_print_call(self, function_path: nodes.Name, args: t.List[nodes.Expression]) -> t.Any:
-        assert function_path.member == nodes.BuiltinFunc.print.value
-        assert len(args) == 1
-        return self._repl_eval_expression(args[0])
+        repl_eval_dispatcher = {
+            nodes.ConstantDeclaration: self.repl_eval_constant_declaration,
+            nodes.VariableDeclaration: self.repl_eval_variable_declaration,
+            nodes.Assignment: lambda node: dispatch(
+                repl_eval_assignment_by_left, type(node.left), node.left, node.operator, node.right
+            ),
+            nodes.FunctionCall: lambda node: dispatch(
+                repl_eval_function_call_dispatcher_by_function_path, type(node.function_path),
+                node.function_path, node.args
+            ),
+        }
+        self.repl_eval_node = lambda node: dispatch(repl_eval_dispatcher, type(node), node)
 
-    def _repl_eval_expression(self, expression: nodes.Expression) -> t.Any:
-        if isinstance(expression, nodes.IntegerLiteral):
-            return int(expression.value)
-        elif isinstance(expression, nodes.StringLiteral):
-            return expression.value
-        else:
-            _error_unknown_node_type(type(expression), self._repl_eval_expression)
+        repl_eval_expression_dispatcher = {
+            nodes.IntegerLiteral: lambda value: int(value.value),
+            nodes.StringLiteral: lambda value: value.value,
+            nodes.Name: self.repl_eval_name,
+            type(None): lambda _: None,
+        }
+        self.repl_eval_expression = lambda value: dispatch(repl_eval_expression_dispatcher, type(value), value)
+
+        # Translation
+        translate_builtin_function_dispatcher = {
+            nodes.BuiltinFunc.print.value: self.translate_print_function_call,
+        }
+
+        translate_function_call_dispatcher_by_function_path = {
+            nodes.BuiltinFunc: lambda path, args: dispatch(translate_builtin_function_dispatcher, path.value, args),
+        }
+
+        self.translate_node_dispatcher = {
+            nodes.ConstantDeclaration: lambda node: cpp_nodes.Declaration(
+                self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
+            ),
+            nodes.VariableDeclaration: lambda node: cpp_nodes.Declaration(
+                self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
+            ),
+            nodes.Assignment: lambda node: cpp_nodes.Assignment(
+                self.translate_expression(node.left), self.translate_operator(node.operator),
+                self.translate_expression(node.right)
+            ),
+            nodes.FunctionCall: lambda node: dispatch(
+                translate_function_call_dispatcher_by_function_path, type(node.function_path),
+                node.function_path, node.args
+            ),
+        }
+
+        translate_expression_dispatcher = {
+            nodes.IntegerLiteral: lambda value: cpp_nodes.IntegerLiteral(value.value),
+            nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
+            nodes.Name: lambda value: cpp_nodes.Id(value.member),
+            type(None): lambda _: None,
+        }
+        self.translate_expression: t.Callable[[nodes.Expression], cpp_nodes.Expression] = lambda value: \
+            dispatch(translate_expression_dispatcher, type(value), value)
+
+        translate_type_dispatcher: t.Dict[type, t.Callable] = {
+            nodes.BuiltinType: self.translate_builtin_type,
+            nodes.Name: lambda type_: cpp_nodes.Id(type_.member),
+        }
+        self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
+            dispatch(translate_type_dispatcher, type(type_), type_)
 
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
+        self.includes = {}
         self.top_nodes = []
         self.main_function_body = []
-        self.includes = {}
+
         for node in ast:
-            self._translate_node(node)
+            self.current_line = node.line
+            self.main_function_body.append(dispatch(self.translate_node_dispatcher, type(node), node))
 
         return0 = cpp_nodes.Return(cpp_nodes.IntegerLiteral("0"))
         main_function = cpp_nodes.FunctionDeclaration(
@@ -84,78 +121,73 @@ class Translator:
         )
         return t.cast(cpp_nodes.AST, list(self.includes.values())) + self.top_nodes + [main_function]
 
-    def _translate_node(self, node: nodes.Node):
-        dispatcher: t.Dict[type, t.Callable[[nodes.Node], cpp_nodes.Node]] = {
-            nodes.ConstantDeclaration: self._translate_constant_declaration,
-            nodes.FunctionCall: self._translate_function_call,
-        }
-        func = dispatcher.get(type(node), lambda n: _error_unknown_node_type(type(n), self._translate_node))
-        self.main_function_body.append(func(node))
-
-    def _translate_constant_declaration(self, node: nodes.Node) -> cpp_nodes.Node:
-        assert isinstance(node, nodes.ConstantDeclaration)
-        type_ = self._translate_type(node.type)
-        name = node.name.member
-        value = self._translate_expression(node.value)
-        return cpp_nodes.Declaration(type_, name, value)
-
-    def _translate_function_call(self, node: nodes.Node) -> cpp_nodes.Node:
-        assert isinstance(node, nodes.FunctionCall)
-        function_path_dispatcher: t.Dict[type, t.Callable[[nodes.FunctionCall], cpp_nodes.Node]] = {
-            nodes.Name: self._translate_function_as_name_call,
-        }
-        func = function_path_dispatcher.get(
-            type(node.function_path),
-            lambda call: _error_unknown_node_type(type(call.function_path), self._translate_function_call))
-        return func(node)
-
-    def _translate_function_as_name_call(self, call: nodes.FunctionCall) -> cpp_nodes.Node:
-        assert isinstance(call.function_path, nodes.Name)
-        builtin_func_dispatcher: t.Dict[str, t.Callable[[nodes.Name, t.List[nodes.Expression]], cpp_nodes.Node]] = {
-            nodes.BuiltinFunc.print.value: self._translate_print_call
-        }
-        func = builtin_func_dispatcher.get(call.function_path.member)
-        if func is None:
-            args = [self._translate_expression(arg) for arg in call.args]
-            return cpp_nodes.FunctionCall(cpp_nodes.Id(call.function_path.member), args)
-        return func(call.function_path, call.args)
-
-    def _translate_print_call(self, function_path: nodes.Name, args: t.List[nodes.Expression]) -> cpp_nodes.Node:
-        assert function_path.member == nodes.BuiltinFunc.print.value
+    def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Node:
         assert len(args) == 1
-        self._add_include(cpp_nodes.StdModule.iostream)
-        value = self._translate_expression(args[0])
+        self.add_include(cpp_nodes.StdModule.iostream)
+        value = self.translate_expression(args[0])
         return cpp_nodes.Semicolon(
             cpp_nodes.BinaryExpression(
                 cpp_nodes.BinaryExpression(cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, value),
                 cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
             ))
 
-    def _translate_type(self, type_: nodes.Type) -> cpp_nodes.Type:
-        if isinstance(type_, nodes.Name):
-            try:
-                builtin_type = nodes.BuiltinType(type_.member)
-            except ValueError:
-                return cpp_nodes.Id(type_.member)
-            else:
-                return self._translate_builtin_type(builtin_type)
-        else:
-            _error_unknown_node_type(type(type_), self._translate_type)
-
-    def _translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
+    def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
         if builtin_type.value in nodes.BuiltinType.finite_int_types():
-            self._add_include(cpp_nodes.StdModule.cstdint)
+            self.add_include(cpp_nodes.StdModule.cstdint)
+        elif builtin_type.value == nodes.BuiltinType.string.value:
+            self.add_include(cpp_nodes.StdModule.string)
         return BUILTIN_TYPE_TO_CPP_TYPE[builtin_type.value]
 
-    def _translate_expression(self, expression: nodes.Expression) -> cpp_nodes.Expression:
-        if isinstance(expression, nodes.IntegerLiteral):
-            return cpp_nodes.IntegerLiteral(expression.value)
-        elif isinstance(expression, nodes.StringLiteral):
-            return cpp_nodes.StringLiteral(expression.value)
-        elif isinstance(expression, nodes.Name):
-            return cpp_nodes.Id(expression.member)
-        else:
-            _error_unknown_node_type(type(expression), self._translate_expression)
+    def translate_operator(self, operator: nodes.Operator) -> cpp_nodes.Operator:
+        return cpp_nodes.Operator(operator.value)
 
-    def _add_include(self, module: cpp_nodes.StdModule):
+    def repl_eval(self, ast: nodes.AST) -> t.Any:
+        result = None
+        for node in ast:
+            self.current_line = node.line
+            result = self.repl_eval_node(node)
+        return result
+
+    def repl_eval_constant_declaration(self, node: nodes.ConstantDeclaration) -> None:
+        assert node.type is not None
+        self.env.add_constant(
+            node.line, node.name, node.type, node.value, computed_value=self.repl_eval_expression(node.value)
+        )
+
+    def repl_eval_variable_declaration(self, node: nodes.VariableDeclaration) -> None:
+        assert node.type is not None
+        self.env.add_variable(
+            node.line, node.name, node.type, computed_value=self.repl_eval_expression(node.value)
+        )
+
+    def repl_eval_name_assignment(self, left: nodes.Name, operator: nodes.Operator, right: nodes.Expression) -> None:
+        entry = self.env[left.member]
+        if isinstance(entry, entries.VariableEntry):
+            if operator.value == nodes.Operator.eq.value:
+                entry.computed_value = self.repl_eval_expression(right)
+            else:
+                raise errors.AngelNotImplemented
+        elif isinstance(entry, entries.ConstantEntry):
+            if entry.has_value:
+                raise errors.AngelConstantReassignment(
+                    left, self.get_code(self.current_line), self.get_code(entry.line))
+            if operator.value == nodes.Operator.eq.value:
+                entry.computed_value = self.repl_eval_expression(right)
+                entry.has_value = True
+            else:
+                raise errors.AngelNotImplemented
+        else:
+            raise errors.AngelNameError(left, self.get_code(self.current_line))
+
+    def repl_eval_name(self, value: nodes.Name) -> t.Any:
+        entry = self.env[value.member]
+        if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
+            return entry.computed_value
+        else:
+            raise errors.AngelNameError(value, self.get_code(self.current_line))
+
+    def add_include(self, module: cpp_nodes.StdModule):
         self.includes[module.value] = cpp_nodes.Include(module)
+
+    def get_code(self, line: int) -> errors.Code:
+        return errors.Code(self.lines[line - 1], line)

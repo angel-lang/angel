@@ -5,19 +5,19 @@ import enum
 from dataclasses import dataclass
 
 
-class Node(abc.ABC):
+class Node:
     @abc.abstractmethod
     def to_code(self) -> str:
         pass
 
 
-class Type(abc.ABC):
+class Type:
     @abc.abstractmethod
     def to_code(self) -> str:
         pass
 
 
-class Expression(abc.ABC):
+class Expression:
     @abc.abstractmethod
     def to_code(self) -> str:
         pass
@@ -29,34 +29,41 @@ AST = t.List[Node]
 class StdModule(enum.Enum):
     iostream = "iostream"
     cstdint = "cstdint"
+    string = "string"
 
 
 class Operator(enum.Enum):
     lshift = "<<"
+    eq = "="
 
 
-class ABCEnumMeta(abc.ABCMeta, enum.EnumMeta):
-    pass
-
-
-class StdName(Type, Expression, enum.Enum, metaclass=ABCEnumMeta):
+class StdName(Type, Expression, enum.Enum):
     int_fast8_t = "int_fast8_t"
     int_fast16_t = "int_fast16_t"
     int_fast32_t = "int_fast32_t"
     int_fast64_t = "int_fast64_t"
 
+    uint_fast8_t = "uint_fast8_t"
+    uint_fast16_t = "uint_fast16_t"
+    uint_fast32_t = "uint_fast32_t"
+    uint_fast64_t = "uint_fast64_t"
+
+    string = "string"
+
     cout = "cout"
     endl = "endl"
 
     def to_code(self) -> str:
+        assert isinstance(self.value, str)
         return "std::" + self.value
 
 
-class PrimitiveTypes(Type, enum.Enum, metaclass=ABCEnumMeta):
+class PrimitiveTypes(Type, enum.Enum):
     int = "int"
     void = "void"
 
     def to_code(self) -> str:
+        assert isinstance(self.value, str)
         return self.value
 
 
@@ -133,10 +140,22 @@ class Include(Node):
 class Declaration(Node):
     type: Type
     name: str
-    value: Expression
+    value: t.Optional[Expression]
 
     def to_code(self) -> str:
+        if self.value is None:
+            return f"{self.type.to_code()} {self.name};"
         return f"{self.type.to_code()} {self.name}={self.value.to_code()};"
+
+
+@dataclass
+class Assignment(Node):
+    left: Expression
+    operator: Operator
+    right: Expression
+
+    def to_code(self) -> str:
+        return f"{self.left.to_code()}{self.operator.value}{self.right.to_code()};"
 
 
 @dataclass

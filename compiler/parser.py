@@ -1,26 +1,13 @@
 import re
-import sys
 import typing as t
 from dataclasses import dataclass
 from itertools import zip_longest
 
-from . import nodes
+from . import nodes, errors
 
 
 IDENTIFIER_REGEX = re.compile("[a-zA-Z][a-zA-Z0-9]*")
 INTEGER_REGEX = re.compile("[0-9]+")
-
-
-def _linear_parser(
-        flow: t.Iterable[t.Tuple[t.Callable[[], t.Any], t.Optional[t.Callable[[], t.Any]]]]
-) -> t.List[t.Any]:
-    results = []
-    for parser, on_fail in flow:
-        result = parser()
-        if not result and on_fail:
-            return on_fail()
-        results.append(result)
-    return results
 
 
 @dataclass
@@ -31,107 +18,170 @@ class State:
 
 class Parser:
     code: str
+    code_lines: t.List[str]
     idx: int
     position: nodes.Position
 
     def parse(self, string: str) -> t.List[nodes.Node]:
         self.code = string
+        self.code_lines = string.split("\n")
         self.idx = 0
         self.position = nodes.Position()
 
         result = []
-        self._spaces()
-        node = self._parse_node()
+        self.spaces()
+        node = self.parse_node()
         while node is not None:
             result.append(node)
-            self._spaces()
-            node = self._parse_node()
-        if not self._is_eof():
-            self._error_parser_has_stuck()
+            self.spaces()
+            node = self.parse_node()
+        if not self.is_eof():
+            raise errors.AngelSyntaxError("expected a statement", self.get_code())
         return result
 
-    def _parse_constant_declaration(self) -> t.Optional[nodes.ConstantDeclaration]:
-        results = _linear_parser([
-            (lambda: self._parse_keyword("let"), lambda: None),
-            (self._spaces, None),
-            (self._parse_name, lambda: self._error_expected("name")),
-            (lambda: self._parse(":"), lambda: self._error_expected("':'")),
-            (self._spaces, None),
-            (self._parse_type, lambda: self._error_expected("type")),
-            (self._spaces, None),
-            (lambda: self._parse("="), lambda: self._error_expected("=")),
-            (self._spaces, None),
-            (self._parse_expression, lambda: self._error_expected("expression")),
-        ])
-        if isinstance(results, list):
-            return nodes.ConstantDeclaration(results[2], results[5], results[9])
-        return None
+    def parse_variable_declaration(self) -> t.Optional[nodes.VariableDeclaration]:
+        line = self.position.line
+        if not self.parse_keyword("var"):
+            return None
+        name, type_, value = self.parse_constant_and_variable_common()
+        return nodes.VariableDeclaration(line, name, type_, value)
 
-    def _parse_function_call(self) -> t.Optional[nodes.FunctionCall]:
-        state = self._backup_state()
-        function_path = self._parse_expression()
+    def parse_constant_declaration(self) -> t.Optional[nodes.ConstantDeclaration]:
+        line = self.position.line
+        if not self.parse_keyword("let"):
+            return None
+        name, type_, value = self.parse_constant_and_variable_common()
+        return nodes.ConstantDeclaration(line, name, type_, value)
+
+    def parse_constant_and_variable_common(
+            self
+    ) -> t.Tuple[nodes.Name, t.Optional[nodes.Type], t.Optional[nodes.Expression]]:
+        self.spaces()
+        name = self.parse_name()
+        if not name:
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        if self.parse_raw(":"):
+            self.spaces()
+            type_ = self.parse_type()
+            if not type_:
+                raise errors.AngelSyntaxError("expected type", self.get_code())
+            state = self.backup_state()
+            self.spaces()
+            if self.parse_raw("="):
+                self.spaces()
+                value = self.parse_expression()
+                if not value:
+                    raise errors.AngelSyntaxError("expected expression", self.get_code())
+                return name, type_, value
+            else:
+                self.restore_state(state)
+                return name, type_, None
+        else:
+            self.spaces()
+            if not self.parse_raw("="):
+                raise errors.AngelSyntaxError("expected '=' (or ':' but without spaces)", self.get_code())
+            self.spaces()
+            value = self.parse_expression()
+            if not value:
+                raise errors.AngelSyntaxError("expected expression", self.get_code())
+            return name, None, value
+
+    def parse_function_call(self) -> t.Optional[nodes.FunctionCall]:
+        state = self.backup_state()
+        line = self.position.line
+        function_path = self.parse_expression()
         if function_path is None:
             return None
-        arguments = self._parse_container(
-            open_container="(", close_container=")", element_separator=",", element_parser=self._parse_expression)
+        arguments = self.parse_container(
+            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_expression)
         if arguments is None:
-            self._restore_state(state)
+            self.restore_state(state)
             return None
-        return nodes.FunctionCall(function_path, arguments)
+        return nodes.FunctionCall(line, function_path, arguments)
 
-    NODE_PARSERS = [_parse_constant_declaration, _parse_function_call]
+    def parse_assignment(self) -> t.Optional[nodes.Assignment]:
+        state = self.backup_state()
+        line = self.position.line
+        left = self.parse_expression()
+        if left is None:
+            return None
+        self.spaces()
+        operator = self.parse_assignment_operator()
+        if operator is None:
+            self.restore_state(state)
+            return None
+        self.spaces()
+        right = self.parse_expression()
+        if right is None:
+            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        return nodes.Assignment(line, left, operator, right)
 
-    def _parse_container(
+    NODE_PARSERS = [parse_constant_declaration, parse_variable_declaration, parse_function_call, parse_assignment]
+
+    def parse_assignment_operator(self) -> t.Optional[nodes.Operator]:
+        for operator in nodes.Operator:
+            if self.parse_raw(operator.value):
+                return operator
+        return None
+
+    def parse_container(
             self, open_container: str, close_container: str, element_separator: str,
             element_parser: t.Callable[[], t.Any]
     ) -> t.Optional[t.List[t.Any]]:
-        if not self._parse(open_container):
+        if not self.parse_raw(open_container):
             return None
         result = []
         element = element_parser()
         while element is not None:
             result.append(element)
-            if not self._parse(element_separator) and not self._next_nonspace_char_is(close_container):
-                self._error_expected(element_separator)
-            self._spaces()
+            if not self.parse_raw(element_separator) and not self.next_nonspace_char_is(close_container):
+                raise errors.AngelSyntaxError(f"expected '{element_separator}' or '{close_container}'", self.get_code())
+            self.spaces()
             element = element_parser()
-        if not self._parse(close_container):
-            self._error_expected(close_container)
+        if not self.parse_raw(close_container):
+            raise errors.AngelSyntaxError(f"expected '{close_container}'", self.get_code())
         return result
 
-    def _parse_node(self) -> t.Optional[nodes.Node]:
+    def parse_node(self) -> t.Optional[nodes.Node]:
         for parser in self.NODE_PARSERS:
             node = parser(self)
             if node is not None:
                 return node
+        return None
 
-    def _is_eof(self) -> bool:
+    def is_eof(self) -> bool:
         return self.code[self.idx:] == ""
 
-    def _parse_type(self) -> t.Optional[nodes.Type]:
-        return self._parse_name()
+    def parse_type(self) -> t.Optional[nodes.Type]:
+        return self.parse_name()
 
-    def _parse_expression(self) -> t.Optional[nodes.Expression]:
-        return self._parse_expression_atom()
+    def parse_expression(self) -> t.Optional[nodes.Expression]:
+        return self.parse_expression_atom()
 
-    def _parse_expression_atom(self) -> t.Optional[nodes.Expression]:
-        for parser in [self._parse_integer_literal, self._parse_string_literal, self._parse_name]:
+    def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
+        for parser in [self.parse_integer_literal, self.parse_string_literal, self.parse_name]:
             result = parser()
             if result is not None:
                 return result
+        return None
 
-    def _parse_integer_literal(self) -> t.Optional[nodes.IntegerLiteral]:
+    def parse_integer_literal(self) -> t.Optional[nodes.IntegerLiteral]:
+        state = self.backup_state()
+        minuses = []
+        while self.parse_raw("-"):
+            minuses.append("-")
         match = INTEGER_REGEX.match(self.code[self.idx:])
         if match is None:
+            self.restore_state(state)
             return None
         match_length = len(match[0])
         self.idx += match_length
         self.position.column += match_length
-        return nodes.IntegerLiteral(match[0])
+        return nodes.IntegerLiteral("".join(minuses) + match[0])
 
-    def _parse_string_literal(self) -> t.Optional[nodes.StringLiteral]:
-        state = self._backup_state()
-        if not self._parse('"'):
+    def parse_string_literal(self) -> t.Optional[nodes.StringLiteral]:
+        state = self.backup_state()
+        if not self.parse_raw('"'):
             return None
         result = []
         for char in self.code[self.idx:]:
@@ -143,16 +193,16 @@ class Parser:
                 result.append(char)
         if result:
             return nodes.StringLiteral("".join(result))
-        self._restore_state(state)
+        self.restore_state(state)
         return None
 
-    def _parse_name(self) -> t.Optional[nodes.Name]:
-        identifier = self._parse_identifier()
+    def parse_name(self) -> t.Optional[nodes.Name]:
+        identifier = self.parse_identifier()
         if identifier:
             return nodes.Name(identifier)
         return None
 
-    def _parse_identifier(self) -> str:
+    def parse_identifier(self) -> str:
         match = IDENTIFIER_REGEX.match(self.code[self.idx:])
         if match is None:
             return ""
@@ -161,7 +211,7 @@ class Parser:
         self.position.column += match_length
         return match[0]
 
-    def _spaces(self):
+    def spaces(self) -> None:
         for char in self.code[self.idx:]:
             if char == "\n":
                 self.idx += 1
@@ -173,16 +223,16 @@ class Parser:
             else:
                 break
 
-    def _parse_keyword(self, keyword: str) -> bool:
-        state = self._backup_state()
-        parsed_keyword_as_string = self._parse(keyword)
-        if parsed_keyword_as_string and not self._next_char_isspace():
-            self._restore_state(state)
+    def parse_keyword(self, keyword: str) -> bool:
+        state = self.backup_state()
+        parsed_keyword_as_string = self.parse_raw(keyword)
+        if parsed_keyword_as_string and not self.next_char_isspace():
+            self.restore_state(state)
             return False
         return parsed_keyword_as_string
 
-    def _parse(self, string: str) -> bool:
-        state = self._backup_state()
+    def parse_raw(self, string: str) -> bool:
+        state = self.backup_state()
         for expected, got in zip_longest(string, self.code[self.idx:]):
             if expected is None:
                 break
@@ -192,32 +242,24 @@ class Parser:
                 return False
             state.idx += 1
             state.position.column += 1
-        self._restore_state(state)
+        self.restore_state(state)
         return True
 
-    def _next_char_isspace(self) -> bool:
+    def next_char_isspace(self) -> bool:
         return self.code[self.idx].isspace()
 
-    def _next_nonspace_char_is(self, expected: str) -> bool:
+    def next_nonspace_char_is(self, expected: str) -> bool:
         for got in self.code[self.idx:]:
             if not got.isspace():
                 return expected == got
         return False
 
-    def _backup_state(self) -> State:
-        return State(idx=self.idx, position=self.position)
+    def backup_state(self) -> State:
+        return State(idx=self.idx, position=nodes.Position(self.position.column, self.position.line))
 
-    def _restore_state(self, state: State):
+    def restore_state(self, state: State) -> None:
         self.idx = state.idx
         self.position = state.position
 
-    def _error_expected(self, expected: str) -> t.NoReturn:
-        self._error_base(f"expected {expected}")
-
-    def _error_parser_has_stuck(self) -> t.NoReturn:
-        self._error_base("parser has stuck")
-
-    def _error_base(self, message: str) -> t.NoReturn:
-        print(f"Parsing Error ({self.position}): {message}; next 10 characters:")
-        print(f"'{self.code[self.idx:self.idx + 10]}'")
-        sys.exit(1)
+    def get_code(self) -> errors.Code:
+        return errors.Code(self.code_lines[self.position.line - 1], self.position.line, self.position.column)

@@ -4,7 +4,7 @@ import traceback
 import typing as t
 import subprocess
 
-from . import parser, translators, generators
+from . import parser, translators, generators, analyzers, environment, errors
 
 
 def compile_file(file_path: str) -> str:
@@ -16,16 +16,28 @@ def compile_file(file_path: str) -> str:
 
 def compile_string(string: str) -> str:
     """Translates Angel code represented by `string` into C++ code and returns it."""
-    ast = parser.Parser().parse(string)
-    cpp_ast = translators.Translator().translate(ast)
-    return generators.generate_cpp(cpp_ast)
+    lines = string.split("\n")
+    try:
+        ast = analyzers.Analyzer(lines).analyze(parser.Parser().parse(string))
+        cpp_ast = translators.Translator(lines).translate(ast)
+    except errors.AngelError as e:
+        print(str(e))
+        print()
+        sys.exit(1)
+    else:
+        return generators.generate_cpp(cpp_ast)
 
 
 def angel_repl_eval(string: str) -> t.Any:
     """Evaluates Angel code represented by `string` and returns the result."""
-    ast = parser.Parser().parse(string)
-    assert len(ast) == 1
-    return translators.Translator().repl_eval(ast[0])
+    lines = string.split("\n")
+    try:
+        ast = analyzers.Analyzer(lines).analyze(parser.Parser().parse(string))
+        return translators.Translator(lines).repl_eval(ast)
+    except errors.AngelError as e:
+        print(str(e))
+        print()
+        sys.exit(1)
 
 
 class REPL(cmd.Cmd):
@@ -35,7 +47,7 @@ class REPL(cmd.Cmd):
 :undo       removes last statement from virtual file
 :exit :quit :q :e   exits"""
     prompt = ">>> "
-    input_ = []
+    input_: t.List[str] = []
 
     def do_eval(self):
         try:
@@ -66,10 +78,10 @@ class REPL(cmd.Cmd):
         elif inp.startswith(":"):
             self.command(inp.split(":")[1])
         else:
-            evaluated = angel_repl_eval(inp)
+            self.input_.append(inp)
+            evaluated = angel_repl_eval("\n".join(self.input_))
             if evaluated is not None:
                 print(evaluated)
-            self.input_.append(inp)
 
     do_quit = do_exit
     do_q = do_exit
