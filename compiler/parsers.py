@@ -10,6 +10,31 @@ IDENTIFIER_REGEX = re.compile("[a-zA-Z][a-zA-Z0-9]*")
 INTEGER_REGEX = re.compile("[0-9]+")
 
 
+OPERATOR_PRIORITY = {
+    nodes.Operator.add.value: 1,
+    nodes.Operator.sub.value: 1,
+
+    nodes.Operator.mul.value: 2,
+    nodes.Operator.div.value: 2,
+
+    nodes.Operator.eq_eq.value: 3,
+    nodes.Operator.neq.value: 3,
+    nodes.Operator.lt_eq.value: 3,
+    nodes.Operator.gt_eq.value: 3,
+    nodes.Operator.lt.value: 3,
+    nodes.Operator.gt.value: 3,
+}
+
+
+def build_binary_expression(
+        left: nodes.Expression, operator: nodes.Operator, right: nodes.Expression
+) -> nodes.Expression:
+    if isinstance(right, nodes.BinaryExpression) and (
+            OPERATOR_PRIORITY[operator.value] >= OPERATOR_PRIORITY[right.operator.value]):
+        return nodes.BinaryExpression(nodes.BinaryExpression(left, operator, right.left), right.operator, right.right)
+    return nodes.BinaryExpression(left, operator, right)
+
+
 @dataclass
 class State:
     idx: int
@@ -155,14 +180,55 @@ class Parser:
     def parse_type(self) -> t.Optional[nodes.Type]:
         return self.parse_name()
 
+    def parse_binary_expression(self, left_parser, operators, right_parser) -> t.Optional[nodes.Expression]:
+        left = left_parser()
+        if left is None:
+            return None
+        state = self.backup_state()
+        self.spaces()
+        got_op = None
+        for operator in operators:
+            if self.parse_raw(operator.value):
+                got_op = operator
+                break
+        if got_op is None:
+            self.restore_state(state)
+            return left
+        self.spaces()
+        right = right_parser()
+        if right is None:
+            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        return build_binary_expression(left, got_op, right)
+
     def parse_expression(self) -> t.Optional[nodes.Expression]:
-        return self.parse_expression_atom()
+        return self.parse_expression_comparison()
+
+    def parse_expression_comparison(self) -> t.Optional[nodes.Expression]:
+        return self.parse_binary_expression(
+            self.parse_expression_subexpression, nodes.Operator.comparison_operators(), self.parse_expression_comparison
+        )
+
+    def parse_expression_subexpression(self) -> t.Optional[nodes.Expression]:
+        return self.parse_binary_expression(
+            self.parse_expression_term, (nodes.Operator.sub, nodes.Operator.add), self.parse_expression_subexpression
+        )
+
+    def parse_expression_term(self) -> t.Optional[nodes.Expression]:
+        return self.parse_binary_expression(
+            self.parse_expression_atom, (nodes.Operator.mul, nodes.Operator.div), self.parse_expression_term
+        )
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
         for parser in [self.parse_integer_literal, self.parse_string_literal, self.parse_name]:
             result = parser()
             if result is not None:
                 return result
+        return None
+
+    def parse_comparison_operator(self) -> t.Optional[nodes.Operator]:
+        for operator in nodes.Operator.comparison_operators():
+            if self.parse_raw(operator.value):
+                return operator
         return None
 
     def parse_integer_literal(self) -> t.Optional[nodes.IntegerLiteral]:

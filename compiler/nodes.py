@@ -60,6 +60,7 @@ class BuiltinType(Type, enum.Enum):
     u64 = "U64"
 
     string = "String"
+    bool = "Bool"
 
     @classmethod
     def finite_signed_int_types(cls) -> t.List[str]:
@@ -103,7 +104,57 @@ class BuiltinFunc(Expression, enum.Enum):
 
 
 class Operator(enum.Enum):
+    not_ = "not"
+    and_ = "and"
+    or_ = "or"
+
+    lt_eq = "<="
+    gt_eq = ">="
+    eq_eq = "=="
+    neq = "!="
+
     eq = "="
+    lt = "<"
+    gt = ">"
+
+    add = "+"
+    sub = "-"
+    mul = "*"
+    div = "/"
+
+    @classmethod
+    def comparison_operators(cls):
+        return [Operator.lt_eq, Operator.gt_eq, Operator.eq_eq, Operator.neq, Operator.lt, Operator.gt]
+
+
+class SpecialMethods(enum.Enum):
+    eq = "__eq__"
+    lt = "__lt__"
+    gt = "__gt__"
+
+    add = "__add__"
+    sub = "__sub__"
+    mul = "__mul__"
+    div = "__div__"
+
+
+@dataclass
+class BinaryExpression(Expression):
+    left: Expression
+    operator: Operator
+    right: Expression
+
+    def to_code(self) -> str:
+        return f"{self.left.to_code()} {self.operator.value} {self.right.to_code()}"
+
+
+@dataclass
+class UnaryExpression(Expression):
+    operator: Operator
+    value: Expression
+
+    def to_code(self) -> str:
+        return f"{self.operator.value} {self.value.to_code()}"
 
 
 @dataclass
@@ -115,6 +166,15 @@ class Name(Type):
         if self.module:
             return f"{self.module}#{self.member}"
         return self.member
+
+
+@dataclass
+class BoolLiteral(Expression, enum.Enum):
+    true = "True"
+    false = "False"
+
+    def to_code(self) -> str:
+        return self.value
 
 
 @dataclass

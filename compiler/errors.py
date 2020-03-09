@@ -23,7 +23,13 @@ class AngelError(Exception):
 
 
 class AngelNotImplemented(AngelError):
-    pass
+    def __str__(self):
+        return "Not implemented"
+
+
+class AngelDivByZero(AngelError):
+    def __str__(self):
+        return "Division by zero is not allowed"
 
 
 @dataclass

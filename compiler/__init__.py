@@ -4,7 +4,7 @@ import traceback
 import typing as t
 import subprocess
 
-from . import parser, translators, generators, analyzers, environment, errors
+from . import parsers, translators, generators, analyzers, environment, errors
 
 
 def compile_file(file_path: str) -> str:
@@ -17,9 +17,11 @@ def compile_file(file_path: str) -> str:
 def compile_string(string: str) -> str:
     """Translates Angel code represented by `string` into C++ code and returns it."""
     lines = string.split("\n")
+    parser = parsers.Parser()
+    analyzer = analyzers.Analyzer(lines)
+    translator = translators.Translator()
     try:
-        ast = analyzers.Analyzer(lines).analyze(parser.Parser().parse(string))
-        cpp_ast = translators.Translator(lines).translate(ast)
+        cpp_ast = translator.translate(analyzer.analyze(parser.parse(string)))
     except errors.AngelError as e:
         print(str(e))
         print()
@@ -31,9 +33,10 @@ def compile_string(string: str) -> str:
 def angel_repl_eval(string: str) -> t.Any:
     """Evaluates Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
+    parser = parsers.Parser()
+    analyzer = analyzers.Analyzer(lines)
     try:
-        ast = analyzers.Analyzer(lines).analyze(parser.Parser().parse(string))
-        return translators.Translator(lines).repl_eval(ast)
+        return analyzer.repl_eval(parser.parse(string))
     except errors.AngelError as e:
         print(str(e))
         print()

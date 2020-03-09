@@ -1,6 +1,6 @@
 import typing as t
 
-from . import nodes, cpp_nodes, environment, environment_entries as entries, errors
+from . import nodes, cpp_nodes, environment
 from .utils import dispatch
 
 BUILTIN_TYPE_TO_CPP_TYPE = {
@@ -15,6 +15,7 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
     nodes.BuiltinType.u64.value: cpp_nodes.StdName.uint_fast64_t,
 
     nodes.BuiltinType.string.value: cpp_nodes.StdName.string,
+    nodes.BuiltinType.bool.value: cpp_nodes.PrimitiveTypes.bool,
 }
 
 
@@ -23,46 +24,9 @@ class Translator:
     main_function_body: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
 
-    def __init__(self, lines: t.List[str]) -> None:
+    def __init__(self) -> None:
         self.env = environment.Environment()
-        self.lines = lines
         self.current_line = 1
-
-        # REPL eval
-        repl_eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
-            nodes.BuiltinFunc.print.value: lambda args: self.repl_eval_expression(args[0]),
-        }
-
-        repl_eval_function_call_dispatcher_by_function_path = {
-            nodes.BuiltinFunc: lambda path, args: dispatch(
-                repl_eval_builtin_function_call_dispatcher, path.value, args
-            ),
-        }
-
-        repl_eval_assignment_by_left = {
-            nodes.Name: self.repl_eval_name_assignment,
-        }
-
-        repl_eval_dispatcher = {
-            nodes.ConstantDeclaration: self.repl_eval_constant_declaration,
-            nodes.VariableDeclaration: self.repl_eval_variable_declaration,
-            nodes.Assignment: lambda node: dispatch(
-                repl_eval_assignment_by_left, type(node.left), node.left, node.operator, node.right
-            ),
-            nodes.FunctionCall: lambda node: dispatch(
-                repl_eval_function_call_dispatcher_by_function_path, type(node.function_path),
-                node.function_path, node.args
-            ),
-        }
-        self.repl_eval_node = lambda node: dispatch(repl_eval_dispatcher, type(node), node)
-
-        repl_eval_expression_dispatcher = {
-            nodes.IntegerLiteral: lambda value: int(value.value),
-            nodes.StringLiteral: lambda value: value.value,
-            nodes.Name: self.repl_eval_name,
-            type(None): lambda _: None,
-        }
-        self.repl_eval_expression = lambda value: dispatch(repl_eval_expression_dispatcher, type(value), value)
 
         # Translation
         translate_builtin_function_dispatcher = {
@@ -93,6 +57,11 @@ class Translator:
         translate_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: cpp_nodes.IntegerLiteral(value.value),
             nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
+            nodes.BoolLiteral: lambda value: cpp_nodes.BoolLiteral(value.value.lower()),
+            nodes.BinaryExpression: lambda value: cpp_nodes.BinaryExpression(
+                self.translate_expression(value.left), cpp_nodes.Operator(value.operator.value),
+                self.translate_expression(value.right)
+            ),
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
             type(None): lambda _: None,
         }
@@ -141,53 +110,5 @@ class Translator:
     def translate_operator(self, operator: nodes.Operator) -> cpp_nodes.Operator:
         return cpp_nodes.Operator(operator.value)
 
-    def repl_eval(self, ast: nodes.AST) -> t.Any:
-        result = None
-        for node in ast:
-            self.current_line = node.line
-            result = self.repl_eval_node(node)
-        return result
-
-    def repl_eval_constant_declaration(self, node: nodes.ConstantDeclaration) -> None:
-        assert node.type is not None
-        self.env.add_constant(
-            node.line, node.name, node.type, node.value, computed_value=self.repl_eval_expression(node.value)
-        )
-
-    def repl_eval_variable_declaration(self, node: nodes.VariableDeclaration) -> None:
-        assert node.type is not None
-        self.env.add_variable(
-            node.line, node.name, node.type, computed_value=self.repl_eval_expression(node.value)
-        )
-
-    def repl_eval_name_assignment(self, left: nodes.Name, operator: nodes.Operator, right: nodes.Expression) -> None:
-        entry = self.env[left.member]
-        if isinstance(entry, entries.VariableEntry):
-            if operator.value == nodes.Operator.eq.value:
-                entry.computed_value = self.repl_eval_expression(right)
-            else:
-                raise errors.AngelNotImplemented
-        elif isinstance(entry, entries.ConstantEntry):
-            if entry.has_value:
-                raise errors.AngelConstantReassignment(
-                    left, self.get_code(self.current_line), self.get_code(entry.line))
-            if operator.value == nodes.Operator.eq.value:
-                entry.computed_value = self.repl_eval_expression(right)
-                entry.has_value = True
-            else:
-                raise errors.AngelNotImplemented
-        else:
-            raise errors.AngelNameError(left, self.get_code(self.current_line))
-
-    def repl_eval_name(self, value: nodes.Name) -> t.Any:
-        entry = self.env[value.member]
-        if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
-            return entry.computed_value
-        else:
-            raise errors.AngelNameError(value, self.get_code(self.current_line))
-
     def add_include(self, module: cpp_nodes.StdModule):
         self.includes[module.value] = cpp_nodes.Include(module)
-
-    def get_code(self, line: int) -> errors.Code:
-        return errors.Code(self.lines[line - 1], line)

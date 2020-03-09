@@ -34,7 +34,20 @@ class StdModule(enum.Enum):
 
 class Operator(enum.Enum):
     lshift = "<<"
+
+    lt_eq = "<="
+    gt_eq = ">="
+    eq_eq = "=="
+    neq = "!="
+
     eq = "="
+    lt = "<"
+    gt = ">"
+
+    add = "+"
+    sub = "-"
+    mul = "*"
+    div = "/"
 
 
 class StdName(Type, Expression, enum.Enum):
@@ -61,6 +74,7 @@ class StdName(Type, Expression, enum.Enum):
 class PrimitiveTypes(Type, enum.Enum):
     int = "int"
     void = "void"
+    bool = "bool"
 
     def to_code(self) -> str:
         assert isinstance(self.value, str)
@@ -81,6 +95,14 @@ class StringLiteral(Expression):
 
     def to_code(self) -> str:
         return '"' + self.value + '"'
+
+
+class BoolLiteral(Expression, enum.Enum):
+    true = "true"
+    false = "false"
+
+    def to_code(self) -> str:
+        return self.value
 
 
 @dataclass
