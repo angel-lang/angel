@@ -52,6 +52,7 @@ class Translator:
                 translate_function_call_dispatcher_by_function_path, type(node.function_path),
                 node.function_path, node.args
             ),
+            nodes.While: self.translate_while_statement,
         }
 
         translate_expression_dispatcher = {
@@ -78,17 +79,27 @@ class Translator:
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
         self.includes = {}
         self.top_nodes = []
-        self.main_function_body = []
-
-        for node in ast:
-            self.current_line = node.line
-            self.main_function_body.append(dispatch(self.translate_node_dispatcher, type(node), node))
+        self.main_function_body = self.translate_body(ast)
 
         return0 = cpp_nodes.Return(cpp_nodes.IntegerLiteral("0"))
         main_function = cpp_nodes.FunctionDeclaration(
             return_type=cpp_nodes.PrimitiveTypes.int, name="main", args=[], body=self.main_function_body + [return0]
         )
         return t.cast(cpp_nodes.AST, list(self.includes.values())) + self.top_nodes + [main_function]
+
+    def translate_body(self, ast: nodes.AST) -> cpp_nodes.AST:
+        result = []
+        for node in ast:
+            self.current_line = node.line
+            result.append(dispatch(self.translate_node_dispatcher, type(node), node))
+        return result
+
+    def translate_while_statement(self, node: nodes.While) -> cpp_nodes.While:
+        condition = self.translate_expression(node.condition)
+        self.env.inc_nesting()
+        body = self.translate_body(node.body)
+        self.env.dec_nesting()
+        return cpp_nodes.While(condition, body)
 
     def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Node:
         assert len(args) == 1

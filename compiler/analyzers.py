@@ -118,6 +118,7 @@ class Analyzer:
             nodes.VariableDeclaration: self.analyze_variable_declaration,
             nodes.Assignment: self.analyze_assignment,
             nodes.FunctionCall: self.analyze_function_call,
+            nodes.While: self.analyze_while_statement,
         }
         self.analyze_node = lambda node: dispatch(analyze_node_dispatcher, type(node), node)
         self.analyze = lambda ast: [self.analyze_node(node) for node in ast]
@@ -188,6 +189,15 @@ class Analyzer:
             node.line, self.clarify_expression(node.function_path),
             [self.clarify_expression(arg) for arg in node.args]
         )
+
+    def analyze_while_statement(self, node: nodes.While) -> nodes.While:
+        self.current_line = node.line
+        condition = self.clarify_expression(node.condition)
+        self.infer_type(condition, supertype=nodes.BuiltinType.bool)
+        self.env.inc_nesting()
+        body = self.analyze(node.body)
+        self.env.dec_nesting()
+        return nodes.While(node.line, condition, body)
 
     @t.overload
     def clarify_expression(self, value: None) -> None:

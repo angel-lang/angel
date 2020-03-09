@@ -4,6 +4,9 @@ import typing as t
 from dataclasses import dataclass
 
 
+INDENTATION = " " * 4
+
+
 @dataclass
 class Position:
     column: int = 1
@@ -246,3 +249,13 @@ class VariableDeclaration(Node):
             return f"var {self.name.to_code()} = {self.value.to_code()}"
         assert self.type is not None
         return f"var {self.name.to_code()}: {self.type.to_code()}"
+
+
+@dataclass
+class While(Node):
+    condition: Expression
+    body: t.List[Node]
+
+    def to_code(self) -> str:
+        body = ('\n' + INDENTATION).join(node.to_code() for node in self.body)
+        return f"while {self.condition.to_code()}:\n{INDENTATION}{body}"

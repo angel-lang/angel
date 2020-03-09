@@ -32,3 +32,11 @@ class Environment:
         self.space[self.nesting_level][name.member] = entries.VariableEntry(
             line, name, type_, computed_value=computed_value
         )
+
+    def inc_nesting(self) -> None:
+        self.nesting_level += 1
+        self.space.append({})
+
+    def dec_nesting(self) -> None:
+        del self.space[self.nesting_level]
+        self.nesting_level -= 1

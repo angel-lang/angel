@@ -2,6 +2,7 @@ import re
 import typing as t
 from dataclasses import dataclass
 from itertools import zip_longest
+from functools import partial
 
 from . import nodes, errors
 
@@ -45,12 +46,14 @@ class Parser:
     code: str
     code_lines: t.List[str]
     idx: int
+    indentation_level: int
     position: nodes.Position
 
     def parse(self, string: str) -> t.List[nodes.Node]:
         self.code = string
         self.code_lines = string.split("\n")
         self.idx = 0
+        self.indentation_level = 0
         self.position = nodes.Position()
 
         result = []
@@ -141,7 +144,61 @@ class Parser:
             raise errors.AngelSyntaxError("expected expression", self.get_code())
         return nodes.Assignment(line, left, operator, right)
 
-    NODE_PARSERS = [parse_constant_declaration, parse_variable_declaration, parse_function_call, parse_assignment]
+    def parse_while_statement(self) -> t.Optional[nodes.While]:
+        line = self.position.line
+        if not self.parse_raw("while"):
+            return None
+        self.spaces()
+        condition = self.parse_expression()
+        if condition is None:
+            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        if not self.parse_raw(":"):
+            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        body = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return nodes.While(line, condition, body)
+
+    NODE_PARSERS = [
+        parse_constant_declaration, parse_variable_declaration, parse_while_statement,
+        parse_function_call, parse_assignment
+    ]
+
+    def parse_body(self, statement_parsers) -> t.List[nodes.Node]:
+        def mega_parser() -> t.Optional[nodes.Node]:
+            for parser in statement_parsers:
+                parsed = parser()
+                if parsed is not None:
+                    return parsed
+            return None
+
+        self.indentation_level += 1
+        result = []
+        state = self.backup_state()
+        indentation = self.parse_indentation()
+        if not indentation:
+            self.restore_state(state)
+            self.indentation_level -= 1
+            return result
+        node = mega_parser()
+        while node is not None:
+            result.append(node)
+            state = self.backup_state()
+            indentation = self.parse_indentation()
+            if not indentation:
+                self.restore_state(state)
+                break
+            node = mega_parser()
+        self.indentation_level -= 1
+        return result
+
+    def parse_indentation(self) -> bool:
+        expected_indentation = nodes.INDENTATION * self.indentation_level
+        result = self.parse_raw("\n" + expected_indentation)
+        if result:
+            self.position.line += 1
+            self.position.column = len(expected_indentation)
+        return result
 
     def parse_assignment_operator(self) -> t.Optional[nodes.Operator]:
         for operator in nodes.Operator:

@@ -25,9 +25,9 @@ This repository contains Angel to C++ compiler written in Python.
 C++ code in `my_file.cpp`. 
 
 ## Tutorial
-`print("Hello, world!")` prints `Hello, world!`.
+Angel is a statically-typed language (types cannot be changed in runtime). 
 
-Angel is a statically-typed language.
+`print("Hello, world!")` prints `Hello, world!`.
 
 `var number: I16 = 200` creates a variable `number` with type `I16` and value `200`.
 
@@ -43,5 +43,19 @@ let name: String = "John"
 
 let name = "John"
 ```
-
 You can use variables and constants in expressions, e.g. `print(number)`.
+
+### While
+```
+var i: U16 = 0
+while i < 10:
+    print(i)
+    i = i + 1
+```
+Prints all integers from 0 to 9. Indentation must be 4 spaces.
+
+## Known problems
+- While loop is not currently supported in REPL.
+- `I8` and `U8` are printed as `Char`
+- There is no `Char` type for now
+- `True` and `False` are printed as `true` and `false` respectively

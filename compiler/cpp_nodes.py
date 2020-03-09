@@ -199,3 +199,13 @@ class FunctionDeclaration(Node):
         args = ",".join(arg.to_code() for arg in self.args)
         body = "\n".join(node.to_code() for node in self.body)
         return f"{self.return_type.to_code()} {self.name}({args}){{{body}}}"
+
+
+@dataclass
+class While(Node):
+    condition: Expression
+    body: AST
+
+    def to_code(self) -> str:
+        body = "\n".join(node.to_code() for node in self.body)
+        return f"while({self.condition.to_code()}){{{body}}}"
