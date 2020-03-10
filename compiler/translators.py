@@ -16,6 +16,7 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
 
     nodes.BuiltinType.string.value: cpp_nodes.StdName.string,
     nodes.BuiltinType.bool.value: cpp_nodes.PrimitiveTypes.bool,
+    nodes.BuiltinType.void.value: cpp_nodes.PrimitiveTypes.void,
 }
 
 
@@ -35,6 +36,11 @@ class Translator:
 
         translate_function_call_dispatcher_by_function_path = {
             nodes.BuiltinFunc: lambda path, args: dispatch(translate_builtin_function_dispatcher, path.value, args),
+            nodes.Name: lambda path, args: cpp_nodes.Semicolon(
+                cpp_nodes.FunctionCall(
+                    self.translate_expression(path), [self.translate_expression(arg) for arg in args]
+                )
+            ),
         }
 
         self.translate_node_dispatcher = {
@@ -44,6 +50,7 @@ class Translator:
             nodes.VariableDeclaration: lambda node: cpp_nodes.Declaration(
                 self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
             ),
+            nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.Assignment: lambda node: cpp_nodes.Assignment(
                 self.translate_expression(node.left), self.translate_operator(node.operator),
                 self.translate_expression(node.right)
@@ -80,7 +87,13 @@ class Translator:
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
         self.includes = {}
         self.top_nodes = []
-        self.main_function_body = self.translate_body(ast)
+        self.main_function_body = []
+
+        for node in self.translate_body(ast):
+            if isinstance(node, cpp_nodes.FunctionDeclaration):
+                self.top_nodes.append(node)
+            else:
+                self.main_function_body.append(node)
 
         return0 = cpp_nodes.Return(cpp_nodes.IntegerLiteral("0"))
         main_function = cpp_nodes.FunctionDeclaration(
@@ -94,6 +107,14 @@ class Translator:
             self.current_line = node.line
             result.append(dispatch(self.translate_node_dispatcher, type(node), node))
         return result
+
+    def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.FunctionDeclaration:
+        return_type = self.translate_type(node.return_type)
+        args = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.args]
+        self.env.inc_nesting()
+        body = self.translate_body(node.body)
+        self.env.dec_nesting()
+        return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
 
     def translate_while_statement(self, node: nodes.While) -> cpp_nodes.While:
         condition = self.translate_expression(node.condition)

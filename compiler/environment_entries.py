@@ -23,3 +23,11 @@ class VariableEntry(Entry):
     name: nodes.Name
     type: nodes.Type
     computed_value: t.Any = None
+
+
+@dataclass
+class FunctionEntry(Entry):
+    name: nodes.Name
+    args: t.List[nodes.Argument]
+    return_type: nodes.Type
+    body: nodes.AST

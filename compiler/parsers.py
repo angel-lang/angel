@@ -2,7 +2,6 @@ import re
 import typing as t
 from dataclasses import dataclass
 from itertools import zip_longest
-from functools import partial
 
 from . import nodes, errors
 
@@ -48,6 +47,16 @@ class Parser:
     idx: int
     indentation_level: int
     position: nodes.Position
+    additional_statement_parsers: t.List[t.Callable[[], t.Optional[nodes.Node]]]
+
+    def __init__(self):
+        base_body_parsers = [
+            self.parse_constant_declaration, self.parse_variable_declaration,
+            self.parse_while_statement, self.parse_if_statement, self.parse_assignment, self.parse_function_call
+        ]
+        self.while_statement_body_parsers = base_body_parsers
+        self.if_statement_body_parsers = base_body_parsers
+        self.function_declaration_statement_body_parsers = base_body_parsers
 
     def parse(self, string: str) -> t.List[nodes.Node]:
         self.code = string
@@ -55,6 +64,7 @@ class Parser:
         self.idx = 0
         self.indentation_level = 0
         self.position = nodes.Position()
+        self.additional_statement_parsers = []
 
         result = []
         self.spaces()
@@ -154,7 +164,9 @@ class Parser:
             raise errors.AngelSyntaxError("expected expression", self.get_code())
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
-        body = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+        self.additional_statement_parsers.append(self.parse_break)
+        body = self.parse_body(self.additional_statement_parsers + self.while_statement_body_parsers)
+        self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return nodes.While(line, condition, body)
@@ -169,7 +181,7 @@ class Parser:
             raise errors.AngelSyntaxError("expected expression", self.get_code())
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
-        body = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+        body = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         elifs = []
@@ -182,7 +194,7 @@ class Parser:
                 raise errors.AngelSyntaxError("expected expression", self.get_code())
             if not self.parse_raw(":"):
                 raise errors.AngelSyntaxError("expected ':'", self.get_code())
-            elif_body = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+            elif_body = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
             if not elif_body:
                 raise errors.AngelSyntaxError("expected statement", self.get_code())
             elifs.append((elif_condition, elif_body))
@@ -190,7 +202,7 @@ class Parser:
             self.spaces()
         else_ = []
         if self.parse_raw("else:"):
-            else_ = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+            else_ = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
             if not else_:
                 raise errors.AngelSyntaxError("expected statement", self.get_code())
         elif elifs:
@@ -199,9 +211,54 @@ class Parser:
             self.restore_state(state)
         return nodes.If(line, condition, body, elifs, else_)
 
+    def parse_function_declaration(self) -> t.Optional[nodes.FunctionDeclaration]:
+        line = self.position.line
+        if not self.parse_raw("fun"):
+            return None
+        self.spaces()
+        name = self.parse_name()
+        if name is None:
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        args = self.parse_container(
+            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_argument)
+        if args is None:
+            raise errors.AngelSyntaxError("expected '('", self.get_code())
+        self.spaces()
+        if self.parse_raw("->"):
+            self.spaces()
+            return_type = self.parse_type()
+            if return_type is None:
+                raise errors.AngelSyntaxError("expected type", self.get_code())
+        else:
+            return_type = nodes.BuiltinType.void
+        if not self.parse_raw(":"):
+            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        self.additional_statement_parsers.append(self.parse_return_statement)
+        body = self.parse_body(self.additional_statement_parsers + self.function_declaration_statement_body_parsers)
+        self.additional_statement_parsers.pop()
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return nodes.FunctionDeclaration(line, name, args, return_type, body)
+
+    def parse_return_statement(self) -> t.Optional[nodes.Return]:
+        line = self.position.line
+        if not self.parse_raw("return"):
+            return None
+        self.spaces()
+        value = self.parse_expression()
+        if value is None:
+            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        return nodes.Return(line, value)
+
+    def parse_break(self) -> t.Optional[nodes.Break]:
+        line = self.position.line
+        if not self.parse_raw("break"):
+            return None
+        return nodes.Break(line)
+
     NODE_PARSERS = [
-        parse_constant_declaration, parse_variable_declaration, parse_while_statement,
-        parse_if_statement, parse_assignment, parse_function_call
+        parse_constant_declaration, parse_variable_declaration, parse_function_declaration,
+        parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
 
     def parse_body(self, statement_parsers) -> t.List[nodes.Node]:
@@ -239,6 +296,18 @@ class Parser:
             self.position.line += 1
             self.position.column = len(expected_indentation)
         return result
+
+    def parse_argument(self) -> t.Optional[nodes.Argument]:
+        name = self.parse_name()
+        if name is None:
+            return None
+        if not self.parse_raw(":"):
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        self.spaces()
+        type_ = self.parse_type()
+        if type_ is None:
+            raise errors.AngelSyntaxError("expected type", self.get_code())
+        return nodes.Argument(name, type_)
 
     def parse_assignment_left(self) -> t.Optional[nodes.Expression]:
         return self.parse_name()

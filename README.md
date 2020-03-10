@@ -64,6 +64,17 @@ else:
     print("OK")
 ```
 
+### Functions
+```
+fun printNumbers(end: I16):
+    var i: I16 = 0
+    while i < end:
+        print(i)
+        i += 1
+
+printNumbers(5)
+```
+
 ## Known problems
 - `I8` and `U8` are printed as `Char`
 - There is no `Char` type for now

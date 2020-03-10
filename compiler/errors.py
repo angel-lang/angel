@@ -50,6 +50,34 @@ class AngelTypeError(AngelError):
 
 
 @dataclass
+class AngelWrongArguments(AngelError):
+    expected: str
+    code: Code
+    got_args: t.List[nodes.Expression]
+
+    def __str__(self):
+        args = "(" + ", ".join(arg.to_code() for arg in self.got_args) + ")"
+        return "\n".join((
+            f"Arguments Error: got '{args}', expected '{self.expected}' in",
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
+class AngelNoncallableCall(AngelError):
+    noncallable: nodes.Expression
+    code: Code
+
+    def __str__(self):
+        return "\n".join((
+            f"Noncallable Call Error: noncallable '{self.noncallable.to_code()}' was called in",
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelSyntaxError(AngelError):
     message: str
     code: Code

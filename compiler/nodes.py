@@ -51,6 +51,11 @@ class Type(Expression):
 AST = t.List[Node]
 
 
+@dataclass
+class DynValue:
+    type: Type
+
+
 class BuiltinType(Type, enum.Enum):
     i8 = "I8"
     i16 = "I16"
@@ -64,6 +69,7 @@ class BuiltinType(Type, enum.Enum):
 
     string = "String"
     bool = "Bool"
+    void = "Void"
 
     @classmethod
     def finite_signed_int_types(cls) -> t.List[str]:
@@ -272,6 +278,12 @@ class VariableDeclaration(Node):
 
 
 @dataclass
+class Break(Node):
+    def to_code(self, indentation_level: int = 0) -> str:
+        return INDENTATION * indentation_level + "break"
+
+
+@dataclass
 class While(Node):
     condition: Expression
     body: AST
@@ -306,4 +318,35 @@ class If(Node):
         else:
             else_ = ""
         code = f"if {self.condition.to_code()}:\n{body}{elifs}{else_}"
+        return INDENTATION * indentation_level + code
+
+
+@dataclass
+class Return(Node):
+    value: Expression
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"return {self.value.to_code()}"
+
+
+@dataclass
+class Argument:
+    name: Name
+    type: Type
+
+    def to_code(self) -> str:
+        return f"{self.name.to_code()}: {self.type.to_code()}"
+
+
+@dataclass
+class FunctionDeclaration(Node):
+    name: Name
+    args: t.List[Argument]
+    return_type: Type
+    body: AST
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        args = ', '.join(arg.to_code() for arg in self.args)
+        code = f"fun {self.name.to_code()}({args}) -> {self.return_type.to_code()}:\n{body}"
         return INDENTATION * indentation_level + code
