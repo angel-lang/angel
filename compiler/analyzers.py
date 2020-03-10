@@ -76,7 +76,7 @@ class Analyzer:
 
         # REPL eval
         repl_eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
-            nodes.BuiltinFunc.print.value: lambda args: self.repl_eval_expression(args[0]),
+            nodes.BuiltinFunc.print.value: lambda args: print(self.repl_eval_expression(args[0])),
         }
 
         repl_eval_function_call_dispatcher_by_function_path = {
@@ -85,20 +85,15 @@ class Analyzer:
             ),
         }
 
-        repl_eval_assignment_by_left = {
-            nodes.Name: self.repl_eval_name_assignment,
-        }
-
         repl_eval_dispatcher = {
-            nodes.ConstantDeclaration: self.repl_eval_constant_declaration,
-            nodes.VariableDeclaration: self.repl_eval_variable_declaration,
-            nodes.Assignment: lambda node: dispatch(
-                repl_eval_assignment_by_left, type(node.left), node.left, node.operator, node.right
-            ),
+            nodes.ConstantDeclaration: lambda _: None,
+            nodes.VariableDeclaration: lambda _: None,
+            nodes.Assignment: lambda _: None,
             nodes.FunctionCall: lambda node: dispatch(
                 repl_eval_function_call_dispatcher_by_function_path, type(node.function_path),
                 node.function_path, node.args
             ),
+            nodes.While: self.repl_eval_while_statement,
         }
         self.repl_eval_node = lambda node: dispatch(repl_eval_dispatcher, type(node), node)
 
@@ -111,6 +106,12 @@ class Analyzer:
             type(None): lambda _: None,
         }
         self.repl_eval_expression = lambda value: dispatch(repl_eval_expression_dispatcher, type(value), value)
+
+        reassign_dispatcher = {
+            nodes.Name: self.reassign_name,
+        }
+        self.reassign = lambda node: dispatch(
+            reassign_dispatcher, type(node.left), node.left, node.operator, node.right)
 
         # Analyzer
         analyze_node_dispatcher = {
@@ -180,7 +181,7 @@ class Analyzer:
         # Type checking
         self.infer_type(right, supertype=self.infer_type(left))
         result = nodes.Assignment(node.line, left, node.operator, right)
-        self.repl_eval_node(result)
+        self.reassign(result)
         return result
 
     def analyze_function_call(self, node: nodes.FunctionCall) -> nodes.FunctionCall:
@@ -324,26 +325,20 @@ class Analyzer:
             raise errors.AngelNameError(value, self.get_code(self.current_line))
         return self.get_code(entry.line)
 
-    def repl_eval(self, ast: nodes.AST) -> t.Any:
+    def repl_eval(self, ast: nodes.AST, execute_only_last_node: bool = False) -> t.Any:
         result = None
+        last_node = None
         for node in ast:
             self.current_line = node.line
-            result = self.repl_eval_node(self.analyze_node(node))
+            analyzed = self.analyze_node(node)
+            last_node = analyzed
+            if not execute_only_last_node:
+                result = self.repl_eval_node(analyzed)
+        if execute_only_last_node:
+            result = self.repl_eval_node(last_node)
         return result
 
-    def repl_eval_constant_declaration(self, node: nodes.ConstantDeclaration) -> None:
-        assert node.type is not None
-        self.env.add_constant(
-            node.line, node.name, node.type, node.value, computed_value=self.repl_eval_expression(node.value)
-        )
-
-    def repl_eval_variable_declaration(self, node: nodes.VariableDeclaration) -> None:
-        assert node.type is not None
-        self.env.add_variable(
-            node.line, node.name, node.type, computed_value=self.repl_eval_expression(node.value)
-        )
-
-    def repl_eval_name_assignment(self, left: nodes.Name, operator: nodes.Operator, right: nodes.Expression) -> None:
+    def reassign_name(self, left: nodes.Name, operator: nodes.Operator, right: nodes.Expression) -> None:
         entry = self.env[left.member]
         if isinstance(entry, entries.VariableEntry):
             if operator.value == nodes.Operator.eq.value:
@@ -361,6 +356,12 @@ class Analyzer:
                 raise errors.AngelNotImplemented
         else:
             raise errors.AngelNameError(left, self.get_code(self.current_line))
+
+    def repl_eval_while_statement(self, node: nodes.While):
+        while self.repl_eval_expression(node.condition):
+            result = self.repl_eval(node.body)
+            if result is not None:
+                return result
 
     def repl_eval_binary_expression(self, value: nodes.BinaryExpression) -> t.Any:
         left = self.repl_eval_expression(value.left)

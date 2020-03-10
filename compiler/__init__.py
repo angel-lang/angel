@@ -36,7 +36,7 @@ def angel_repl_eval(string: str) -> t.Any:
     parser = parsers.Parser()
     analyzer = analyzers.Analyzer(lines)
     try:
-        return analyzer.repl_eval(parser.parse(string))
+        return analyzer.repl_eval(parser.parse(string), execute_only_last_node=True)
     except errors.AngelError as e:
         print(str(e))
         print()
@@ -50,7 +50,16 @@ class REPL(cmd.Cmd):
 :undo       removes last statement from virtual file
 :exit :quit :q :e   exits"""
     prompt = ">>> "
+    identchars = " "
     input_: t.List[str] = []
+    buffer: t.List[str] = []
+    indentation_expected: bool = False
+    real_inp: str
+
+    def precmd(self, line):
+        # Save line with leading whitespaces.
+        self.real_inp = line
+        return line
 
     def do_eval(self):
         try:
@@ -73,18 +82,29 @@ class REPL(cmd.Cmd):
         sys.exit(0)
 
     def emptyline(self):
-        pass
+        if self.indentation_expected:
+            self.indentation_expected = False
+            self.prompt = ">>> "
+            self.input_.extend(self.buffer)
+            angel_repl_eval("\n".join(self.input_))
 
     def default(self, inp):
         if inp == "EOF":
             return True
         elif inp.startswith(":"):
+            if self.indentation_expected:
+                return True
             self.command(inp.split(":")[1])
         else:
-            self.input_.append(inp)
-            evaluated = angel_repl_eval("\n".join(self.input_))
-            if evaluated is not None:
-                print(evaluated)
+            if self.indentation_expected:
+                self.buffer.append(self.real_inp)
+            elif inp.endswith(":"):
+                self.indentation_expected = True
+                self.prompt = "... "
+                self.buffer = [inp]
+            else:
+                self.input_.append(inp)
+                angel_repl_eval("\n".join(self.input_))
 
     do_quit = do_exit
     do_q = do_exit
