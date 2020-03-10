@@ -274,9 +274,36 @@ class VariableDeclaration(Node):
 @dataclass
 class While(Node):
     condition: Expression
-    body: t.List[Node]
+    body: AST
 
     def to_code(self, indentation_level: int = 0) -> str:
         body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
         code = f"while {self.condition.to_code()}:\n{body}"
+        return INDENTATION * indentation_level + code
+
+
+@dataclass
+class If(Node):
+    condition: Expression
+    body: AST
+    elifs: t.List[t.Tuple[Expression, AST]]
+    else_: AST
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        if self.elifs:
+            elifs_ = []
+            for elif_condition, elif_body in self.elifs:
+                elif_body_code = '\n'.join(node.to_code(indentation_level + 1) for node in elif_body)
+                elif_code = f"elif {elif_condition.to_code()}:\n{elif_body_code}"
+                elifs_.append(INDENTATION * indentation_level + elif_code)
+            elifs = "\n".join(elifs_)
+        else:
+            elifs = ""
+        if self.else_:
+            else_body = '\n'.join(node.to_code(indentation_level + 1) for node in self.else_)
+            else_ = INDENTATION * indentation_level + f"else:\n{else_body}"
+        else:
+            else_ = ""
+        code = f"if {self.condition.to_code()}:\n{body}{elifs}{else_}"
         return INDENTATION * indentation_level + code

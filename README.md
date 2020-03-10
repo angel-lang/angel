@@ -54,6 +54,16 @@ while i < 10:
 ```
 Prints all integers from 0 to 9. Indentation must be 4 spaces.
 
+### If
+```
+if 1 > 2:
+    print("Really?")
+elif 0 > 2:
+    print("Are you sure?")
+else:
+    print("OK")
+```
+
 ## Known problems
 - `I8` and `U8` are printed as `Char`
 - There is no `Char` type for now

@@ -159,9 +159,49 @@ class Parser:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return nodes.While(line, condition, body)
 
+    def parse_if_statement(self) -> t.Optional[nodes.If]:
+        line = self.position.line
+        if not self.parse_raw("if"):
+            return None
+        self.spaces()
+        condition = self.parse_expression()
+        if condition is None:
+            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        if not self.parse_raw(":"):
+            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        body = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        elifs = []
+        state = self.backup_state()
+        self.spaces()
+        while self.parse_raw("elif"):
+            self.spaces()
+            elif_condition = self.parse_expression()
+            if elif_condition is None:
+                raise errors.AngelSyntaxError("expected expression", self.get_code())
+            if not self.parse_raw(":"):
+                raise errors.AngelSyntaxError("expected ':'", self.get_code())
+            elif_body = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+            if not elif_body:
+                raise errors.AngelSyntaxError("expected statement", self.get_code())
+            elifs.append((elif_condition, elif_body))
+            state = self.backup_state()
+            self.spaces()
+        else_ = []
+        if self.parse_raw("else:"):
+            else_ = self.parse_body(statement_parsers=[partial(parser, self) for parser in self.NODE_PARSERS])
+            if not else_:
+                raise errors.AngelSyntaxError("expected statement", self.get_code())
+        elif elifs:
+            self.restore_state(state)
+        if not elifs and not else_:
+            self.restore_state(state)
+        return nodes.If(line, condition, body, elifs, else_)
+
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_while_statement,
-        parse_assignment, parse_function_call
+        parse_if_statement, parse_assignment, parse_function_call
     ]
 
     def parse_body(self, statement_parsers) -> t.List[nodes.Node]:

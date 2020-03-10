@@ -94,6 +94,7 @@ class Analyzer:
                 node.function_path, node.args
             ),
             nodes.While: self.repl_eval_while_statement,
+            nodes.If: self.repl_eval_if_statement,
         }
         self.repl_eval_node = lambda node: dispatch(repl_eval_dispatcher, type(node), node)
 
@@ -119,6 +120,7 @@ class Analyzer:
             nodes.Assignment: self.analyze_assignment,
             nodes.FunctionCall: self.analyze_function_call,
             nodes.While: self.analyze_while_statement,
+            nodes.If: self.analyze_if_statement,
         }
         self.analyze_node = lambda node: dispatch(analyze_node_dispatcher, type(node), node)
         self.analyze = lambda ast: [self.analyze_node(node) for node in ast]
@@ -202,6 +204,26 @@ class Analyzer:
         body = self.analyze(node.body)
         self.env.dec_nesting()
         return nodes.While(node.line, condition, body)
+
+    def analyze_if_statement(self, node: nodes.If) -> nodes.If:
+        self.current_line = node.line
+        condition = self.clarify_expression(node.condition)
+        self.infer_type(condition, supertype=nodes.BuiltinType.bool)
+        self.env.inc_nesting()
+        body = self.analyze(node.body)
+        self.env.dec_nesting()
+        elifs = []
+        for elif_condition, elif_body in node.elifs:
+            elif_condition_clarified = self.clarify_expression(elif_condition)
+            self.infer_type(elif_condition_clarified, supertype=nodes.BuiltinType.bool)
+            self.env.inc_nesting()
+            elif_body_clarified = self.analyze(elif_body)
+            self.env.dec_nesting()
+            elifs.append((elif_condition_clarified, elif_body_clarified))
+        self.env.inc_nesting()
+        else_ = self.analyze(node.else_)
+        self.env.dec_nesting()
+        return nodes.If(node.line, condition, body, elifs, else_)
 
     @t.overload
     def clarify_expression(self, value: None) -> None:
@@ -359,6 +381,14 @@ class Analyzer:
             result = self.repl_eval(node.body)
             if result is not None:
                 return result
+
+    def repl_eval_if_statement(self, node: nodes.If):
+        if self.repl_eval_expression(node.condition):
+            return self.repl_eval(node.body)
+        for elif_condition, elif_body in node.elifs:
+            if self.repl_eval_expression(elif_condition):
+                return self.repl_eval(elif_body)
+        return self.repl_eval(node.else_)
 
     def repl_eval_binary_expression(self, value: nodes.BinaryExpression) -> t.Any:
         left = self.repl_eval_expression(value.left)

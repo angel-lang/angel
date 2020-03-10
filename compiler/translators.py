@@ -53,6 +53,7 @@ class Translator:
                 node.function_path, node.args
             ),
             nodes.While: self.translate_while_statement,
+            nodes.If: self.translate_if_statement,
         }
 
         translate_expression_dispatcher = {
@@ -100,6 +101,23 @@ class Translator:
         body = self.translate_body(node.body)
         self.env.dec_nesting()
         return cpp_nodes.While(condition, body)
+
+    def translate_if_statement(self, node: nodes.If) -> cpp_nodes.If:
+        condition = self.translate_expression(node.condition)
+        self.env.inc_nesting()
+        body = self.translate_body(node.body)
+        self.env.dec_nesting()
+        else_ifs = []
+        for elif_condition, elif_body in node.elifs:
+            else_if_condition = self.translate_expression(elif_condition)
+            self.env.inc_nesting()
+            else_if_body = self.translate_body(elif_body)
+            self.env.dec_nesting()
+            else_ifs.append((else_if_condition, else_if_body))
+        self.env.inc_nesting()
+        else_ = self.translate_body(node.else_)
+        self.env.dec_nesting()
+        return cpp_nodes.If(condition, body, else_ifs, else_)
 
     def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Node:
         assert len(args) == 1

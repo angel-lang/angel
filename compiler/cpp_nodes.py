@@ -209,3 +209,23 @@ class While(Node):
     def to_code(self) -> str:
         body = "\n".join(node.to_code() for node in self.body)
         return f"while({self.condition.to_code()}){{{body}}}"
+
+
+@dataclass
+class If(Node):
+    condition: Expression
+    body: AST
+    else_ifs: t.List[t.Tuple[Expression, AST]]
+    else_: AST
+
+    def to_code(self) -> str:
+        body = ''.join(node.to_code() for node in self.body)
+        else_ifs = []
+        for else_if_condition, else_if_body in self.else_ifs:
+            else_ifs.append(
+                f"else if({else_if_condition.to_code()}){{{''.join(node.to_code() for node in else_if_body)}}}")
+        if self.else_:
+            else_ = f"else{{{''.join(node.to_code() for node in self.else_)}}}"
+        else:
+            else_ = ""
+        return f"if({self.condition.to_code()}){{{body}}}{''.join(else_ifs)}{else_}"
