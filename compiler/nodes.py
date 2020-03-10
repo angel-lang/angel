@@ -116,9 +116,14 @@ class Operator(enum.Enum):
     eq_eq = "=="
     neq = "!="
 
-    eq = "="
     lt = "<"
     gt = ">"
+
+    eq = "="
+    add_eq = "+="
+    sub_eq = "-="
+    mul_eq = "*="
+    div_eq = "/="
 
     add = "+"
     sub = "-"
@@ -128,6 +133,13 @@ class Operator(enum.Enum):
     @classmethod
     def comparison_operators(cls):
         return [Operator.lt_eq, Operator.gt_eq, Operator.eq_eq, Operator.neq, Operator.lt, Operator.gt]
+
+    @classmethod
+    def assignment_operators(cls):
+        return [Operator.add_eq, Operator.sub_eq, Operator.mul_eq, Operator.div_eq, Operator.eq]
+
+    def to_arithmetic_operator(self):
+        return Operator(self.value[0])
 
 
 class SpecialMethods(enum.Enum):

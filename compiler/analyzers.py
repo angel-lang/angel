@@ -110,8 +110,7 @@ class Analyzer:
         reassign_dispatcher = {
             nodes.Name: self.reassign_name,
         }
-        self.reassign = lambda node: dispatch(
-            reassign_dispatcher, type(node.left), node.left, node.operator, node.right)
+        self.reassign = lambda node: dispatch(reassign_dispatcher, type(node.left), node.left, node.right)
 
         # Analyzer
         analyze_node_dispatcher = {
@@ -177,10 +176,14 @@ class Analyzer:
         left = self.clarify_expression(node.left)
         if not self.can_assign(left):
             raise errors.AngelConstantReassignment(left, self.get_code(node.line), self.get_definition_code(left))
-        right = self.clarify_expression(node.right)
+        if node.operator.value != nodes.Operator.eq.value:
+            right = nodes.BinaryExpression(node.left, node.operator.to_arithmetic_operator(), node.right)
+        else:
+            right = node.right
+        right = self.clarify_expression(right)
         # Type checking
         self.infer_type(right, supertype=self.infer_type(left))
-        result = nodes.Assignment(node.line, left, node.operator, right)
+        result = nodes.Assignment(node.line, left, nodes.Operator.eq, right)
         self.reassign(result)
         return result
 
@@ -338,22 +341,16 @@ class Analyzer:
             result = self.repl_eval_node(last_node)
         return result
 
-    def reassign_name(self, left: nodes.Name, operator: nodes.Operator, right: nodes.Expression) -> None:
+    def reassign_name(self, left: nodes.Name, right: nodes.Expression) -> None:
         entry = self.env[left.member]
         if isinstance(entry, entries.VariableEntry):
-            if operator.value == nodes.Operator.eq.value:
-                entry.computed_value = self.repl_eval_expression(right)
-            else:
-                raise errors.AngelNotImplemented
+            entry.computed_value = self.repl_eval_expression(right)
         elif isinstance(entry, entries.ConstantEntry):
             if entry.has_value:
                 raise errors.AngelConstantReassignment(
                     left, self.get_code(self.current_line), self.get_code(entry.line))
-            if operator.value == nodes.Operator.eq.value:
-                entry.computed_value = self.repl_eval_expression(right)
-                entry.has_value = True
-            else:
-                raise errors.AngelNotImplemented
+            entry.computed_value = self.repl_eval_expression(right)
+            entry.has_value = True
         else:
             raise errors.AngelNameError(left, self.get_code(self.current_line))
 

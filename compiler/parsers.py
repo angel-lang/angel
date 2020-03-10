@@ -130,7 +130,7 @@ class Parser:
     def parse_assignment(self) -> t.Optional[nodes.Assignment]:
         state = self.backup_state()
         line = self.position.line
-        left = self.parse_expression()
+        left = self.parse_assignment_left()
         if left is None:
             return None
         self.spaces()
@@ -161,7 +161,7 @@ class Parser:
 
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_while_statement,
-        parse_function_call, parse_assignment
+        parse_assignment, parse_function_call
     ]
 
     def parse_body(self, statement_parsers) -> t.List[nodes.Node]:
@@ -200,8 +200,11 @@ class Parser:
             self.position.column = len(expected_indentation)
         return result
 
+    def parse_assignment_left(self) -> t.Optional[nodes.Expression]:
+        return self.parse_name()
+
     def parse_assignment_operator(self) -> t.Optional[nodes.Operator]:
-        for operator in nodes.Operator:
+        for operator in nodes.Operator.assignment_operators():
             if self.parse_raw(operator.value):
                 return operator
         return None
