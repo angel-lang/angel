@@ -28,7 +28,7 @@ class Position:
 class Expression:
     """Base class for expressions."""
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return ""
 
 
@@ -95,14 +95,14 @@ class BuiltinType(Type, enum.Enum):
             BuiltinType.u64.value: "[0; 18446744073709551615]",
         }[self.value]
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return self.value
 
 
 class BuiltinFunc(Expression, enum.Enum):
     print = "print"
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return self.value
 
 
@@ -147,7 +147,7 @@ class BinaryExpression(Expression):
     operator: Operator
     right: Expression
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return f"{self.left.to_code()} {self.operator.value} {self.right.to_code()}"
 
 
@@ -156,7 +156,7 @@ class UnaryExpression(Expression):
     operator: Operator
     value: Expression
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return f"{self.operator.value} {self.value.to_code()}"
 
 
@@ -165,7 +165,7 @@ class Name(Type):
     member: str
     module: t.Optional[str] = None
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         if self.module:
             return f"{self.module}#{self.member}"
         return self.member
@@ -176,7 +176,7 @@ class BoolLiteral(Expression, enum.Enum):
     true = "True"
     false = "False"
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return self.value
 
 
@@ -184,7 +184,7 @@ class BoolLiteral(Expression, enum.Enum):
 class IntegerLiteral(Type):
     value: str
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return self.value
 
 
@@ -192,7 +192,7 @@ class IntegerLiteral(Type):
 class StringLiteral(Expression):
     value: str
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         return '"' + self.value + '"'
 
 
@@ -201,8 +201,9 @@ class FunctionCall(Node):
     function_path: Expression
     args: t.List[Expression]
 
-    def to_code(self) -> str:
-        return f"{self.function_path.to_code()}({', '.join(arg.to_code() for arg in self.args)})"
+    def to_code(self, indentation_level: int = 0) -> str:
+        code = f"{self.function_path.to_code()}({', '.join(arg.to_code() for arg in self.args)})"
+        return INDENTATION * indentation_level + code
 
 
 @dataclass
@@ -211,8 +212,9 @@ class Assignment(Node):
     operator: Operator
     right: Expression
 
-    def to_code(self) -> str:
-        return f"{self.left.to_code()} {self.operator.value} {self.right.to_code()}"
+    def to_code(self, indentation_level: int = 0) -> str:
+        code = f"{self.left.to_code()} {self.operator.value} {self.right.to_code()}"
+        return INDENTATION * indentation_level + code
 
 
 @dataclass
@@ -224,13 +226,16 @@ class ConstantDeclaration(Node):
     def __post_init__(self):
         assert self.type is not None or self.value is not None
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         if self.type is not None and self.value is not None:
-            return f"let {self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
+            code = f"let {self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
+            return INDENTATION * indentation_level + code
         if self.value is not None:
-            return f"let {self.name.to_code()} = {self.value.to_code()}"
+            code = f"let {self.name.to_code()} = {self.value.to_code()}"
+            return INDENTATION * indentation_level + code
         assert self.type is not None
-        return f"let {self.name.to_code()}: {self.type.to_code()}"
+        code = f"let {self.name.to_code()}: {self.type.to_code()}"
+        return INDENTATION * indentation_level + code
 
 
 @dataclass
@@ -242,13 +247,16 @@ class VariableDeclaration(Node):
     def __post_init__(self):
         assert self.type is not None or self.value is not None
 
-    def to_code(self) -> str:
+    def to_code(self, indentation_level: int = 0) -> str:
         if self.type is not None and self.value is not None:
-            return f"var {self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
+            code = f"var {self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
+            return INDENTATION * indentation_level + code
         if self.value is not None:
-            return f"var {self.name.to_code()} = {self.value.to_code()}"
+            code = f"var {self.name.to_code()} = {self.value.to_code()}"
+            return INDENTATION * indentation_level + code
         assert self.type is not None
-        return f"var {self.name.to_code()}: {self.type.to_code()}"
+        code = f"var {self.name.to_code()}: {self.type.to_code()}"
+        return INDENTATION * indentation_level + code
 
 
 @dataclass
@@ -256,6 +264,7 @@ class While(Node):
     condition: Expression
     body: t.List[Node]
 
-    def to_code(self) -> str:
-        body = ('\n' + INDENTATION).join(node.to_code() for node in self.body)
-        return f"while {self.condition.to_code()}:\n{INDENTATION}{body}"
+    def to_code(self, indentation_level: int = 0) -> str:
+        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        code = f"while {self.condition.to_code()}:\n{body}"
+        return INDENTATION * indentation_level + code
