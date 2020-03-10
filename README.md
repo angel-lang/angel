@@ -55,7 +55,6 @@ while i < 10:
 Prints all integers from 0 to 9. Indentation must be 4 spaces.
 
 ## Known problems
-- While loop is not currently supported in REPL.
 - `I8` and `U8` are printed as `Char`
 - There is no `Char` type for now
 - `True` and `False` are printed as `true` and `false` respectively
