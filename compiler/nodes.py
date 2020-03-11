@@ -71,6 +71,8 @@ class BuiltinType(Type, enum.Enum):
     bool = "Bool"
     void = "Void"
 
+    convertible_to_string = "ConvertibleToString"
+
     @classmethod
     def finite_signed_int_types(cls) -> t.List[str]:
         return [type_.value for type_ in (BuiltinType.i8, BuiltinType.i16, BuiltinType.i32, BuiltinType.i64)]
@@ -107,6 +109,7 @@ class BuiltinType(Type, enum.Enum):
 
 class BuiltinFunc(Expression, enum.Enum):
     print = "print"
+    read = "read"
 
     def to_code(self, indentation_level: int = 0) -> str:
         return self.value
@@ -349,4 +352,24 @@ class FunctionDeclaration(Node):
         body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
         args = ', '.join(arg.to_code() for arg in self.args)
         code = f"fun {self.name.to_code()}({args}) -> {self.return_type.to_code()}:\n{body}"
+        return INDENTATION * indentation_level + code
+
+
+@dataclass
+class FieldDeclaration(Node):
+    name: Name
+    type: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.name.to_code()}: {self.type.to_code()}"
+
+
+@dataclass
+class StructDeclaration(Node):
+    name: Name
+    body: AST
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        code = f"struct {self.name.to_code()}:\n{body}"
         return INDENTATION * indentation_level + code

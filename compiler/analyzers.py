@@ -138,48 +138,56 @@ class BreakEvaluated:
 
 class Analyzer:
 
-    def __init__(self, lines: t.List[str]):
-        self.env = environment.Environment()
+    def __init__(self, lines: t.List[str], env: t.Optional[environment.Environment] = None):
+        self.env = env or environment.Environment()
         self.lines = lines
         self.current_line = 1
         self.function_return_types = []
+        self.parents = []
+        self.repl = False
 
         # REPL eval
-        repl_eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
-            nodes.BuiltinFunc.print.value: lambda args: print(self.repl_eval_expression(args[0])),
+        eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
+            nodes.BuiltinFunc.print.value: lambda args: print(self.eval_expression(args[0])),
+            nodes.BuiltinFunc.read.value: self.eval_read_function_call,
         }
 
-        repl_eval_function_call_dispatcher_by_function_path = {
+        eval_function_call_dispatcher_by_function_path = {
             nodes.BuiltinFunc: lambda path, args: dispatch(
-                repl_eval_builtin_function_call_dispatcher, path.value, args
+                eval_builtin_function_call_dispatcher, path.value, args
             ),
-            nodes.Name: self.repl_eval_function_as_name_call,
+            nodes.Name: self.eval_function_as_name_call,
         }
 
-        repl_eval_dispatcher = {
+        eval_dispatcher = {
             nodes.ConstantDeclaration: lambda _: None,
             nodes.VariableDeclaration: lambda _: None,
             nodes.FunctionDeclaration: lambda _: None,
+            nodes.StructDeclaration: lambda _: None,
             nodes.Assignment: lambda _: None,
             nodes.FunctionCall: lambda node: dispatch(
-                repl_eval_function_call_dispatcher_by_function_path, type(node.function_path),
+                eval_function_call_dispatcher_by_function_path, type(node.function_path),
                 node.function_path, node.args
             ),
-            nodes.While: self.repl_eval_while_statement,
-            nodes.Break: self.repl_eval_break_statement,
-            nodes.If: self.repl_eval_if_statement,
+            nodes.While: self.eval_while_statement,
+            nodes.Break: self.eval_break_statement,
+            nodes.If: self.eval_if_statement,
         }
-        self.repl_eval_node = lambda node: dispatch(repl_eval_dispatcher, type(node), node)
+        self.eval_node = lambda node: dispatch(eval_dispatcher, type(node), node)
 
-        repl_eval_expression_dispatcher = {
+        eval_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: int(value.value),
             nodes.StringLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
-            nodes.BinaryExpression: self.repl_eval_binary_expression,
-            nodes.Name: self.repl_eval_name,
+            nodes.BinaryExpression: self.eval_binary_expression,
+            nodes.Name: self.eval_name,
+            nodes.FunctionCall: lambda node: dispatch(
+                eval_function_call_dispatcher_by_function_path, type(node.function_path),
+                node.function_path, node.args
+            ),
             type(None): lambda _: None,
         }
-        self.repl_eval_expression = lambda value: dispatch(repl_eval_expression_dispatcher, type(value), value)
+        self.eval_expression = lambda value: dispatch(eval_expression_dispatcher, type(value), value)
 
         reassign_dispatcher = {
             nodes.Name: self.reassign_name,
@@ -191,6 +199,8 @@ class Analyzer:
             nodes.ConstantDeclaration: self.analyze_constant_declaration,
             nodes.VariableDeclaration: self.analyze_variable_declaration,
             nodes.FunctionDeclaration: self.analyze_function_declaration,
+            nodes.StructDeclaration: self.analyze_struct_declaration,
+            nodes.FieldDeclaration: self.analyze_field_declaration,
             nodes.Assignment: self.analyze_assignment,
             nodes.FunctionCall: self.analyze_function_call,
             nodes.While: self.analyze_while_statement,
@@ -201,6 +211,15 @@ class Analyzer:
         self.analyze_node = lambda node: dispatch(analyze_node_dispatcher, type(node), node)
         self.analyze = lambda ast: [self.analyze_node(node) for node in ast]
 
+        infer_type_from_builtin_func_call_dispatcher = {
+            nodes.BuiltinFunc.read.value: self.infer_type_from_read_function_call,
+        }
+        infer_type_from_function_call_dispatcher = {
+            nodes.BuiltinFunc: lambda value, supertype: dispatch(
+                infer_type_from_builtin_func_call_dispatcher, value.function_path.value, value.args, supertype
+            ),
+        }
+
         infer_type_dispatcher = {
             nodes.IntegerLiteral: self.infer_type_from_integer_literal,
             nodes.StringLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.string, supertype),
@@ -208,6 +227,9 @@ class Analyzer:
             nodes.BinaryExpression: lambda value, supertype: self.infer_type_from_binary_expression(
                 value.left, value.operator, value.right, supertype),
             nodes.Name: self.infer_type_from_name,
+            nodes.FunctionCall: lambda value, supertype: dispatch(
+                infer_type_from_function_call_dispatcher, type(value.function_path), value, supertype
+            ),
         }
         self.infer_type = lambda value, supertype=None: dispatch(infer_type_dispatcher, type(value), value, supertype)
 
@@ -227,6 +249,7 @@ class Analyzer:
 
         check_function_as_builtin_func_call_dispatcher = {
             nodes.BuiltinFunc.print.value: self.check_print_call,
+            nodes.BuiltinFunc.read.value: self.check_read_call,
         }
         self.check_function_as_builtin_func_call = lambda path, args: dispatch(
             check_function_as_builtin_func_call_dispatcher, path.value, args
@@ -248,7 +271,7 @@ class Analyzer:
         else:
             assert clarified_type is not None
             type_ = self.unify_types(clarified_type, clarified_type)
-        self.env.add_constant(node.line, node.name, type_, value, computed_value=self.repl_eval_expression(value))
+        self.env.add_constant(node.line, node.name, type_, value, computed_value=self.eval_expression(value))
         return nodes.ConstantDeclaration(node.line, node.name, type_, value)
 
     def analyze_variable_declaration(self, node: nodes.VariableDeclaration) -> nodes.VariableDeclaration:
@@ -260,7 +283,7 @@ class Analyzer:
         else:
             assert clarified_type is not None
             type_ = self.unify_types(clarified_type, clarified_type)
-        self.env.add_variable(node.line, node.name, type_, computed_value=self.repl_eval_expression(value))
+        self.env.add_variable(node.line, node.name, type_, computed_value=self.eval_expression(value))
         return nodes.VariableDeclaration(node.line, node.name, type_, value)
 
     def analyze_function_declaration(self, node: nodes.FunctionDeclaration) -> nodes.FunctionDeclaration:
@@ -271,15 +294,36 @@ class Analyzer:
             args.append(nodes.Argument(arg.name, self.unify_types(clarified_type, clarified_type)))
         clarified_return_type = self.clarify_type(node.return_type)
         return_type = self.unify_types(clarified_return_type, clarified_return_type)
-        self.env.add_function(node.line, node.name, args, return_type)
+        if self.parents:
+            self.env.add_method(self.parents[-1], node.line, node.name, args, return_type)
+        else:
+            self.env.add_function(node.line, node.name, args, return_type)
         self.env.inc_nesting()
         self.env.add_arguments(node.line, args)
         self.function_return_types.append(return_type)
         body = self.analyze(node.body)
         self.function_return_types.pop()
         self.env.dec_nesting()
-        self.env.update_function_body(node.name, body)
+        if self.parents:
+            self.env.update_method_body(self.parents[-1], node.name, body)
+        else:
+            self.env.update_function_body(node.name, body)
         return nodes.FunctionDeclaration(node.line, node.name, args, return_type, body)
+
+    def analyze_struct_declaration(self, node: nodes.StructDeclaration) -> nodes.StructDeclaration:
+        self.current_line = node.line
+        self.env.add_struct(node.line, node.name)
+        self.parents.append(node.name)
+        body = self.analyze(node.body)
+        self.parents.pop()
+        return nodes.StructDeclaration(node.line, node.name, body)
+
+    def analyze_field_declaration(self, node: nodes.FieldDeclaration) -> nodes.FieldDeclaration:
+        assert self.parents
+        self.current_line = node.line
+        type_ = self.clarify_type(node.type)
+        self.env.add_field(self.parents[-1], node.line, node.name, type_)
+        return nodes.FieldDeclaration(node.line, node.name, type_)
 
     def analyze_assignment(self, node: nodes.Assignment) -> nodes.Assignment:
         self.current_line = node.line
@@ -356,7 +400,17 @@ class Analyzer:
 
     def check_print_call(self, args: t.List[nodes.Expression]):
         if len(args) != 1:
-            raise errors.AngelWrongArguments("one any argument", self.get_code(self.current_line), args)
+            raise errors.AngelWrongArguments(
+                f"(value: {nodes.BuiltinType.convertible_to_string.value})", self.get_code(self.current_line), args
+            )
+        self.infer_type(args[0], supertype=nodes.BuiltinType.convertible_to_string)
+
+    def check_read_call(self, args: t.List[nodes.Expression]):
+        if len(args) != 1:
+            raise errors.AngelWrongArguments(
+                f"(prompt: {nodes.BuiltinType.string.value})", self.get_code(self.current_line), args
+            )
+        self.infer_type(args[0], supertype=nodes.BuiltinType.string)
 
     @t.overload
     def clarify_expression(self, value: None) -> None:
@@ -442,7 +496,7 @@ class Analyzer:
             self, left: nodes.Expression, operator: nodes.Operator, right: nodes.Expression,
             supertype: t.Optional[nodes.Type]
     ) -> nodes.Type:
-        result = self.repl_eval_expression(nodes.BinaryExpression(left, operator, right))
+        result = self.eval_expression(nodes.BinaryExpression(left, operator, right))
         if isinstance(result, bool):
             return self.unify_types(nodes.BuiltinType.bool, supertype)
         elif isinstance(result, (int, float)):
@@ -452,13 +506,19 @@ class Analyzer:
         else:
             raise errors.AngelNotImplemented
 
+    def infer_type_from_read_function_call(
+            self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        return self.unify_types(nodes.BuiltinType.string, supertype)
+
     def unify_types(self, subtype: nodes.Type, supertype: t.Optional[nodes.Type]) -> nodes.Type:
         if supertype is None:
             return subtype
         return dispatch(self.unify_types_dispatcher, type(subtype), subtype, supertype)
 
     def unify_builtin_type(self, subtype: nodes.BuiltinType, supertype: nodes.Type) -> nodes.Type:
-        if isinstance(supertype, nodes.BuiltinType) and subtype.value == supertype.value:
+        if isinstance(supertype, nodes.BuiltinType) and supertype.value in (
+                subtype.value, nodes.BuiltinType.convertible_to_string.value):
             return supertype
         raise errors.AngelTypeError(
             f"{supertype.to_code()} is not a supertype of {subtype.to_code()}", self.get_code(self.current_line),
@@ -487,7 +547,7 @@ class Analyzer:
             raise errors.AngelNameError(value, self.get_code(self.current_line))
         return self.get_code(entry.line)
 
-    def repl_eval(self, ast: nodes.AST, execute_only_last_node: bool = False) -> t.Any:
+    def eval(self, ast: nodes.AST, execute_only_last_node: bool = False) -> t.Any:
         result = None
         last_node = None
         for node in ast:
@@ -495,44 +555,44 @@ class Analyzer:
             analyzed = self.analyze_node(node)
             last_node = analyzed
             if not execute_only_last_node:
-                result = self.repl_eval_node(analyzed)
+                result = self.eval_node(analyzed)
         if execute_only_last_node:
-            result = self.repl_eval_node(last_node)
+            result = self.eval_node(last_node)
         return result
 
     def reassign_name(self, left: nodes.Name, right: nodes.Expression) -> None:
         entry = self.env[left.member]
         if isinstance(entry, entries.VariableEntry):
-            entry.computed_value = self.repl_eval_expression(right)
+            entry.computed_value = self.eval_expression(right)
         elif isinstance(entry, entries.ConstantEntry):
             if entry.has_value:
                 raise errors.AngelConstantReassignment(
                     left, self.get_code(self.current_line), self.get_code(entry.line))
-            entry.computed_value = self.repl_eval_expression(right)
+            entry.computed_value = self.eval_expression(right)
             entry.has_value = True
         else:
             raise errors.AngelNameError(left, self.get_code(self.current_line))
 
-    def repl_eval_while_statement(self, node: nodes.While):
-        while self.repl_eval_expression(node.condition):
-            result = self.repl_eval(node.body)
+    def eval_while_statement(self, node: nodes.While):
+        while self.eval_expression(node.condition):
+            result = self.eval(node.body)
             if isinstance(result, BreakEvaluated):
                 break
             if result is not None:
                 return result
 
-    def repl_eval_break_statement(self, _: nodes.Break):
+    def eval_break_statement(self, _: nodes.Break):
         return BreakEvaluated()
 
-    def repl_eval_if_statement(self, node: nodes.If):
-        if self.repl_eval_expression(node.condition):
-            return self.repl_eval(node.body)
+    def eval_if_statement(self, node: nodes.If):
+        if self.eval_expression(node.condition):
+            return self.eval(node.body)
         for elif_condition, elif_body in node.elifs:
-            if self.repl_eval_expression(elif_condition):
-                return self.repl_eval(elif_body)
-        return self.repl_eval(node.else_)
+            if self.eval_expression(elif_condition):
+                return self.eval(elif_body)
+        return self.eval(node.else_)
 
-    def repl_eval_function_as_name_call(self, path: nodes.Name, args: t.List[nodes.Expression]) -> t.Any:
+    def eval_function_as_name_call(self, path: nodes.Name, args: t.List[nodes.Expression]) -> t.Any:
         entry = self.env[path.member]
         if entry is None:
             raise errors.AngelNameError(path, self.get_code(self.current_line))
@@ -546,25 +606,30 @@ class Analyzer:
                     )
                 self.env.add_constant(
                     entry.line, declared_arg.name, declared_arg.type, value,
-                    computed_value=self.repl_eval_expression(value)
+                    computed_value=self.eval_expression(value)
                 )
-            result = self.repl_eval(entry.body)
+            result = self.eval(entry.body)
             self.env.inc_nesting()
             return result
         else:
             raise errors.AngelNoncallableCall(path, self.get_code(self.current_line))
 
-    def repl_eval_binary_expression(self, value: nodes.BinaryExpression) -> t.Any:
-        left = self.repl_eval_expression(value.left)
-        right = self.repl_eval_expression(value.right)
+    def eval_binary_expression(self, value: nodes.BinaryExpression) -> t.Any:
+        left = self.eval_expression(value.left)
+        right = self.eval_expression(value.right)
         result = OPERATOR_TO_EVAL_FUNC[value.operator.value](left, right)
         if isinstance(left, int) and value.operator.value == nodes.Operator.div.value:
             return int(result)
         return result
 
-    def repl_eval_name(self, value: nodes.Name) -> t.Any:
+    def eval_name(self, value: nodes.Name) -> t.Any:
         entry = self.env[value.member]
         if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
             return entry.computed_value
         else:
             raise errors.AngelNameError(value, self.get_code(self.current_line))
+
+    def eval_read_function_call(self, args: t.List[nodes.Expression]) -> t.Any:
+        if self.repl:
+            return input(self.eval_expression(args[0]))
+        return nodes.DynValue(nodes.BuiltinType.string)

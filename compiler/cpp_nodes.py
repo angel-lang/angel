@@ -34,6 +34,7 @@ class StdModule(enum.Enum):
 
 class Operator(enum.Enum):
     lshift = "<<"
+    rshift = ">>"
 
     lt_eq = "<="
     gt_eq = ">="
@@ -64,6 +65,7 @@ class StdName(Type, Expression, enum.Enum):
     string = "string"
 
     cout = "cout"
+    cin = "cin"
     endl = "endl"
 
     def to_code(self) -> str:
@@ -229,3 +231,13 @@ class If(Node):
         else:
             else_ = ""
         return f"if({self.condition.to_code()}){{{body}}}{''.join(else_ifs)}{else_}"
+
+
+@dataclass
+class StructDeclaration(Node):
+    name: str
+    body: AST
+
+    def to_code(self) -> str:
+        body = ''.join(node.to_code() for node in self.body)
+        return f"struct {self.name}{{{body}}};"

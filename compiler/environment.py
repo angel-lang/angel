@@ -46,6 +46,26 @@ class Environment:
             line, name, args, return_type, body=[]
         )
 
+    def add_method(
+            self, parent: nodes.Name, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
+    ) -> None:
+        entry = self.space[self.nesting_level][parent.member]
+        assert isinstance(entry, entries.StructEntry)
+        entry.methods[name.member] = entries.FunctionEntry(line, name, args, return_type, body=[])
+
+    def add_field(self, parent: nodes.Name, line: int, name: nodes.Name, type_: nodes.Type) -> None:
+        entry = self.space[self.nesting_level][parent.member]
+        assert isinstance(entry, entries.StructEntry)
+        entry.fields[name.member] = entries.VariableEntry(line, name, type_)
+
+    def add_struct(self, line: int, name: nodes.Name) -> None:
+        self.space[self.nesting_level][name.member] = entries.StructEntry(line, name, fields={}, methods={})
+
+    def update_method_body(self, parent: nodes.Name, name: nodes.Name, body: nodes.AST) -> None:
+        entry = self.space[self.nesting_level][parent.member]
+        assert isinstance(entry, entries.StructEntry)
+        entry.methods[name.member].body = body
+
     def update_function_body(self, name: nodes.Name, body: nodes.AST) -> None:
         self.space[self.nesting_level][name.member].body = body
 

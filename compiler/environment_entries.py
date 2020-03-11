@@ -31,3 +31,10 @@ class FunctionEntry(Entry):
     args: t.List[nodes.Argument]
     return_type: nodes.Type
     body: nodes.AST
+
+
+@dataclass
+class StructEntry(Entry):
+    name: nodes.Name
+    fields: t.Dict[str, Entry]
+    methods: t.Dict[str, FunctionEntry]

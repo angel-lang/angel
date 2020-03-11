@@ -30,13 +30,14 @@ def compile_string(string: str) -> str:
         return generators.generate_cpp(cpp_ast)
 
 
-def angel_repl_eval(string: str) -> t.Any:
+def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     """Evaluates Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
     parser = parsers.Parser()
-    analyzer = analyzers.Analyzer(lines)
+    analyzer = analyzers.Analyzer(lines, env=env)
+    analyzer.repl = True
     try:
-        return analyzer.repl_eval(parser.parse(string), execute_only_last_node=True)
+        return analyzer.eval(parser.parse(string), execute_only_last_node=True)
     except errors.AngelError as e:
         print(str(e))
         print()
@@ -55,6 +56,7 @@ class REPL(cmd.Cmd):
     buffer: t.List[str] = []
     indentation_expected: bool = False
     real_inp: str
+    env: environment.Environment = environment.Environment()
 
     def precmd(self, line):
         # Save line with leading whitespaces.
@@ -86,7 +88,7 @@ class REPL(cmd.Cmd):
             self.indentation_expected = False
             self.prompt = ">>> "
             self.input_.extend(self.buffer)
-            angel_repl_eval("\n".join(self.input_))
+            angel_repl_eval("\n".join(self.buffer), env=self.env)
 
     def default(self, inp):
         if inp == "EOF":
@@ -104,7 +106,7 @@ class REPL(cmd.Cmd):
                 self.buffer = [inp]
             else:
                 self.input_.append(inp)
-                angel_repl_eval("\n".join(self.input_))
+                angel_repl_eval(inp, env=self.env)
 
     do_quit = do_exit
     do_q = do_exit

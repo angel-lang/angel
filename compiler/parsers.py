@@ -36,6 +36,16 @@ def build_binary_expression(
 
 
 @dataclass
+class Trailer:
+    line: int
+
+
+@dataclass
+class TupleTrailer(Trailer):
+    args: t.List[nodes.Expression]
+
+
+@dataclass
 class State:
     idx: int
     position: nodes.Position
@@ -125,17 +135,13 @@ class Parser:
             return name, None, value
 
     def parse_function_call(self) -> t.Optional[nodes.FunctionCall]:
-        state = self.backup_state()
-        line = self.position.line
-        function_path = self.parse_expression()
-        if function_path is None:
+        call = self.parse_expression()
+        if call is None:
             return None
-        arguments = self.parse_container(
-            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_expression)
-        if arguments is None:
-            self.restore_state(state)
-            return None
-        return nodes.FunctionCall(line, function_path, arguments)
+        if isinstance(call, nodes.FunctionCall):
+            return call
+        else:
+            raise errors.AngelNotImplemented
 
     def parse_assignment(self) -> t.Optional[nodes.Assignment]:
         state = self.backup_state()
@@ -256,8 +262,42 @@ class Parser:
             return None
         return nodes.Break(line)
 
+    def parse_field_declaration(self) -> t.Optional[nodes.FieldDeclaration]:
+        line = self.position.line
+        state = self.backup_state()
+        name = self.parse_name()
+        if name is None:
+            return None
+        if not self.parse_raw(":"):
+            self.restore_state(state)
+            return None
+        self.spaces()
+        type_ = self.parse_type()
+        if type_ is None:
+            raise errors.AngelSyntaxError("expected type", self.get_code())
+        return nodes.FieldDeclaration(line, name, type_)
+
+    def parse_struct_declaration(self) -> t.Optional[nodes.StructDeclaration]:
+        line = self.position.line
+        if not self.parse_raw("struct"):
+            return None
+        self.spaces()
+        name = self.parse_name()
+        if name is None:
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        if not self.parse_raw(":"):
+            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        self.additional_statement_parsers.append(self.parse_function_declaration)
+        self.additional_statement_parsers.append(self.parse_field_declaration)
+        body = self.parse_body(self.additional_statement_parsers + self.function_declaration_statement_body_parsers)
+        self.additional_statement_parsers.pop()
+        self.additional_statement_parsers.pop()
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return nodes.StructDeclaration(line, name, body)
+
     NODE_PARSERS = [
-        parse_constant_declaration, parse_variable_declaration, parse_function_declaration,
+        parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
         parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
 
@@ -290,12 +330,22 @@ class Parser:
         return result
 
     def parse_indentation(self) -> bool:
+        result = []
+        for char in self.code[self.idx:]:
+            if char == "\n":
+                result.append(char)
+                self.idx += 1
+                self.position.line += 1
+                self.position.column = 1
+            elif char.isspace():
+                result.append(char)
+                self.idx += 1
+                self.position.column += 1
+            else:
+                break
+
         expected_indentation = nodes.INDENTATION * self.indentation_level
-        result = self.parse_raw("\n" + expected_indentation)
-        if result:
-            self.position.line += 1
-            self.position.column = len(expected_indentation)
-        return result
+        return ''.join(result).endswith(expected_indentation)
 
     def parse_argument(self) -> t.Optional[nodes.Argument]:
         name = self.parse_name()
@@ -384,8 +434,20 @@ class Parser:
 
     def parse_expression_term(self) -> t.Optional[nodes.Expression]:
         return self.parse_binary_expression(
-            self.parse_expression_atom, (nodes.Operator.mul, nodes.Operator.div), self.parse_expression_term
+            self.parse_expression_atom_with_trailers, (nodes.Operator.mul, nodes.Operator.div),
+            self.parse_expression_term
         )
+
+    def parse_expression_atom_with_trailers(self) -> t.Optional[nodes.Expression]:
+        atom = self.parse_expression_atom()
+        trailer = self.parse_trailer()
+        while trailer is not None:
+            if isinstance(trailer, TupleTrailer):
+                atom = nodes.FunctionCall(trailer.line, atom, trailer.args)
+            else:
+                raise errors.AngelNotImplemented
+            trailer = self.parse_trailer()
+        return atom
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
         for parser in [self.parse_integer_literal, self.parse_string_literal, self.parse_name]:
@@ -393,6 +455,14 @@ class Parser:
             if result is not None:
                 return result
         return None
+
+    def parse_trailer(self) -> t.Optional[Trailer]:
+        line = self.position.line
+        args = self.parse_container(
+            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_expression)
+        if args is None:
+            return None
+        return TupleTrailer(line, args)
 
     def parse_comparison_operator(self) -> t.Optional[nodes.Operator]:
         for operator in nodes.Operator.comparison_operators():
@@ -415,21 +485,21 @@ class Parser:
         return nodes.IntegerLiteral("".join(minuses) + match[0])
 
     def parse_string_literal(self) -> t.Optional[nodes.StringLiteral]:
-        state = self.backup_state()
         if not self.parse_raw('"'):
             return None
         result = []
+        end_quote_seen = False
         for char in self.code[self.idx:]:
             self.idx += 1
             self.position.column += 1
             if char == '"':
+                end_quote_seen = True
                 break
             else:
                 result.append(char)
-        if result:
+        if end_quote_seen:
             return nodes.StringLiteral("".join(result))
-        self.restore_state(state)
-        return None
+        raise errors.AngelSyntaxError("expected '\"'", self.get_code())
 
     def parse_name(self) -> t.Optional[nodes.Name]:
         identifier = self.parse_identifier()

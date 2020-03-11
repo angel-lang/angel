@@ -20,28 +20,36 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
 }
 
 
+TMP_PREFIX = "__tmp_"
+
+
 class Translator:
     top_nodes: cpp_nodes.AST
     main_function_body: cpp_nodes.AST
+    nodes_buffer: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
 
     def __init__(self) -> None:
         self.env = environment.Environment()
         self.current_line = 1
+        self.tmp_count = 0
 
         # Translation
         translate_builtin_function_dispatcher = {
             nodes.BuiltinFunc.print.value: self.translate_print_function_call,
+            nodes.BuiltinFunc.read.value: self.translate_read_function_call,
         }
 
         translate_function_call_dispatcher_by_function_path = {
             nodes.BuiltinFunc: lambda path, args: dispatch(translate_builtin_function_dispatcher, path.value, args),
-            nodes.Name: lambda path, args: cpp_nodes.Semicolon(
-                cpp_nodes.FunctionCall(
-                    self.translate_expression(path), [self.translate_expression(arg) for arg in args]
-                )
+            nodes.Name: lambda path, args: cpp_nodes.FunctionCall(
+                self.translate_expression(path), [self.translate_expression(arg) for arg in args]
             ),
         }
+        self.translate_function_call = lambda node: dispatch(
+            translate_function_call_dispatcher_by_function_path, type(node.function_path),
+            node.function_path, node.args
+        )
 
         self.translate_node_dispatcher = {
             nodes.ConstantDeclaration: lambda node: cpp_nodes.Declaration(
@@ -51,14 +59,13 @@ class Translator:
                 self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
             ),
             nodes.FunctionDeclaration: self.translate_function_declaration,
+            nodes.StructDeclaration: self.translate_struct_declaration,
+            nodes.FieldDeclaration: self.translate_field_declaration,
             nodes.Assignment: lambda node: cpp_nodes.Assignment(
                 self.translate_expression(node.left), self.translate_operator(node.operator),
                 self.translate_expression(node.right)
             ),
-            nodes.FunctionCall: lambda node: dispatch(
-                translate_function_call_dispatcher_by_function_path, type(node.function_path),
-                node.function_path, node.args
-            ),
+            nodes.FunctionCall: lambda node: cpp_nodes.Semicolon(self.translate_function_call(node)),
             nodes.While: self.translate_while_statement,
             nodes.If: self.translate_if_statement,
         }
@@ -71,6 +78,7 @@ class Translator:
                 self.translate_expression(value.left), cpp_nodes.Operator(value.operator.value),
                 self.translate_expression(value.right)
             ),
+            nodes.FunctionCall: lambda value: self.translate_function_call(value),
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
             type(None): lambda _: None,
         }
@@ -88,11 +96,15 @@ class Translator:
         self.includes = {}
         self.top_nodes = []
         self.main_function_body = []
+        self.nodes_buffer = []
+        self.tmp_count = 0
 
         for node in self.translate_body(ast):
-            if isinstance(node, cpp_nodes.FunctionDeclaration):
+            if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.StructDeclaration)):
                 self.top_nodes.append(node)
             else:
+                self.main_function_body.extend(self.nodes_buffer)
+                self.nodes_buffer = []
                 self.main_function_body.append(node)
 
         return0 = cpp_nodes.Return(cpp_nodes.IntegerLiteral("0"))
@@ -105,7 +117,10 @@ class Translator:
         result = []
         for node in ast:
             self.current_line = node.line
-            result.append(dispatch(self.translate_node_dispatcher, type(node), node))
+            translated = dispatch(self.translate_node_dispatcher, type(node), node)
+            result.extend(self.nodes_buffer)
+            self.nodes_buffer = []
+            result.append(translated)
         return result
 
     def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.FunctionDeclaration:
@@ -115,6 +130,13 @@ class Translator:
         body = self.translate_body(node.body)
         self.env.dec_nesting()
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
+
+    def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.StructDeclaration:
+        body = self.translate_body(node.body)
+        return cpp_nodes.StructDeclaration(node.name.member, body)
+
+    def translate_field_declaration(self, node: nodes.FieldDeclaration) -> cpp_nodes.Declaration:
+        return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value=None)
 
     def translate_while_statement(self, node: nodes.While) -> cpp_nodes.While:
         condition = self.translate_expression(node.condition)
@@ -140,15 +162,24 @@ class Translator:
         self.env.dec_nesting()
         return cpp_nodes.If(condition, body, else_ifs, else_)
 
-    def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Node:
+    def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(args) == 1
         self.add_include(cpp_nodes.StdModule.iostream)
         value = self.translate_expression(args[0])
-        return cpp_nodes.Semicolon(
-            cpp_nodes.BinaryExpression(
-                cpp_nodes.BinaryExpression(cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, value),
-                cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
-            ))
+        return cpp_nodes.BinaryExpression(
+            cpp_nodes.BinaryExpression(cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, value),
+            cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
+        )
+
+    def translate_read_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
+        assert len(args) == 1
+        self.add_include(cpp_nodes.StdModule.iostream)
+        tmp = self.create_tmp(self.translate_type(nodes.BuiltinType.string))
+        self.nodes_buffer.append(cpp_nodes.Semicolon(self.translate_print_function_call(args)))
+        self.nodes_buffer.append(
+            cpp_nodes.Semicolon(cpp_nodes.BinaryExpression(cpp_nodes.StdName.cin, cpp_nodes.Operator.rshift, tmp))
+        )
+        return tmp
 
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
         if builtin_type.value in nodes.BuiltinType.finite_int_types():
@@ -159,6 +190,12 @@ class Translator:
 
     def translate_operator(self, operator: nodes.Operator) -> cpp_nodes.Operator:
         return cpp_nodes.Operator(operator.value)
+
+    def create_tmp(self, type_: cpp_nodes.Type) -> cpp_nodes.Id:
+        tmp_name = TMP_PREFIX + str(self.tmp_count)
+        self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name, value=None))
+        self.tmp_count += 1
+        return cpp_nodes.Id(tmp_name)
 
     def add_include(self, module: cpp_nodes.StdModule):
         self.includes[module.value] = cpp_nodes.Include(module)
