@@ -16,6 +16,7 @@ class ConstantEntry(Entry):
     type: nodes.Type
     has_value: bool
     computed_value: t.Any = None
+    analyzed_value: t.Any = None
 
 
 @dataclass
@@ -23,6 +24,7 @@ class VariableEntry(Entry):
     name: nodes.Name
     type: nodes.Type
     computed_value: t.Any = None
+    analyzed_value: t.Any = None
 
 
 @dataclass

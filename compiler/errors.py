@@ -23,7 +23,12 @@ class AngelError(Exception):
 
 
 class AngelNotImplemented(AngelError):
+    def __init__(self, msg: t.Optional[str] = None):
+        self.msg = msg
+
     def __str__(self):
+        if self.msg:
+            return self.msg
         return "Not implemented"
 
 

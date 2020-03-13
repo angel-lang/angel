@@ -35,9 +35,8 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     lines = string.split("\n")
     parser = parsers.Parser()
     analyzer = analyzers.Analyzer(lines, env=env)
-    analyzer.repl = True
     try:
-        return analyzer.eval(parser.parse(string), execute_only_last_node=True)
+        return analyzer.repl_eval_ast(parser.parse(string), execute_only_last_node=True)
     except errors.AngelError as e:
         print(str(e))
         print()

@@ -1,0 +1,36 @@
+// Constant declarations.
+let constantWithEverything: I8 = 1
+let constantWithoutType = 1
+let constantWithoutValue: I8
+
+// Variable declarations.
+var variableWithEverything: I8 = 1
+var variableWithoutType = 1
+var variableWithoutValue: I8
+
+// Assignments.
+constantWithoutValue = 1    // Constant didn't have value. Assignment is allowed.
+variableWithEverything = 2
+variableWithoutType = 2
+variableWithoutValue = 2
+variableWithoutValue = 3
+
+
+let name = "Mike"
+var age: I8 = 20
+age = 21
+
+print(name)
+print(age)
+
+if true:
+    print(true)
+elif age == 21:
+    print(true)
+else:
+    print(false)
+
+while age < 30:
+    if age == 25:
+        print("HA-HA")
+    age += 1

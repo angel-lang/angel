@@ -1,5 +1,6 @@
 import typing as t
 from itertools import zip_longest
+from functools import partial
 
 from . import nodes, errors, environment, environment_entries as entries
 from .utils import dispatch
@@ -144,58 +145,94 @@ class Analyzer:
         self.current_line = 1
         self.function_return_types: t.List[nodes.Type] = []
         self.parents: t.List[nodes.Name] = []
-        self.repl = False
 
         # REPL eval
-        eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
+        repl_eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
             nodes.BuiltinFunc.print.value: lambda args: print(
-                self.eval_tweak_for_printing(self.eval_expression(args[0]))
+                self.repl_tweak_for_printing(self.repl_eval_expression(args[0]))
             ),
-            nodes.BuiltinFunc.read.value: self.eval_read_function_call,
+            nodes.BuiltinFunc.read.value: self.repl_eval_read_function_call,
         }
 
-        eval_function_call_dispatcher_by_function_path = {
+        repl_eval_function_call_dispatcher_by_function_path = {
             nodes.BuiltinFunc: lambda path, args: dispatch(
-                eval_builtin_function_call_dispatcher, path.value, args
+                repl_eval_builtin_function_call_dispatcher, path.value, args
             ),
-            nodes.Name: self.eval_function_as_name_call,
+            nodes.Name: self.repl_eval_function_as_name_call,
         }
 
-        eval_dispatcher = {
-            nodes.ConstantDeclaration: lambda _: None,
-            nodes.VariableDeclaration: lambda _: None,
+        repl_eval_node_dispatcher = {
+            nodes.ConstantDeclaration: self.repl_eval_constant_declaration,
+            nodes.VariableDeclaration: self.repl_eval_variable_declaration,
             nodes.FunctionDeclaration: lambda _: None,
             nodes.StructDeclaration: lambda _: None,
-            nodes.Assignment: lambda _: None,
+            nodes.Assignment: self.repl_eval_assignment,
             nodes.FunctionCall: lambda node: dispatch(
-                eval_function_call_dispatcher_by_function_path, type(node.function_path), node.function_path, node.args
+                repl_eval_function_call_dispatcher_by_function_path, type(node.function_path), node.function_path,
+                node.args
             ),
-            nodes.While: self.eval_while_statement,
-            nodes.Break: self.eval_break_statement,
-            nodes.If: self.eval_if_statement,
+            nodes.While: self.repl_eval_while_statement,
+            nodes.Break: self.repl_eval_break_statement,
+            nodes.If: self.repl_eval_if_statement,
         }
-        self.eval_node = lambda node: dispatch(eval_dispatcher, type(node), node)
+        self.repl_eval_node = lambda node: dispatch(repl_eval_node_dispatcher, type(node), node)
 
-        eval_expression_dispatcher = {
+        self.repl_eval_expression: t.Callable[[t.Optional[nodes.Expression]], t.Any] = lambda value: dispatch(
+            repl_eval_expression_dispatcher, type(value), value
+        )
+        repl_eval_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: int(value.value),
             nodes.StringLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
-            nodes.BinaryExpression: self.eval_binary_expression,
-            nodes.Name: self.eval_name,
+            nodes.BinaryExpression: partial(self.eval_binary_expression, self.repl_eval_expression),
+            nodes.Name: self.repl_eval_name,
             nodes.FunctionCall: lambda node: dispatch(
-                eval_function_call_dispatcher_by_function_path, type(node.function_path), node.function_path, node.args
+                repl_eval_function_call_dispatcher_by_function_path, type(node.function_path), node.function_path,
+                node.args
             ),
-            nodes.Cast: lambda node: self.eval_expression(node.value),
+            nodes.Cast: lambda node: self.repl_eval_expression(node.value),
             type(None): lambda _: None,
         }
-        self.eval_expression: t.Callable[[t.Optional[nodes.Expression]], t.Any] = lambda value: dispatch(
-            eval_expression_dispatcher, type(value), value
-        )
 
-        reassign_dispatcher = {
-            nodes.Name: self.reassign_name,
+        analyzer_eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
+            nodes.BuiltinFunc.print.value: lambda _: None,
+            nodes.BuiltinFunc.read.value: self.analyzer_eval_read_function_call,
         }
-        self.reassign = lambda node: dispatch(reassign_dispatcher, type(node.left), node.left, node.right)
+
+        analyzer_eval_function_call_dispatcher_by_function_path = {
+            nodes.BuiltinFunc: lambda path, args: dispatch(
+                analyzer_eval_builtin_function_call_dispatcher, path.value, args
+            ),
+            nodes.Name: self.analyzer_eval_function_as_name_call,
+        }
+
+        self.analyzer_eval_expression: t.Callable[[t.Optional[nodes.Expression]], t.Any] = lambda value: dispatch(
+            analyzer_eval_expression_dispatcher, type(value), value
+        )
+        analyzer_eval_expression_dispatcher = {
+            nodes.IntegerLiteral: lambda value: int(value.value),
+            nodes.StringLiteral: lambda value: value.value,
+            nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
+            nodes.BinaryExpression: partial(self.eval_binary_expression, self.analyzer_eval_expression),
+            nodes.Name: self.analyzer_eval_name,
+            nodes.FunctionCall: lambda node: dispatch(
+                analyzer_eval_function_call_dispatcher_by_function_path, type(node.function_path), node.function_path,
+                node.args
+            ),
+            nodes.Cast: lambda node: self.analyzer_eval_expression(node.value),
+            type(None): lambda _: None,
+        }
+
+        repl_reassign_dispatcher = {
+            nodes.Name: self.repl_reassign_name,
+        }
+        self.repl_reassign = lambda node: dispatch(repl_reassign_dispatcher, type(node.left), node.left, node.right)
+
+        analyzer_reassign_dispatcher = {
+            nodes.Name: self.analyzer_reassign_name,
+        }
+        self.analyzer_reassign = lambda node: dispatch(
+            analyzer_reassign_dispatcher, type(node.left), node.left, node.right)
 
         # Analyzer
         analyze_node_dispatcher = {
@@ -233,6 +270,7 @@ class Analyzer:
             nodes.FunctionCall: lambda value, supertype: dispatch(
                 infer_type_from_function_call_dispatcher, type(value.function_path), value, supertype
             ),
+            nodes.Cast: lambda value, supertype: self.unify_types(value.to_type, supertype)
         }
         self.infer_type = lambda value, supertype=None: dispatch(infer_type_dispatcher, type(value), value, supertype)
 
@@ -265,6 +303,16 @@ class Analyzer:
             checked_function_call_dispatcher_by_function_path, type(path), line, path, args
         )
 
+    def repl_eval_constant_declaration(self, node: nodes.ConstantDeclaration) -> None:
+        entry = self.env[node.name.member]
+        assert isinstance(entry, entries.ConstantEntry)
+        entry.computed_value=self.repl_eval_expression(node.value)
+
+    def repl_eval_variable_declaration(self, node: nodes.VariableDeclaration) -> None:
+        entry = self.env[node.name.member]
+        assert isinstance(entry, entries.VariableEntry)
+        entry.computed_value = self.repl_eval_expression(node.value)
+
     def analyze_constant_declaration(self, node: nodes.ConstantDeclaration) -> nodes.ConstantDeclaration:
         self.current_line = node.line
         value = self.clarify_expression(node.value)
@@ -274,7 +322,7 @@ class Analyzer:
         else:
             assert clarified_type is not None
             type_ = self.unify_types(clarified_type, clarified_type)
-        self.env.add_constant(node.line, node.name, type_, value, computed_value=self.eval_expression(value))
+        self.env.add_constant(node.line, node.name, type_, value, analyzed_value=self.analyzer_eval_expression(value))
         return nodes.ConstantDeclaration(node.line, node.name, type_, value)
 
     def analyze_variable_declaration(self, node: nodes.VariableDeclaration) -> nodes.VariableDeclaration:
@@ -286,7 +334,7 @@ class Analyzer:
         else:
             assert clarified_type is not None
             type_ = self.unify_types(clarified_type, clarified_type)
-        self.env.add_variable(node.line, node.name, type_, computed_value=self.eval_expression(value))
+        self.env.add_variable(node.line, node.name, type_, analyzed_value=self.analyzer_eval_expression(value))
         return nodes.VariableDeclaration(node.line, node.name, type_, value)
 
     def analyze_function_declaration(self, node: nodes.FunctionDeclaration) -> nodes.FunctionDeclaration:
@@ -343,8 +391,11 @@ class Analyzer:
         # Type checking
         self.infer_type(right, supertype=self.infer_type(left))
         result = nodes.Assignment(node.line, left, nodes.Operator.eq, right)
-        self.reassign(result)
+        self.analyzer_reassign(result)
         return result
+
+    def repl_eval_assignment(self, node: nodes.Assignment) -> None:
+        self.repl_reassign(node)
 
     def analyze_function_call(self, node: nodes.FunctionCall) -> nodes.FunctionCall:
         self.current_line = node.line
@@ -512,7 +563,8 @@ class Analyzer:
             self, left: nodes.Expression, operator: nodes.Operator, right: nodes.Expression,
             supertype: t.Optional[nodes.Type]
     ) -> nodes.Type:
-        result = self.eval_expression(nodes.BinaryExpression(left, operator, right))
+        # TODO: first check left, then check right, than apply the operator on got types
+        result = self.analyzer_eval_expression(nodes.BinaryExpression(left, operator, right))
         if isinstance(result, bool):
             return self.unify_types(nodes.BuiltinType.bool, supertype)
         elif isinstance(result, (int, float)):
@@ -571,52 +623,62 @@ class Analyzer:
             raise errors.AngelNameError(value, self.get_code(self.current_line))
         return self.get_code(entry.line)
 
-    def reassign_name(self, left: nodes.Name, right: nodes.Expression) -> None:
+    def analyzer_reassign_name(self, left: nodes.Name, right: nodes.Expression) -> None:
         entry = self.env[left.member]
         if isinstance(entry, entries.VariableEntry):
-            entry.computed_value = self.eval_expression(right)
+            entry.analyzed_value = self.analyzer_eval_expression(right)
         elif isinstance(entry, entries.ConstantEntry):
             if entry.has_value:
                 raise errors.AngelConstantReassignment(
                     left, self.get_code(self.current_line), self.get_code(entry.line))
-            entry.computed_value = self.eval_expression(right)
+            entry.analyzed_value = self.analyzer_eval_expression(right)
             entry.has_value = True
         else:
             raise errors.AngelNameError(left, self.get_code(self.current_line))
 
-    def eval(self, ast: nodes.AST, execute_only_last_node: bool = False) -> t.Any:
-        result = None
-        last_node = None
-        for node in ast:
-            self.current_line = node.line
-            analyzed = self.analyze_node(node)
-            last_node = analyzed
-            if not execute_only_last_node:
-                result = self.eval_node(analyzed)
+    def repl_reassign_name(self, left: nodes.Name, right: nodes.Expression) -> None:
+        entry = self.env[left.member]
+        if isinstance(entry, entries.VariableEntry):
+            entry.computed_value = self.repl_eval_expression(right)
+        elif isinstance(entry, entries.ConstantEntry):
+            if entry.has_value:
+                raise errors.AngelConstantReassignment(
+                    left, self.get_code(self.current_line), self.get_code(entry.line))
+            entry.computed_value = self.repl_eval_expression(right)
+            entry.has_value = True
+        else:
+            raise errors.AngelNameError(left, self.get_code(self.current_line))
+
+    def repl_eval_ast(self, ast: nodes.AST, execute_only_last_node: bool = False) -> t.Any:
         if execute_only_last_node:
-            result = self.eval_node(last_node)
+            for node in ast[:-1]:
+                self.analyze_node(node)
+            return self.repl_eval_node(self.analyze_node(ast[-1]))
+        result = None
+        for node in ast:
+            result = self.repl_eval_node(self.analyze_node(node))
         return result
 
-    def eval_while_statement(self, node: nodes.While):
-        while self.eval_expression(node.condition):
-            result = self.eval(node.body)
+    def repl_eval_while_statement(self, node: nodes.While):
+        while self.repl_eval_expression(node.condition):
+            result = self.repl_eval_ast(node.body)
             if isinstance(result, BreakEvaluated):
                 break
             if result is not None:
                 return result
 
-    def eval_break_statement(self, _: nodes.Break):
+    def repl_eval_break_statement(self, _: nodes.Break):
         return BreakEvaluated()
 
-    def eval_if_statement(self, node: nodes.If):
-        if self.eval_expression(node.condition):
-            return self.eval(node.body)
+    def repl_eval_if_statement(self, node: nodes.If):
+        if self.repl_eval_expression(node.condition):
+            return self.repl_eval_ast(node.body)
         for elif_condition, elif_body in node.elifs:
-            if self.eval_expression(elif_condition):
-                return self.eval(elif_body)
-        return self.eval(node.else_)
+            if self.repl_eval_expression(elif_condition):
+                return self.repl_eval_ast(elif_body)
+        return self.repl_eval_ast(node.else_)
 
-    def eval_function_as_name_call(self, path: nodes.Name, args: t.List[nodes.Expression]) -> t.Any:
+    def repl_eval_function_as_name_call(self, path: nodes.Name, args: t.List[nodes.Expression]) -> t.Any:
         entry = self.env[path.member]
         if entry is None:
             raise errors.AngelNameError(path, self.get_code(self.current_line))
@@ -630,35 +692,65 @@ class Analyzer:
                     )
                 self.env.add_constant(
                     entry.line, declared_arg.name, declared_arg.type, value,
-                    computed_value=self.eval_expression(value)
+                    computed_value=self.repl_eval_expression(value)
                 )
-            result = self.eval(entry.body)
+            result = self.repl_eval_ast(entry.body)
             self.env.inc_nesting()
             return result
         else:
             raise errors.AngelNoncallableCall(path, self.get_code(self.current_line))
 
-    def eval_binary_expression(self, value: nodes.BinaryExpression) -> t.Any:
-        left = self.eval_expression(value.left)
-        right = self.eval_expression(value.right)
+    def analyzer_eval_function_as_name_call(self, path: nodes.Name, args: t.List[nodes.Expression]) -> t.Any:
+        entry = self.env[path.member]
+        if entry is None:
+            raise errors.AngelNameError(path, self.get_code(self.current_line))
+        if isinstance(entry, entries.FunctionEntry):
+            self.env.inc_nesting()
+            for value, declared_arg in zip_longest(args, entry.args):
+                if value is None or declared_arg is None:
+                    raise errors.AngelWrongArguments(
+                        "(" + ", ".join([arg.to_code() for arg in entry.args]) + ")",
+                        self.get_code(self.current_line), args
+                    )
+                self.env.add_constant(
+                    entry.line, declared_arg.name, declared_arg.type, value,
+                    analyzed_value=self.analyzer_eval_expression(value)
+                )
+            result = self.analyze(entry.body)
+            self.env.inc_nesting()
+            return result
+        else:
+            raise errors.AngelNoncallableCall(path, self.get_code(self.current_line))
+
+    def eval_binary_expression(self, eval_expression_func, value: nodes.BinaryExpression) -> t.Any:
+        left = eval_expression_func(value.left)
+        right = eval_expression_func(value.right)
         result = OPERATOR_TO_EVAL_FUNC[value.operator.value](left, right)
         if isinstance(left, int) and value.operator.value == nodes.Operator.div.value:
             return int(result)
         return result
 
-    def eval_name(self, value: nodes.Name) -> t.Any:
+    def repl_eval_name(self, value: nodes.Name) -> t.Any:
         entry = self.env[value.member]
         if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
             return entry.computed_value
         else:
             raise errors.AngelNameError(value, self.get_code(self.current_line))
 
-    def eval_tweak_for_printing(self, value: t.Any) -> t.Any:
+    def analyzer_eval_name(self, value: nodes.Name) -> t.Any:
+        entry = self.env[value.member]
+        if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
+            return entry.analyzed_value
+        else:
+            raise errors.AngelNameError(value, self.get_code(self.current_line))
+
+    def repl_tweak_for_printing(self, value: t.Any) -> t.Any:
         if isinstance(value, bool):
             return str(value).lower()
         return value
 
-    def eval_read_function_call(self, args: t.List[nodes.Expression]) -> t.Any:
-        if self.repl:
-            return input(self.eval_expression(args[0]))
+    def repl_eval_read_function_call(self, args: t.List[nodes.Expression]) -> t.Any:
+        return input(self.repl_eval_expression(args[0]))
+
+    def analyzer_eval_read_function_call(self, _: t.List[nodes.Expression]) -> t.Any:
         return nodes.DynValue(nodes.BuiltinType.string)

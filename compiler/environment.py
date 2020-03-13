@@ -20,23 +20,25 @@ class Environment:
 
     def add_constant(
             self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
-            computed_value: t.Any = None
+            computed_value: t.Any = None, analyzed_value: t.Any = None
     ) -> None:
         self.space[self.nesting_level][name.member] = entries.ConstantEntry(
-            line, name, type_, has_value=value is not None, computed_value=computed_value
+            line, name, type_, has_value=value is not None, computed_value=computed_value, analyzed_value=analyzed_value
         )
 
     def add_variable(
-            self, line: int, name: nodes.Name, type_: nodes.Type, computed_value: t.Any = None
+            self, line: int, name: nodes.Name, type_: nodes.Type, computed_value: t.Any = None,
+            analyzed_value: t.Any = None
     ) -> None:
         self.space[self.nesting_level][name.member] = entries.VariableEntry(
-            line, name, type_, computed_value=computed_value
+            line, name, type_, computed_value=computed_value, analyzed_value=analyzed_value
         )
 
     def add_arguments(self, line: int, args: t.List[nodes.Argument]) -> None:
         for arg in args:
+            value = nodes.DynValue(arg.type)
             self.space[self.nesting_level][arg.name.member] = entries.ConstantEntry(
-                line, arg.name, arg.type, has_value=True, computed_value=nodes.DynValue(arg.type)
+                line, arg.name, arg.type, has_value=True, computed_value=value, analyzed_value=value
             )
 
     def add_function(

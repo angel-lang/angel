@@ -519,12 +519,28 @@ class Parser:
         return match[0]
 
     def spaces(self) -> None:
+        prepared_for_line_comment = False
+        in_line_comment = False
         for char in self.code[self.idx:]:
             if char == "\n":
+                in_line_comment = False
                 self.idx += 1
                 self.position.line += 1
                 self.position.column = 1
             elif char.isspace():
+                self.idx += 1
+                self.position.column += 1
+            elif char == "/":
+                self.idx += 1
+                self.position.column += 1
+                if in_line_comment:
+                    continue
+                if prepared_for_line_comment:
+                    in_line_comment = True
+                    prepared_for_line_comment = False
+                else:
+                    prepared_for_line_comment = True
+            elif in_line_comment:
                 self.idx += 1
                 self.position.column += 1
             else:

@@ -1,8 +1,0 @@
-let name = "Mike"
-var age: I8 = 20
-age = 21
-
-print(true)
-print(false)
-print(name)
-print(age)
