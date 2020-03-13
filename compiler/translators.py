@@ -80,6 +80,9 @@ class Translator:
             ),
             nodes.FunctionCall: lambda value: self.translate_function_call(value),
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
+            nodes.Cast: lambda value: cpp_nodes.Cast(
+                self.translate_expression(value.value), self.translate_type(value.to_type)
+            ),
             type(None): lambda _: None,
         }
         self.translate_expression: t.Callable[[nodes.Expression], cpp_nodes.Expression] = lambda value: \

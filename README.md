@@ -92,6 +92,4 @@ print(name)
 ## Known problems
 - Defined structs cannot be used
 - `self` will be added soon
-- `I8` and `U8` are printed as `Char`
 - There is no `Char` type for now
-- `True` and `False` are printed as `true` and `false` respectively

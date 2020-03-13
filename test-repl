@@ -1,0 +1,2 @@
+export PYTHONPATH=:compiler
+python3 tests/test_eval.py

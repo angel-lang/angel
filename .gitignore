@@ -18,4 +18,5 @@ __pycache__/
 *~
 
 # Test files
+/translation-tests/.tests_cache/*
 /test.*

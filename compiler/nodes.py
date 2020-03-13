@@ -86,7 +86,7 @@ class BuiltinType(Type, enum.Enum):
         return BuiltinType.finite_signed_int_types() + BuiltinType.finite_unsigned_int_types()
 
     @property
-    def is_finite_int_type(self) -> bool:
+    def is_finite_int_type(self):
         return self.value in self.finite_int_types()
 
     def get_range(self) -> str:
@@ -193,9 +193,18 @@ class Name(Type):
 
 
 @dataclass
+class Cast(Expression):
+    value: Expression
+    to_type: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"({self.to_type.to_code()})({self.value.to_code()})"
+
+
+@dataclass
 class BoolLiteral(Expression, enum.Enum):
-    true = "True"
-    false = "False"
+    true = "true"
+    false = "false"
 
     def to_code(self, indentation_level: int = 0) -> str:
         return self.value

@@ -126,6 +126,15 @@ class BinaryExpression(Expression):
 
 
 @dataclass
+class Cast(Expression):
+    value: Expression
+    to_type: Type
+
+    def to_code(self) -> str:
+        return f"({self.to_type.to_code()})({self.value.to_code()})"
+
+
+@dataclass
 class Semicolon(Node):
     expression: Expression
 

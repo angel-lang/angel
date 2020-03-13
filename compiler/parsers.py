@@ -68,7 +68,7 @@ class Parser:
         self.if_statement_body_parsers = base_body_parsers
         self.function_declaration_statement_body_parsers = base_body_parsers
 
-    def parse(self, string: str) -> t.List[nodes.Node]:
+    def parse(self, string: str) -> nodes.AST:
         self.code = string
         self.code_lines = string.split("\n")
         self.idx = 0
@@ -206,7 +206,7 @@ class Parser:
             elifs.append((elif_condition, elif_body))
             state = self.backup_state()
             self.spaces()
-        else_ = []
+        else_: nodes.AST = []
         if self.parse_raw("else:"):
             else_ = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
             if not else_:
@@ -301,7 +301,7 @@ class Parser:
         parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
 
-    def parse_body(self, statement_parsers) -> t.List[nodes.Node]:
+    def parse_body(self, statement_parsers) -> nodes.AST:
         def mega_parser() -> t.Optional[nodes.Node]:
             for parser in statement_parsers:
                 parsed = parser()
@@ -310,7 +310,7 @@ class Parser:
             return None
 
         self.indentation_level += 1
-        result = []
+        result: nodes.AST = []
         state = self.backup_state()
         indentation = self.parse_indentation()
         if not indentation:
@@ -440,6 +440,8 @@ class Parser:
 
     def parse_expression_atom_with_trailers(self) -> t.Optional[nodes.Expression]:
         atom = self.parse_expression_atom()
+        if atom is None:
+            return None
         trailer = self.parse_trailer()
         while trailer is not None:
             if isinstance(trailer, TupleTrailer):

@@ -46,21 +46,21 @@ class TestEval(unittest.TestCase):
 
     def test_false_literal(self):
         result, output = self.eval([
-            'print(False)',
+            'print(false)',
         ])
-        self.assertEqual(output, [False])
+        self.assertEqual(output, ["false"])
 
     def test_true_literal(self):
         result, output = self.eval([
-            'print(True)',
+            'print(true)',
         ])
-        self.assertEqual(output, [True])
+        self.assertEqual(output, ["true"])
 
     def test_bool_expression_literal(self):
         result, output = self.eval([
             'print(2 == 2)',
         ])
-        self.assertEqual(output, [True])
+        self.assertEqual(output, ["true"])
 
     def test_name(self):
         env = environment.Environment()
