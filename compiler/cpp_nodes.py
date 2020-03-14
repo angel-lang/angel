@@ -78,6 +78,8 @@ class PrimitiveTypes(Type, enum.Enum):
     void = "void"
     bool = "bool"
     char = "char"
+    float = "float"
+    double = "double"
 
     def to_code(self) -> str:
         assert isinstance(self.value, str)
@@ -86,6 +88,14 @@ class PrimitiveTypes(Type, enum.Enum):
 
 @dataclass
 class IntegerLiteral(Expression):
+    value: str
+
+    def to_code(self) -> str:
+        return self.value
+
+
+@dataclass
+class DecimalLiteral(Expression):
     value: str
 
     def to_code(self) -> str:

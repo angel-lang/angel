@@ -452,7 +452,7 @@ class Parser:
         return atom
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
-        for parser in [self.parse_integer_literal, self.parse_char_literal, self.parse_string_literal, self.parse_name]:
+        for parser in [self.parse_number_literal, self.parse_char_literal, self.parse_string_literal, self.parse_name]:
             result = parser()
             if result is not None:
                 return result
@@ -472,10 +472,21 @@ class Parser:
                 return operator
         return None
 
-    def parse_integer_literal(self) -> t.Optional[nodes.IntegerLiteral]:
+    def parse_number_literal(self) -> t.Optional[t.Union[nodes.IntegerLiteral, nodes.DecimalLiteral]]:
+        integer = self.parse_integer_literal()
+        if integer is None:
+            return None
+        if not self.parse_raw("."):
+            return integer
+        fractional = self.parse_integer_literal(unary_operators=False)
+        if not fractional:
+            raise errors.AngelSyntaxError("expected fractional part", self.get_code())
+        return nodes.DecimalLiteral(integer.value + "." + fractional.value)
+
+    def parse_integer_literal(self, unary_operators: bool = True) -> t.Optional[nodes.IntegerLiteral]:
         state = self.backup_state()
         minuses = []
-        while self.parse_raw("-"):
+        while unary_operators and self.parse_raw("-"):
             minuses.append("-")
         match = INTEGER_REGEX.match(self.code[self.idx:])
         if match is None:

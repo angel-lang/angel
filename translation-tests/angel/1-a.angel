@@ -15,9 +15,17 @@ variableWithoutType = 2
 variableWithoutValue = 2
 variableWithoutValue = 3
 
-// Char.
+// Char
 let charWithEverything: Char = 'a'
 let charWithoutType = 'b'
+
+// F32
+let f32WithEverything: F32 = 10.20
+let f32WithoutType = 120.1
+
+// F64
+let f64WithEverything: F64 = 10.20
+let f64WithoutType = 340282370000000000808640304032688192896.1
 
 
 let name = "Mike"

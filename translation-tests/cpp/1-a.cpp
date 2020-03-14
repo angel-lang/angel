@@ -15,6 +15,10 @@ int main() {
   variableWithoutValue = 3;
   char charWithEverything = 'a';
   char charWithoutType = 'b';
+  float f32WithEverything = 10.20;
+  float f32WithoutType = 120.1;
+  double f64WithEverything = 10.20;
+  double f64WithoutType = 340282370000000000808640304032688192896.1;
   std::string name = "Mike";
   std::int_fast8_t age = 20;
   age = 21;

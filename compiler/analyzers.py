@@ -1,6 +1,7 @@
 import typing as t
 from itertools import zip_longest
 from functools import partial
+from decimal import Decimal
 
 from . import nodes, errors, environment, environment_entries as entries
 from .utils import dispatch
@@ -36,6 +37,11 @@ def get_possible_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
     return get_possible_signed_int_types_based_on_value(value) + get_possible_unsigned_int_types_based_on_value(value)
 
 
+MAX_FLOAT32 = Decimal('3.402823700000000000000000000E+38')
+MIN_FLOAT32 = Decimal('1.17549400000000000000000000E-38')
+MAX_FLOAT64 = Decimal('1.79769313486231570000000000E308')
+MIN_FLOAT64 = Decimal('2.22507385850720140000000000E-308')
+
 OPERATOR_TO_METHOD_NAME = {
     nodes.Operator.eq_eq.value: nodes.SpecialMethods.eq.value,
     nodes.Operator.lt.value: nodes.SpecialMethods.lt.value,
@@ -46,6 +52,15 @@ OPERATOR_TO_METHOD_NAME = {
     nodes.Operator.mul.value: nodes.SpecialMethods.mul.value,
     nodes.Operator.div.value: nodes.SpecialMethods.div.value,
 }
+
+
+def get_possible_float_types_base_on_value(value: str) -> t.List[nodes.Type]:
+    decimal = Decimal(value)
+    if MIN_FLOAT32 <= decimal <= MAX_FLOAT32 or -MAX_FLOAT32 <= decimal <= -MIN_FLOAT32 or decimal == 0:
+        return [nodes.BuiltinType.f32, nodes.BuiltinType.f64]
+    elif MIN_FLOAT64 <= decimal <= MAX_FLOAT64 or -MAX_FLOAT64 <= decimal <= -MIN_FLOAT64:
+        return [nodes.BuiltinType.f64]
+    return []
 
 
 def add(x, y):
@@ -182,6 +197,7 @@ class Analyzer:
         )
         repl_eval_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: int(value.value),
+            nodes.DecimalLiteral: lambda value: Decimal(value.value),
             nodes.StringLiteral: lambda value: value.value,
             nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
@@ -212,6 +228,7 @@ class Analyzer:
         )
         analyzer_eval_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: int(value.value),
+            nodes.DecimalLiteral: lambda value: Decimal(value.value),
             nodes.StringLiteral: lambda value: value.value,
             nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
@@ -264,6 +281,7 @@ class Analyzer:
 
         infer_type_dispatcher = {
             nodes.IntegerLiteral: self.infer_type_from_integer_literal,
+            nodes.DecimalLiteral: self.infer_type_from_decimal_literal,
             nodes.StringLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.string, supertype),
             nodes.CharLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.char, supertype),
             nodes.BoolLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.bool, supertype),
@@ -553,6 +571,26 @@ class Analyzer:
         else:
             return result
 
+    def infer_type_from_decimal_literal(
+            self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        possible_types = get_possible_float_types_base_on_value(value.value)
+        try:
+            result = self.unify_list_types(possible_types, supertype)
+        except errors.AngelTypeError:
+            if supertype is None:
+                if int(value.value) > 0:
+                    message = f"{value.value} is too big"
+                else:
+                    message = f"{value.value} is too small"
+            elif isinstance(supertype, nodes.BuiltinType) and supertype.is_finite_float_type:
+                message = f"{value.value} is not in range {supertype.get_range()}"
+            else:
+                message = f"'{supertype.to_code()}' is not a possible type for {value.value}"
+            raise errors.AngelTypeError(message, self.get_code(self.current_line), possible_types)
+        else:
+            return result
+
     def infer_type_from_name(self, value: nodes.Name, supertype: t.Optional[nodes.Type]) -> nodes.Type:
         entry = self.env[value.member]
         if entry is None:
@@ -566,12 +604,13 @@ class Analyzer:
             self, left: nodes.Expression, operator: nodes.Operator, right: nodes.Expression,
             supertype: t.Optional[nodes.Type]
     ) -> nodes.Type:
-        # TODO: first check left, then check right, than apply the operator on got types
         result = self.analyzer_eval_expression(nodes.BinaryExpression(left, operator, right))
         if isinstance(result, bool):
             return self.unify_types(nodes.BuiltinType.bool, supertype)
         elif isinstance(result, (int, float)):
             return self.infer_type_from_integer_literal(nodes.IntegerLiteral(str(int(result))), supertype)
+        elif isinstance(result, Decimal):
+            return self.infer_type_from_decimal_literal(nodes.DecimalLiteral(str(result)), supertype)
         elif isinstance(result, nodes.DynValue):
             return self.unify_types(result.type, supertype)
         else:
@@ -750,6 +789,8 @@ class Analyzer:
     def repl_tweak_for_printing(self, value: t.Any) -> t.Any:
         if isinstance(value, bool):
             return str(value).lower()
+        elif isinstance(value, Decimal):
+            return str(value)
         return value
 
     def repl_eval_read_function_call(self, args: t.List[nodes.Expression]) -> t.Any:

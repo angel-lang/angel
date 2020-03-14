@@ -67,6 +67,9 @@ class BuiltinType(Type, enum.Enum):
     u32 = "U32"
     u64 = "U64"
 
+    f32 = "F32"
+    f64 = "F64"
+
     string = "String"
     char = "Char"
     bool = "Bool"
@@ -86,12 +89,24 @@ class BuiltinType(Type, enum.Enum):
     def finite_int_types(cls) -> t.List[str]:
         return BuiltinType.finite_signed_int_types() + BuiltinType.finite_unsigned_int_types()
 
+    @classmethod
+    def finite_float_types(cls) -> t.List[str]:
+        return [BuiltinType.f32.value, BuiltinType.f64.value]
+
     @property
     def is_finite_int_type(self):
         return self.value in self.finite_int_types()
 
+    @property
+    def is_finite_float_type(self):
+        return self.value in self.finite_float_types()
+
+    @property
+    def is_finite(self):
+        return self.is_finite_int_type or self.is_finite_float_type
+
     def get_range(self) -> str:
-        assert self.is_finite_int_type
+        assert self.is_finite
         return {
             BuiltinType.i8.value: "[-128; 127]",
             BuiltinType.i16.value: "[-32768; 32767]",
@@ -102,6 +117,15 @@ class BuiltinType(Type, enum.Enum):
             BuiltinType.u16.value: "[0; 65535]",
             BuiltinType.u32.value: "[0; 4294967295]",
             BuiltinType.u64.value: "[0; 18446744073709551615]",
+
+            BuiltinType.f32.value: (
+                "[-3.402823700000000000000000000E+38; -1.17549400000000000000000000E-38] U "
+                "{0} U [1.17549400000000000000000000E-38; 3.402823700000000000000000000E+38]"
+            ),
+            BuiltinType.f64.value: (
+                "[-1.79769313486231570000000000E+308; -2.22507385850720140000000000E-308] U "
+                "{0} U [2.22507385850720140000000000E-308; 1.79769313486231570000000000E+308]"
+            ),
         }[self.value]
 
     def to_code(self, indentation_level: int = 0) -> str:
@@ -213,6 +237,14 @@ class BoolLiteral(Expression, enum.Enum):
 
 @dataclass
 class IntegerLiteral(Type):
+    value: str
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return self.value
+
+
+@dataclass
+class DecimalLiteral(Expression):
     value: str
 
     def to_code(self, indentation_level: int = 0) -> str:

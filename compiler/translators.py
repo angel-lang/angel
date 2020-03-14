@@ -14,6 +14,9 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
     nodes.BuiltinType.u32.value: cpp_nodes.StdName.uint_fast32_t,
     nodes.BuiltinType.u64.value: cpp_nodes.StdName.uint_fast64_t,
 
+    nodes.BuiltinType.f32.value: cpp_nodes.PrimitiveTypes.float,
+    nodes.BuiltinType.f64.value: cpp_nodes.PrimitiveTypes.double,
+
     nodes.BuiltinType.string.value: cpp_nodes.StdName.string,
     nodes.BuiltinType.char.value: cpp_nodes.PrimitiveTypes.char,
     nodes.BuiltinType.bool.value: cpp_nodes.PrimitiveTypes.bool,
@@ -73,6 +76,7 @@ class Translator:
 
         translate_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: cpp_nodes.IntegerLiteral(value.value),
+            nodes.DecimalLiteral: lambda value: cpp_nodes.DecimalLiteral(value.value),
             nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
             nodes.CharLiteral: lambda value: cpp_nodes.CharLiteral(value.value),
             nodes.BoolLiteral: lambda value: cpp_nodes.BoolLiteral(value.value.lower()),

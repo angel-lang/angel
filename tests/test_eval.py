@@ -109,6 +109,11 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['a'])
 
+    def test_f32_and_f64(self):
+        code = ["print(10.2)"]
+        result, output = self.eval(code)
+        self.assertEqual(output, ["10.2"])
+
 
 if __name__ == '__main__':
     unittest.main()

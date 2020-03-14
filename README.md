@@ -130,13 +130,13 @@ Function `print`:
 
 
 ### Built-in Types
-Signed finite integer types:
+#### Signed finite integer types
 - `I8`: `-128 <= I8 <= 127`
 - `I16`: `-32768 <= I16 <= 32767`
 - `I32`: `-2147483648 <= I32 <= 2147483647`
 - `I64`: `-9223372036854775808 <= I64 <= 9223372036854775807`
 
-Unsigned finite integer types:
+#### Unsigned finite integer types
 - `U8`: `0 <= U8 <= 255`
 - `U16`: `0 <= U16 <= 65535`
 - `U32`: `0 <= U32 <= 4294967295`
@@ -145,14 +145,35 @@ Unsigned finite integer types:
 Literal for finite integer types is just a number in
 type's range: e.g. `100` for `I8`.
 
-Other primitive types:
+#### Finite float types
+- `F32`:
+```
+-3.402823700000000000000000000E+38 <= F32 <= -1.17549400000000000000000000E-38
+or
+1.17549400000000000000000000E-38 <= F32 <= 3.402823700000000000000000000E+38
+or
+F32 == 0
+```
+- `F64`:
+```
+-1.79769313486231570000000000E+308 <= F64 <= -2.22507385850720140000000000E-308
+or
+2.22507385850720140000000000E-308 <= F64 <= 1.79769313486231570000000000E+308
+or
+F64 == 0
+```
+
+Literal for finite float types is just a decimal number in
+type's range: e.g. `20.034` for `F32`.
+
+#### Other primitive types
 - `Char`: literal is exactly one character surrounded by single quotes (`'`),
 e.g. `'a'`.
 - `Bool`: literal can be `true` or `false`.
 
-Container types:
-- `String`: literal is any string surrounded by double quotes (`"`),
-e.g. `"I am a string!"`
+#### Container types
+- `String`: literal can be any text surrounded by double quotes (`"`),
+e.g. `"I am a string!"`.
 
 ## Coming soon
 - Defined structs cannot be used
