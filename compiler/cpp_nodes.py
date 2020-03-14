@@ -30,6 +30,7 @@ class StdModule(enum.Enum):
     iostream = "iostream"
     cstdint = "cstdint"
     string = "string"
+    vector = "vector"
 
 
 class Operator(enum.Enum):
@@ -63,6 +64,7 @@ class StdName(Type, Expression, enum.Enum):
     uint_fast64_t = "uint_fast64_t"
 
     string = "string"
+    vector = "vector"
 
     cout = "cout"
     cin = "cin"
@@ -84,6 +86,12 @@ class PrimitiveTypes(Type, enum.Enum):
     def to_code(self) -> str:
         assert isinstance(self.value, str)
         return self.value
+
+
+@dataclass
+class VoidPtr(Type):
+    def to_code(self) -> str:
+        return "void*"
 
 
 @dataclass
@@ -118,6 +126,14 @@ class CharLiteral(Expression):
         return "'" + self.value + "'"
 
 
+@dataclass
+class ArrayLiteral(Expression):
+    elements: t.List[Expression]
+
+    def to_code(self) -> str:
+        return "{" + ','.join(element.to_code() for element in self.elements) + "}"
+
+
 class BoolLiteral(Expression, enum.Enum):
     true = "true"
     false = "false"
@@ -132,6 +148,16 @@ class Id(Type, Expression):
 
     def to_code(self) -> str:
         return self.value
+
+
+@dataclass
+class GenericType(Type):
+    parent: Type
+    parameters: t.List[Type]
+
+    def to_code(self) -> str:
+        parameters = ','.join(param.to_code() for param in self.parameters)
+        return f"{self.parent.to_code()}<{parameters}>"
 
 
 @dataclass

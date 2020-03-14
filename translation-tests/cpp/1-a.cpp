@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <vector>
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;
@@ -19,6 +20,10 @@ int main() {
   float f32WithoutType = 120.1;
   double f64WithEverything = 10.20;
   double f64WithoutType = 340282370000000000808640304032688192896.1;
+  std::vector<void*> emptyVectorWithoutType = {};
+  std::vector<std::int_fast8_t> emptyVectorWithType = {};
+  std::vector<std::int_fast16_t> vectorWithoutType = {1, 260};
+  std::vector<std::int_fast8_t> vectorWithType = {1};
   std::string name = "Mike";
   std::int_fast8_t age = 20;
   age = 21;

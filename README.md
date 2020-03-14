@@ -174,6 +174,9 @@ e.g. `'a'`.
 #### Container types
 - `String`: literal can be any text surrounded by double quotes (`"`),
 e.g. `"I am a string!"`.
+- Vector type `[SubType]`: `SubType` can be any type, e.g. `[I8]`.
+Literal for this type has format of `[SubTypeLiteral, ...]`,
+e.g. `[1, 2, 3, 4]` for `[I8]` type.
 
 ## Coming soon
 - Defined structs cannot be used

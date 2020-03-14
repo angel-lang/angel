@@ -397,7 +397,21 @@ class Parser:
         return self.code[self.idx:] == ""
 
     def parse_type(self) -> t.Optional[nodes.Type]:
-        return self.parse_name()
+        for parser in [self.parse_vector_type, self.parse_name]:
+            result = parser()
+            if result is not None:
+                return result
+        return None
+
+    def parse_vector_type(self) -> t.Optional[nodes.VectorType]:
+        if not self.parse_raw("["):
+            return None
+        subtype = self.parse_type()
+        if subtype is None:
+            raise errors.AngelSyntaxError("expected type", self.get_code())
+        if not self.parse_raw("]"):
+            raise errors.AngelSyntaxError("expected ']'", self.get_code())
+        return nodes.VectorType(subtype)
 
     def parse_binary_expression(self, left_parser, operators, right_parser) -> t.Optional[nodes.Expression]:
         left = left_parser()
@@ -452,7 +466,11 @@ class Parser:
         return atom
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
-        for parser in [self.parse_number_literal, self.parse_char_literal, self.parse_string_literal, self.parse_name]:
+        literal_parsers = [
+            self.parse_number_literal, self.parse_vector_literal, self.parse_char_literal,
+            self.parse_string_literal, self.parse_name
+        ]
+        for parser in literal_parsers:
             result = parser()
             if result is not None:
                 return result
@@ -471,6 +489,14 @@ class Parser:
             if self.parse_raw(operator.value):
                 return operator
         return None
+
+    def parse_vector_literal(self) -> t.Optional[nodes.VectorLiteral]:
+        elements = self.parse_container(
+            open_container="[", close_container="]", element_separator=",", element_parser=self.parse_expression
+        )
+        if elements is None:
+            return None
+        return nodes.VectorLiteral(elements)
 
     def parse_number_literal(self) -> t.Optional[t.Union[nodes.IntegerLiteral, nodes.DecimalLiteral]]:
         integer = self.parse_integer_literal()

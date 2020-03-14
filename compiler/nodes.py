@@ -56,6 +56,22 @@ class DynValue:
     type: Type
 
 
+@dataclass
+class VectorType(Type):
+    subtype: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"[{self.subtype.to_code()}]"
+
+
+@dataclass
+class TemplateType(Type):
+    id: int
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"T<{self.id}>"
+
+
 class BuiltinType(Type, enum.Enum):
     i8 = "I8"
     i16 = "I16"
@@ -126,6 +142,47 @@ class BuiltinType(Type, enum.Enum):
                 "[-1.79769313486231570000000000E+308; -2.22507385850720140000000000E-308] U "
                 "{0} U [2.22507385850720140000000000E-308; 1.79769313486231570000000000E+308]"
             ),
+        }[self.value]
+
+    def get_builtin_supertypes(self) -> t.List[str]:
+        return {
+            BuiltinType.i8.value: [
+                BuiltinType.i8.value, BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
+                BuiltinType.convertible_to_string.value
+            ],
+            BuiltinType.i16.value: [
+                BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
+                BuiltinType.convertible_to_string.value
+            ],
+            BuiltinType.i32.value: [
+                BuiltinType.i32.value, BuiltinType.i64.value, BuiltinType.convertible_to_string.value
+            ],
+            BuiltinType.i64.value: [BuiltinType.i64.value, BuiltinType.convertible_to_string.value],
+
+            BuiltinType.u8.value: [
+                BuiltinType.u8.value, BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
+                BuiltinType.convertible_to_string.value
+            ],
+            BuiltinType.u16.value: [
+                BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
+                BuiltinType.convertible_to_string.value
+            ],
+            BuiltinType.u32.value: [
+                BuiltinType.u32.value, BuiltinType.u64.value, BuiltinType.convertible_to_string.value
+            ],
+            BuiltinType.u64.value: [BuiltinType.u64.value, BuiltinType.convertible_to_string.value],
+
+            BuiltinType.f32.value: [
+                BuiltinType.f32.value, BuiltinType.f64.value, BuiltinType.convertible_to_string.value,
+            ],
+            BuiltinType.f64.value: [
+                BuiltinType.f64.value, BuiltinType.convertible_to_string.value,
+            ],
+
+            BuiltinType.string.value: [BuiltinType.string.value, BuiltinType.convertible_to_string.value],
+            BuiltinType.bool.value: [BuiltinType.bool.value, BuiltinType.convertible_to_string.value],
+            BuiltinType.char.value: [BuiltinType.char.value, BuiltinType.convertible_to_string.value],
+            BuiltinType.void.value: [BuiltinType.void.value],
         }[self.value]
 
     def to_code(self, indentation_level: int = 0) -> str:
@@ -265,6 +322,14 @@ class CharLiteral(Expression):
 
     def to_code(self, indentation_level: int = 0) -> str:
         return "'" + self.value + "'"
+
+
+@dataclass
+class VectorLiteral(Expression):
+    elements: t.List[Expression]
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return "[" + ', '.join(element.to_code() for element in self.elements) + "]"
 
 
 @dataclass

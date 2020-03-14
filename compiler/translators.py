@@ -78,6 +78,9 @@ class Translator:
             nodes.IntegerLiteral: lambda value: cpp_nodes.IntegerLiteral(value.value),
             nodes.DecimalLiteral: lambda value: cpp_nodes.DecimalLiteral(value.value),
             nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
+            nodes.VectorLiteral: lambda value: cpp_nodes.ArrayLiteral([
+                self.translate_expression(element) for element in value.elements
+            ]),
             nodes.CharLiteral: lambda value: cpp_nodes.CharLiteral(value.value),
             nodes.BoolLiteral: lambda value: cpp_nodes.BoolLiteral(value.value.lower()),
             nodes.BinaryExpression: lambda value: cpp_nodes.BinaryExpression(
@@ -97,6 +100,8 @@ class Translator:
         translate_type_dispatcher: t.Dict[type, t.Callable] = {
             nodes.BuiltinType: self.translate_builtin_type,
             nodes.Name: lambda type_: cpp_nodes.Id(type_.member),
+            nodes.VectorType: self.translate_vector_type,
+            nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(translate_type_dispatcher, type(type_), type_)
@@ -189,6 +194,12 @@ class Translator:
             cpp_nodes.Semicolon(cpp_nodes.BinaryExpression(cpp_nodes.StdName.cin, cpp_nodes.Operator.rshift, tmp))
         )
         return tmp
+
+    def translate_vector_type(self, vector_type: nodes.VectorType) -> cpp_nodes.Type:
+        self.add_include(cpp_nodes.StdModule.vector)
+        return cpp_nodes.GenericType(
+            cpp_nodes.StdName.vector, [self.translate_type(vector_type.subtype)]
+        )
 
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
         if builtin_type.value in nodes.BuiltinType.finite_int_types():

@@ -114,6 +114,11 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ["10.2"])
 
+    def test_vector(self):
+        code = ["print([1, 2, 3])"]
+        result, output = self.eval(code)
+        self.assertEqual(output, [[1, 2, 3]])
+
 
 if __name__ == '__main__':
     unittest.main()

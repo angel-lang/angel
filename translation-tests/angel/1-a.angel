@@ -27,6 +27,11 @@ let f32WithoutType = 120.1
 let f64WithEverything: F64 = 10.20
 let f64WithoutType = 340282370000000000808640304032688192896.1
 
+// Vector type
+let emptyVectorWithoutType = []
+let emptyVectorWithType: [I8] = []
+let vectorWithoutType = [1, 260]
+let vectorWithType: [I8] = [1]
 
 let name = "Mike"
 var age: I8 = 20
