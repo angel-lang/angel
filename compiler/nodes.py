@@ -65,6 +65,15 @@ class VectorType(Type):
 
 
 @dataclass
+class DictType(Type):
+    key_type: Type
+    value_type: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"[{self.key_type.to_code()}: {self.value_type.to_code()}]"
+
+
+@dataclass
 class TemplateType(Type):
     id: int
 
@@ -330,6 +339,19 @@ class VectorLiteral(Expression):
 
     def to_code(self, indentation_level: int = 0) -> str:
         return "[" + ', '.join(element.to_code() for element in self.elements) + "]"
+
+
+@dataclass
+class DictLiteral(Expression):
+    keys: t.List[Expression]
+    values: t.List[Expression]
+    annotation: t.Optional[Type] = None
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        inner = []
+        for key, value in zip(self.keys, self.values):
+            inner.append(f"{key.to_code()}: {value.to_code()}")
+        return "[" + ', '.join(element for element in inner) + "]"
 
 
 @dataclass

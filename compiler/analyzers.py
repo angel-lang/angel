@@ -1,3 +1,4 @@
+import json
 import typing as t
 from itertools import zip_longest
 from functools import partial
@@ -202,6 +203,10 @@ class Analyzer:
             nodes.DecimalLiteral: lambda value: Decimal(value.value),
             nodes.StringLiteral: lambda value: value.value,
             nodes.VectorLiteral: lambda value: [self.repl_eval_expression(element) for element in value.elements],
+            nodes.DictLiteral: lambda value: {
+                self.repl_eval_expression(key): self.repl_eval_expression(val)
+                for key, val in zip(value.keys, value.values)
+            },
             nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
             nodes.BinaryExpression: partial(self.eval_binary_expression, self.repl_eval_expression),
@@ -234,6 +239,10 @@ class Analyzer:
             nodes.DecimalLiteral: lambda value: Decimal(value.value),
             nodes.StringLiteral: lambda value: value.value,
             nodes.VectorLiteral: lambda value: [self.analyzer_eval_expression(element) for element in value.elements],
+            nodes.DictLiteral: lambda value: {
+                self.analyzer_eval_expression(key): self.analyzer_eval_expression(val)
+                for key, val in zip(value.keys, value.values)
+            },
             nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
             nodes.BinaryExpression: partial(self.eval_binary_expression, self.analyzer_eval_expression),
@@ -288,6 +297,7 @@ class Analyzer:
             nodes.DecimalLiteral: self.infer_type_from_decimal_literal,
             nodes.StringLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.string, supertype),
             nodes.VectorLiteral: self.infer_type_from_vector_literal,
+            nodes.DictLiteral: self.infer_type_from_dict_literal,
             nodes.CharLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.char, supertype),
             nodes.BoolLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.bool, supertype),
             nodes.BinaryExpression: lambda value, supertype: self.infer_type_from_binary_expression(
@@ -303,19 +313,30 @@ class Analyzer:
         self.unify_types_dispatcher = {
             (nodes.BuiltinType, nodes.BuiltinType): self.unify_builtin_types,
             (nodes.VectorType, nodes.VectorType): self.unify_vector_types,
+            (nodes.DictType, nodes.DictType): self.unify_dict_types,
             (nodes.TemplateType, nodes.TemplateType): self.unify_template_types,
 
             (nodes.BuiltinType, nodes.VectorType): self.unification_failed,
-            (nodes.BuiltinType, nodes.TemplateType): self.unify_builtin_type_with_template_type,
+            (nodes.BuiltinType, nodes.DictType): self.unification_failed,
+            (nodes.BuiltinType, nodes.TemplateType): self.unification_template_supertype_success,
 
             (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype: (
                 supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
                 else self.unification_failed(subtype, supertype)
             ),
-            (nodes.VectorType, nodes.TemplateType): self.unify_vector_type_with_template_type,
+            (nodes.VectorType, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.VectorType, nodes.DictType): self.unification_failed,
 
             (nodes.TemplateType, nodes.BuiltinType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.VectorType): self.unification_template_subtype_success,
+            (nodes.TemplateType, nodes.DictType): self.unification_template_subtype_success,
+
+            (nodes.DictType, nodes.BuiltinType): lambda subtype, supertype: (
+                supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
+                else self.unification_failed(subtype, supertype)
+            ),
+            (nodes.DictType, nodes.VectorType): self.unification_failed,
+            (nodes.DictType, nodes.TemplateType): self.unification_template_supertype_success,
         }
 
         can_assign_dispatcher = {
@@ -536,6 +557,10 @@ class Analyzer:
             return self.analyze_function_call(value)
         elif isinstance(value, nodes.VectorLiteral):
             return nodes.VectorLiteral([self.clarify_expression(element) for element in value.elements])
+        elif isinstance(value, nodes.DictLiteral):
+            keys = [self.clarify_expression(key) for key in value.keys]
+            values = [self.clarify_expression(val) for val in value.values]
+            return nodes.DictLiteral(keys, values, annotation=self.infer_type(nodes.DictLiteral(keys, values)))
         return value
 
     def clarify_binary_expression(
@@ -565,6 +590,8 @@ class Analyzer:
                 return builtin_type
         elif isinstance(type_, nodes.VectorType):
             return nodes.VectorType(self.clarify_type(type_.subtype))
+        elif isinstance(type_, nodes.DictType):
+            return nodes.DictType(self.clarify_type(type_.key_type), self.clarify_type(type_.value_type))
         return type_
 
     def can_assign_name(self, value: nodes.Name) -> bool:
@@ -626,6 +653,25 @@ class Analyzer:
                 element_type = self.unify_types(current_element_type, element_type)
         return self.unify_types(nodes.VectorType(element_type), supertype)
 
+    def infer_type_from_dict_literal(
+            self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        key_type: nodes.Type = self.create_template_type()
+        value_type: nodes.Type = self.create_template_type()
+        for key, val in zip(value.keys, value.values):
+            current_key_type = self.infer_type(key)
+            try:
+                key_type = self.unify_types(key_type, current_key_type)
+            except errors.AngelTypeError:
+                key_type = self.unify_types(current_key_type, key_type)
+
+            current_value_type = self.infer_type(val)
+            try:
+                value_type = self.unify_types(value_type, current_value_type)
+            except errors.AngelTypeError:
+                value_type = self.unify_types(current_value_type, value_type)
+        return self.unify_types(nodes.DictType(key_type, value_type), supertype)
+
     def infer_type_from_name(self, value: nodes.Name, supertype: t.Optional[nodes.Type]) -> nodes.Type:
         entry = self.env[value.member]
         if entry is None:
@@ -676,9 +722,7 @@ class Analyzer:
         self.template_types[supertype.id] = subtype
         return subtype
 
-    def unify_vector_type_with_template_type(
-            self, subtype: nodes.VectorType, supertype: nodes.TemplateType
-    ) -> nodes.Type:
+    def unification_template_supertype_success(self, subtype: nodes.Type, supertype: nodes.TemplateType) -> nodes.Type:
         assert self.template_types[supertype.id] is None
         self.template_types[supertype.id] = subtype
         return subtype
@@ -689,8 +733,25 @@ class Analyzer:
         return supertype
 
     def unify_vector_types(self, subtype: nodes.VectorType, supertype: nodes.VectorType) -> nodes.Type:
-        # TODO: improve error message
-        return nodes.VectorType(self.unify_types(subtype.subtype, supertype.subtype))
+        try:
+            element_type = self.unify_types(subtype.subtype, supertype.subtype)
+            return nodes.VectorType(element_type)
+        except errors.AngelTypeError:
+            raise errors.AngelTypeError(
+                f"{supertype.to_code()} is not a supertype of {subtype.to_code()}", self.get_code(self.current_line),
+                [subtype]
+            )
+
+    def unify_dict_types(self, subtype: nodes.DictType, supertype: nodes.DictType) -> nodes.Type:
+        try:
+            key_type = self.unify_types(subtype.key_type, supertype.key_type)
+            value_type = self.unify_types(subtype.value_type, supertype.value_type)
+            return nodes.DictType(key_type, value_type)
+        except errors.AngelTypeError:
+            raise errors.AngelTypeError(
+                f"{supertype.to_code()} is not a supertype of {subtype.to_code()}", self.get_code(self.current_line),
+                [subtype]
+            )
 
     def unification_failed(self, subtype: nodes.Type, supertype: nodes.Type) -> nodes.Type:
         raise errors.AngelTypeError(
@@ -860,7 +921,19 @@ class Analyzer:
             return str(value).lower()
         elif isinstance(value, Decimal):
             return str(value)
+        elif isinstance(value, dict):
+            return self.change_dict_braces(value)
         return value
+
+    def change_dict_braces(self, d):
+        new_d = {}
+        for key, value in d.items():
+            if isinstance(value, dict):
+                value = self.change_dict_braces(value)
+            new_d[key] = value
+        # For double quotes.
+        s = json.dumps(new_d)
+        return "[" + s[1:-1] + "]"
 
     def repl_eval_read_function_call(self, args: t.List[nodes.Expression]) -> t.Any:
         return input(self.repl_eval_expression(args[0]))

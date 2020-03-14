@@ -397,19 +397,27 @@ class Parser:
         return self.code[self.idx:] == ""
 
     def parse_type(self) -> t.Optional[nodes.Type]:
-        for parser in [self.parse_vector_type, self.parse_name]:
+        for parser in [self.parse_vector_or_dict_type, self.parse_name]:
             result = parser()
             if result is not None:
                 return result
         return None
 
-    def parse_vector_type(self) -> t.Optional[nodes.VectorType]:
+    def parse_vector_or_dict_type(self) -> t.Optional[nodes.Type]:
         if not self.parse_raw("["):
             return None
         subtype = self.parse_type()
         if subtype is None:
             raise errors.AngelSyntaxError("expected type", self.get_code())
-        if not self.parse_raw("]"):
+        if self.parse_raw(":"):
+            self.spaces()
+            value_type = self.parse_type()
+            if value_type is None:
+                raise errors.AngelSyntaxError("expected type", self.get_code())
+            if not self.parse_raw("]"):
+                raise errors.AngelSyntaxError("expected ']'", self.get_code())
+            return nodes.DictType(subtype, value_type)
+        elif not self.parse_raw("]"):
             raise errors.AngelSyntaxError("expected ']'", self.get_code())
         return nodes.VectorType(subtype)
 
@@ -467,7 +475,7 @@ class Parser:
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
         literal_parsers = [
-            self.parse_number_literal, self.parse_vector_literal, self.parse_char_literal,
+            self.parse_number_literal, self.parse_vector_or_dict_literal, self.parse_char_literal,
             self.parse_string_literal, self.parse_name
         ]
         for parser in literal_parsers:
@@ -490,13 +498,42 @@ class Parser:
                 return operator
         return None
 
-    def parse_vector_literal(self) -> t.Optional[nodes.VectorLiteral]:
+    def parse_vector_or_dict_literal(self) -> t.Optional[nodes.Expression]:
+        if self.parse_raw("[:]"):
+            return nodes.DictLiteral([], [])
         elements = self.parse_container(
-            open_container="[", close_container="]", element_separator=",", element_parser=self.parse_expression
+            open_container="[", close_container="]", element_separator=",",
+            element_parser=self.parse_vector_or_dict_element
         )
         if elements is None:
             return None
-        return nodes.VectorLiteral(elements)
+        type_of_element = None
+        keys, values = [], []
+        for element in elements:
+            if isinstance(element, tuple):
+                keys.append(element[0])
+                values.append(element[1])
+            if type_of_element is None:
+                type_of_element = type(element)
+            elif not isinstance(element, type_of_element):
+                raise errors.AngelSyntaxError("unknown container", self.get_code())
+        if type_of_element is None or type_of_element != tuple:
+            return nodes.VectorLiteral(elements)
+        return nodes.DictLiteral(keys, values)
+
+    def parse_vector_or_dict_element(
+            self
+    ) -> t.Optional[t.Union[nodes.Expression, t.Tuple[nodes.Expression, nodes.Expression]]]:
+        key = self.parse_expression()
+        if key is None:
+            return key
+        if self.parse_raw(":"):
+            self.spaces()
+            value = self.parse_expression()
+            if value is None:
+                raise errors.AngelSyntaxError("expected expression", self.get_code())
+            return key, value
+        return key
 
     def parse_number_literal(self) -> t.Optional[t.Union[nodes.IntegerLiteral, nodes.DecimalLiteral]]:
         integer = self.parse_integer_literal()

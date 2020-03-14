@@ -31,6 +31,7 @@ class StdModule(enum.Enum):
     cstdint = "cstdint"
     string = "string"
     vector = "vector"
+    map = "map"
 
 
 class Operator(enum.Enum):
@@ -65,6 +66,7 @@ class StdName(Type, Expression, enum.Enum):
 
     string = "string"
     vector = "vector"
+    map = "map"
 
     cout = "cout"
     cin = "cin"
@@ -92,6 +94,15 @@ class PrimitiveTypes(Type, enum.Enum):
 class VoidPtr(Type):
     def to_code(self) -> str:
         return "void*"
+
+
+@dataclass
+class Subscript(Expression):
+    base: Expression
+    index: Expression
+
+    def to_code(self) -> str:
+        return f"{self.base.to_code()}[{self.index.to_code()}]"
 
 
 @dataclass

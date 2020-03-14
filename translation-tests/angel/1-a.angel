@@ -33,6 +33,12 @@ let emptyVectorWithType: [I8] = []
 let vectorWithoutType = [1, 260]
 let vectorWithType: [I8] = [1]
 
+// Dict type
+let emptyDictWithoutType = [:]
+let emptyDictWithType: [String: I8] = [:]
+let dictWithoutType = ["a": 1, "c": 0, "b": 3]
+let dictWithType: [String: I8] = ["a": 1]
+
 let name = "Mike"
 var age: I8 = 20
 age = 21

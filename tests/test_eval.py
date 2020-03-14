@@ -119,6 +119,11 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, [[1, 2, 3]])
 
+    def test_dict(self):
+        code = ['print(["a": 1, "c": 0, "b": 3])']
+        result, output = self.eval(code)
+        self.assertEqual(output, ['["a": 1, "c": 0, "b": 3]'])
+
 
 if __name__ == '__main__':
     unittest.main()

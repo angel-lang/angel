@@ -46,9 +46,7 @@ class Translator:
 
         translate_function_call_dispatcher_by_function_path = {
             nodes.BuiltinFunc: lambda path, args: dispatch(translate_builtin_function_dispatcher, path.value, args),
-            nodes.Name: lambda path, args: cpp_nodes.FunctionCall(
-                self.translate_expression(path), [self.translate_expression(arg) for arg in args]
-            ),
+            nodes.Name: self.translate_function_as_name_call,
         }
         self.translate_function_call = lambda node: dispatch(
             translate_function_call_dispatcher_by_function_path, type(node.function_path),
@@ -65,10 +63,7 @@ class Translator:
             nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.StructDeclaration: self.translate_struct_declaration,
             nodes.FieldDeclaration: self.translate_field_declaration,
-            nodes.Assignment: lambda node: cpp_nodes.Assignment(
-                self.translate_expression(node.left), self.translate_operator(node.operator),
-                self.translate_expression(node.right)
-            ),
+            nodes.Assignment: self.translate_assignment,
             nodes.FunctionCall: lambda node: cpp_nodes.Semicolon(self.translate_function_call(node)),
             nodes.While: self.translate_while_statement,
             nodes.If: self.translate_if_statement,
@@ -78,33 +73,74 @@ class Translator:
             nodes.IntegerLiteral: lambda value: cpp_nodes.IntegerLiteral(value.value),
             nodes.DecimalLiteral: lambda value: cpp_nodes.DecimalLiteral(value.value),
             nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
-            nodes.VectorLiteral: lambda value: cpp_nodes.ArrayLiteral([
-                self.translate_expression(element) for element in value.elements
-            ]),
+            nodes.VectorLiteral: self.translate_vector_literal,
+            nodes.DictLiteral: self.translate_dict_literal,
             nodes.CharLiteral: lambda value: cpp_nodes.CharLiteral(value.value),
             nodes.BoolLiteral: lambda value: cpp_nodes.BoolLiteral(value.value.lower()),
-            nodes.BinaryExpression: lambda value: cpp_nodes.BinaryExpression(
-                self.translate_expression(value.left), cpp_nodes.Operator(value.operator.value),
-                self.translate_expression(value.right)
-            ),
+            nodes.BinaryExpression: self.translate_binary_expression,
             nodes.FunctionCall: lambda value: self.translate_function_call(value),
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
-            nodes.Cast: lambda value: cpp_nodes.Cast(
-                self.translate_expression(value.value), self.translate_type(value.to_type)
-            ),
+            nodes.Cast: self.translate_cast,
             type(None): lambda _: None,
         }
-        self.translate_expression: t.Callable[[nodes.Expression], cpp_nodes.Expression] = lambda value: \
+        self.translate_expression: t.Callable[[nodes.Expression], t.Optional[cpp_nodes.Expression]] = lambda value: \
             dispatch(translate_expression_dispatcher, type(value), value)
 
         translate_type_dispatcher: t.Dict[type, t.Callable] = {
             nodes.BuiltinType: self.translate_builtin_type,
             nodes.Name: lambda type_: cpp_nodes.Id(type_.member),
             nodes.VectorType: self.translate_vector_type,
+            nodes.DictType: self.translate_dict_type,
             nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(translate_type_dispatcher, type(type_), type_)
+
+    def translate_cast(self, value: nodes.Cast) -> cpp_nodes.Expression:
+        expr = self.translate_expression(value.value)
+        assert expr is not None
+        return cpp_nodes.Cast(expr, self.translate_type(value.to_type))
+
+    def translate_function_as_name_call(
+            self, path: nodes.Expression, args: t.List[nodes.Expression]
+    ) -> cpp_nodes.Expression:
+        translated_path = self.translate_expression(path)
+        assert translated_path is not None
+        translated_args = []
+        for arg in args:
+            translated_arg = self.translate_expression(arg)
+            assert translated_arg is not None
+            translated_args.append(translated_arg)
+        return cpp_nodes.FunctionCall(translated_path, translated_args)
+
+    def translate_vector_literal(self, literal: nodes.VectorLiteral) -> cpp_nodes.Expression:
+        elements = []
+        for element in literal.elements:
+            translated_element = self.translate_expression(element)
+            assert translated_element is not None
+            elements.append(translated_element)
+        return cpp_nodes.ArrayLiteral(elements)
+
+    def translate_dict_literal(self, literal: nodes.DictLiteral) -> t.Optional[cpp_nodes.Expression]:
+        assert literal.annotation is not None
+        if not literal.keys:
+            return None
+        tmp = self.create_tmp(self.translate_type(literal.annotation))
+        for key, value in zip(literal.keys, literal.values):
+            translated_key = self.translate_expression(key)
+            translated_value = self.translate_expression(value)
+            assert translated_key is not None
+            assert translated_value is not None
+            left = cpp_nodes.Subscript(tmp, translated_key)
+            self.nodes_buffer.append(cpp_nodes.Assignment(left, cpp_nodes.Operator.eq, translated_value))
+        return tmp
+
+    def translate_binary_expression(self, value: nodes.BinaryExpression) -> cpp_nodes.Expression:
+        left = self.translate_expression(value.left)
+        assert left is not None
+        right = self.translate_expression(value.right)
+        assert right is not None
+        return cpp_nodes.BinaryExpression(left, cpp_nodes.Operator(value.operator.value), right)
 
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
         self.includes = {}
@@ -152,8 +188,16 @@ class Translator:
     def translate_field_declaration(self, node: nodes.FieldDeclaration) -> cpp_nodes.Declaration:
         return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value=None)
 
+    def translate_assignment(self, node: nodes.Assignment) -> cpp_nodes.Assignment:
+        left = self.translate_expression(node.left)
+        right = self.translate_expression(node.right)
+        assert left is not None
+        assert right is not None
+        return cpp_nodes.Assignment(left, self.translate_operator(node.operator), right)
+
     def translate_while_statement(self, node: nodes.While) -> cpp_nodes.While:
         condition = self.translate_expression(node.condition)
+        assert condition is not None
         self.env.inc_nesting()
         body = self.translate_body(node.body)
         self.env.dec_nesting()
@@ -161,12 +205,14 @@ class Translator:
 
     def translate_if_statement(self, node: nodes.If) -> cpp_nodes.If:
         condition = self.translate_expression(node.condition)
+        assert condition is not None
         self.env.inc_nesting()
         body = self.translate_body(node.body)
         self.env.dec_nesting()
         else_ifs = []
         for elif_condition, elif_body in node.elifs:
             else_if_condition = self.translate_expression(elif_condition)
+            assert else_if_condition is not None
             self.env.inc_nesting()
             else_if_body = self.translate_body(elif_body)
             self.env.dec_nesting()
@@ -180,6 +226,7 @@ class Translator:
         assert len(args) == 1
         self.add_include(cpp_nodes.StdModule.iostream)
         value = self.translate_expression(args[0])
+        assert value is not None
         return cpp_nodes.BinaryExpression(
             cpp_nodes.BinaryExpression(cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, value),
             cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
@@ -199,6 +246,12 @@ class Translator:
         self.add_include(cpp_nodes.StdModule.vector)
         return cpp_nodes.GenericType(
             cpp_nodes.StdName.vector, [self.translate_type(vector_type.subtype)]
+        )
+
+    def translate_dict_type(self, dict_type: nodes.DictType) -> cpp_nodes.Type:
+        self.add_include(cpp_nodes.StdModule.map)
+        return cpp_nodes.GenericType(
+            cpp_nodes.StdName.map, [self.translate_type(dict_type.key_type), self.translate_type(dict_type.value_type)]
         )
 
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
