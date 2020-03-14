@@ -15,6 +15,10 @@ variableWithoutType = 2
 variableWithoutValue = 2
 variableWithoutValue = 3
 
+// Char.
+let charWithEverything: Char = 'a'
+let charWithoutType = 'b'
+
 
 let name = "Mike"
 var age: I8 = 20

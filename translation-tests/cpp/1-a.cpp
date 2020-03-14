@@ -13,6 +13,8 @@ int main() {
   variableWithoutType = 2;
   variableWithoutValue = 2;
   variableWithoutValue = 3;
+  char charWithEverything = 'a';
+  char charWithoutType = 'b';
   std::string name = "Mike";
   std::int_fast8_t age = 20;
   age = 21;

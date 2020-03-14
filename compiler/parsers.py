@@ -452,7 +452,7 @@ class Parser:
         return atom
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
-        for parser in [self.parse_integer_literal, self.parse_string_literal, self.parse_name]:
+        for parser in [self.parse_integer_literal, self.parse_char_literal, self.parse_string_literal, self.parse_name]:
             result = parser()
             if result is not None:
                 return result
@@ -485,6 +485,21 @@ class Parser:
         self.idx += match_length
         self.position.column += match_length
         return nodes.IntegerLiteral("".join(minuses) + match[0])
+
+    def parse_char_literal(self) -> t.Optional[nodes.CharLiteral]:
+        if not self.parse_raw("'"):
+            return None
+        char = None
+        for c in self.code[self.idx:]:
+            char = c
+            self.idx += 1
+            self.position.column += 1
+            break
+        if char is None:
+            raise errors.AngelSyntaxError("expected exactly one character", self.get_code())
+        if not self.parse_raw("'"):
+            raise errors.AngelSyntaxError('expected "\'"', self.get_code())
+        return nodes.CharLiteral(char)
 
     def parse_string_literal(self) -> t.Optional[nodes.StringLiteral]:
         if not self.parse_raw('"'):

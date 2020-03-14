@@ -25,36 +25,63 @@ This repository contains Angel to C++ compiler written in Python.
 C++ code in `my_file.cpp`. 
 
 ## Tutorial
-Angel is a statically-typed language (types cannot be changed in runtime). 
+### General Knowledge
+Angel is a statically-typed language (types cannot be changed in runtime).
 
-`print("Hello, world!")` prints `Hello, world!`.
+Some of the objectives for Angel:
+- Move as many run-time errors to compile-time as possible.
+Even `IndexOutOfRange` error will be at compile-time.
+- Warn programmer about possible errors in run-time.
+- Keep syntax beautiful.
+- Provide extensive standard library.
+- Generate fast and portable code.
 
-`var number: I16 = 200` creates a variable `number` with type `I16` and value `200`.
+One step of indentation is exactly 4 spaces.
+I would recommend to set up `Tab` key to insert 4 spaces.
 
-`number = 100` assigns value `100` to `number`.
+### Hello, world!
+`print("Hello, world!")`
 
-Every group of statements will create a constant `name` with type `String`
-(inferred from value) and value `"John"`
-```
-let name: String
-name = "John"
+### Constants
+Constants are immutable. Once value is assigned to a constant, it
+cannot be changed by accessing the constant.
 
-let name: String = "John"
+To define a constant `c` use any of these statements:
+- `let c: I8 = 1`: checks that `1` has type `I8`.
+- `let c = 1`: infers type from `1`.
+- `let c: I8`: exactly one assignment (type checking is present) is allowed later.
 
-let name = "John"
-```
-You can use variables and constants in expressions, e.g. `print(number)`.
+You can use any type instead of `I8` and any value of the type you have chosen.
+
+### Variables
+Variables are mutable. Value can be changed by accessing the variable.
+
+To define a variable `v` use any of these statements:
+- `var v: I8 = 1`: checks that `1` has type `I8`.
+- `var v = 1`: infers type from `1`.
+- `var v: I8`: can be assigned many times (type checking is present).
+
+### Assignment
+Assignment is a statement that assigns new value to some
+variable (or constant if it doesn't have value yet).
+
+In general it looks like this: `variable = 100`.
+Type checking is performed to ensure that new value has the type of the variable. 
 
 ### While
+You can see the great power of `while` in this example:
 ```
-var i: U16 = 0
-while i < 10:
+var i = 0
+while i <= 10:
     print(i)
     i = i + 1
 ```
-Prints all integers from 0 to 9. Indentation must be 4 spaces.
+This program prints all integers from 0 to 10.
+Expression `i <= 10` will be recomputed at the start of each cycle.
+It is not cached.
 
 ### If
+Who needs `if` statement if you already have `while-break`? I'm just joking.
 ```
 if 1 > 2:
     print("Really?")
@@ -63,11 +90,16 @@ elif 0 > 2:
 else:
     print("OK")
 ```
+This program prints `OK`, because first-grade math is working in Angel.
+First `1 > 2` will be computed. It is `false`, so we compute `0 > 2`.
+It is `false` too, so we execute the `else` branch.
+
+Only one of the branches will be executed.
 
 ### Functions
 ```
-fun printNumbers(end: I16):
-    var i: I16 = 0
+fun printNumbers(end: I8):
+    var i = 0
     while i < end:
         print(i)
         i += 1
@@ -82,14 +114,47 @@ struct Person:
     last: String
 ```
 
-### Reading input
+### Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")
 print("Your name is")
 print(name)
 ```
 
-## Known problems
+Function `read(prompt: String) -> String` prints `prompt` to stdout,
+reads input from stdin and returns it.
+
+Function `print`:
+- `print(value: String)`: converts `value` to `String` and prints the result.
+- `print(value: ConvertibleToString)`: prints `value`.
+
+
+### Built-in Types
+Signed finite integer types:
+- `I8`: `-128 <= I8 <= 127`
+- `I16`: `-32768 <= I16 <= 32767`
+- `I32`: `-2147483648 <= I32 <= 2147483647`
+- `I64`: `-9223372036854775808 <= I64 <= 9223372036854775807`
+
+Unsigned finite integer types:
+- `U8`: `0 <= U8 <= 255`
+- `U16`: `0 <= U16 <= 65535`
+- `U32`: `0 <= U32 <= 4294967295`
+- `U64`: `0 <= U64 <= 18446744073709551615`
+
+Literal for finite integer types is just a number in
+type's range: e.g. `100` for `I8`.
+
+Other primitive types:
+- `Char`: literal is exactly one character surrounded by single quotes (`'`),
+e.g. `'a'`.
+- `Bool`: literal can be `true` or `false`.
+
+Container types:
+- `String`: literal is any string surrounded by double quotes (`"`),
+e.g. `"I am a string!"`
+
+## Coming soon
 - Defined structs cannot be used
-- `self` will be added soon
-- There is no `Char` type for now
+- Functions with `return` will be tested soon
+- `self`

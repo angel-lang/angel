@@ -68,6 +68,7 @@ class BuiltinType(Type, enum.Enum):
     u64 = "U64"
 
     string = "String"
+    char = "Char"
     bool = "Bool"
     void = "Void"
 
@@ -224,6 +225,14 @@ class StringLiteral(Expression):
 
     def to_code(self, indentation_level: int = 0) -> str:
         return '"' + self.value + '"'
+
+
+@dataclass
+class CharLiteral(Expression):
+    value: str
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return "'" + self.value + "'"
 
 
 @dataclass

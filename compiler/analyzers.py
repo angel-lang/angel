@@ -183,6 +183,7 @@ class Analyzer:
         repl_eval_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: int(value.value),
             nodes.StringLiteral: lambda value: value.value,
+            nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
             nodes.BinaryExpression: partial(self.eval_binary_expression, self.repl_eval_expression),
             nodes.Name: self.repl_eval_name,
@@ -212,6 +213,7 @@ class Analyzer:
         analyzer_eval_expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: int(value.value),
             nodes.StringLiteral: lambda value: value.value,
+            nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
             nodes.BinaryExpression: partial(self.eval_binary_expression, self.analyzer_eval_expression),
             nodes.Name: self.analyzer_eval_name,
@@ -263,6 +265,7 @@ class Analyzer:
         infer_type_dispatcher = {
             nodes.IntegerLiteral: self.infer_type_from_integer_literal,
             nodes.StringLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.string, supertype),
+            nodes.CharLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.char, supertype),
             nodes.BoolLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.bool, supertype),
             nodes.BinaryExpression: lambda value, supertype: self.infer_type_from_binary_expression(
                 value.left, value.operator, value.right, supertype),

@@ -104,6 +104,11 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code, inp='John')
         self.assertEqual(output, ['John'])
 
+    def test_char(self):
+        code = ["print('a')"]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['a'])
+
 
 if __name__ == '__main__':
     unittest.main()
