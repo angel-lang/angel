@@ -90,6 +90,7 @@ class Translator:
             nodes.BuiltinType: self.translate_builtin_type,
             nodes.Name: lambda type_: cpp_nodes.Id(type_.member),
             nodes.VectorType: self.translate_vector_type,
+            nodes.OptionalType: self.translate_optional_type,
             nodes.DictType: self.translate_dict_type,
             nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
         }
@@ -246,6 +247,12 @@ class Translator:
         self.add_include(cpp_nodes.StdModule.vector)
         return cpp_nodes.GenericType(
             cpp_nodes.StdName.vector, [self.translate_type(vector_type.subtype)]
+        )
+
+    def translate_optional_type(self, optional_type: nodes.OptionalType) -> cpp_nodes.Type:
+        self.add_include(cpp_nodes.StdModule.optional)
+        return cpp_nodes.GenericType(
+            cpp_nodes.StdName.optional, [self.translate_type(optional_type.inner_type)]
         )
 
     def translate_dict_type(self, dict_type: nodes.DictType) -> cpp_nodes.Type:

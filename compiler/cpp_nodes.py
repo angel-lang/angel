@@ -32,6 +32,7 @@ class StdModule(enum.Enum):
     string = "string"
     vector = "vector"
     map = "map"
+    optional = "optional"
 
 
 class Operator(enum.Enum):
@@ -67,6 +68,8 @@ class StdName(Type, Expression, enum.Enum):
     string = "string"
     vector = "vector"
     map = "map"
+    optional = "optional"
+    nullopt = "nullopt"
 
     cout = "cout"
     cin = "cin"

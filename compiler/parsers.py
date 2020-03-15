@@ -45,6 +45,10 @@ class TupleTrailer(Trailer):
     args: t.List[nodes.Expression]
 
 
+class OptionalTypeTrailer(Trailer):
+    pass
+
+
 @dataclass
 class State:
     idx: int
@@ -397,6 +401,24 @@ class Parser:
         return self.code[self.idx:] == ""
 
     def parse_type(self) -> t.Optional[nodes.Type]:
+        inner_type = self.parse_type_atom()
+        if inner_type is None:
+            return None
+        type_trailer = self.parse_type_trailer()
+        while type_trailer is not None:
+            if isinstance(type_trailer, OptionalTypeTrailer):
+                inner_type = nodes.OptionalType(inner_type)
+            else:
+                raise errors.AngelNotImplemented
+            type_trailer = self.parse_type_trailer()
+        return inner_type
+
+    def parse_type_trailer(self) -> t.Optional[Trailer]:
+        if self.parse_raw("?"):
+            return OptionalTypeTrailer(self.position.line)
+        return None
+
+    def parse_type_atom(self) -> t.Optional[nodes.Type]:
         for parser in [self.parse_vector_or_dict_type, self.parse_name]:
             result = parser()
             if result is not None:

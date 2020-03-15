@@ -181,6 +181,9 @@ e.g. `[1, 2, 3, 4]` for `[I8]` type.
 e.g. `[String: I8]`. Literal for this type has format of `[KeyLiteral: ValueLiteral, ...]`,
 e.g. `["a": 1, "c": 0, "b": 3]` for `[String: I8]` type.
 
+#### Algebraic types
+- Optional type `InnerType?`: `InnerType` can be any type, e.g. `String?`.
+
 ## Coming soon
 - Defined structs cannot be used
 - Functions with `return` will be tested soon

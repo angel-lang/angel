@@ -74,6 +74,14 @@ class DictType(Type):
 
 
 @dataclass
+class OptionalType(Type):
+    inner_type: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.inner_type.to_code()}?"
+
+
+@dataclass
 class TemplateType(Type):
     id: int
 
