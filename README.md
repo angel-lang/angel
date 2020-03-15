@@ -182,7 +182,23 @@ e.g. `[String: I8]`. Literal for this type has format of `[KeyLiteral: ValueLite
 e.g. `["a": 1, "c": 0, "b": 3]` for `[String: I8]` type.
 
 #### Algebraic types
-- Optional type `InnerType?`: `InnerType` can be any type, e.g. `String?`.
+##### Optional type `T?`
+It is defined as
+```
+algebraic Optional(T):
+    Some(value: T)
+  | None
+
+    fun __eq__(other: T?) -> Bool
+```
+
+Examples of usage:
+```
+let example = Optional.None
+let example: String? = Optional.Some("John")
+```
+
+It supports `==` and `!=` operators.
 
 ## Coming soon
 - Defined structs cannot be used

@@ -124,6 +124,11 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['["a": 1, "c": 0, "b": 3]'])
 
+    def test_optional_eq(self):
+        code = ['print(Optional.None == Optional.None)']
+        result, output = self.eval(code)
+        self.assertEqual(output, ['true'])
+
 
 if __name__ == '__main__':
     unittest.main()

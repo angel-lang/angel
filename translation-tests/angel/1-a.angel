@@ -39,6 +39,14 @@ let emptyDictWithType: [String: I8] = [:]
 let dictWithoutType = ["a": 1, "c": 0, "b": 3]
 let dictWithType: [String: I8] = ["a": 1]
 
+// Optional type
+let someOptional = Optional.None
+let optionalName: String? = Optional.Some("John")
+if optionalName == Optional.None:
+    print("No")
+else:
+    print("YES")
+
 let name = "Mike"
 var age: I8 = 20
 age = 21

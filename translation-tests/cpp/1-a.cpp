@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 int main() {
@@ -35,6 +36,13 @@ int main() {
   std::map<std::string, std::int_fast8_t> __tmp_1;
   __tmp_1["a"] = 1;
   std::map<std::string, std::int_fast8_t> dictWithType = __tmp_1;
+  std::optional<void*> someOptional = std::nullopt;
+  std::optional<std::string> optionalName = "John";
+  if (optionalName == std::nullopt) {
+    std::cout << "No" << std::endl;
+  } else {
+    std::cout << "YES" << std::endl;
+  }
   std::string name = "Mike";
   std::int_fast8_t age = 20;
   age = 21;

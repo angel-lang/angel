@@ -74,6 +74,8 @@ class Translator:
             nodes.DecimalLiteral: lambda value: cpp_nodes.DecimalLiteral(value.value),
             nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
             nodes.VectorLiteral: self.translate_vector_literal,
+            nodes.OptionalTypeConstructor: self.translate_optional_type_constructor,
+            nodes.OptionalSomeCall: self.translate_optional_some_call,
             nodes.DictLiteral: self.translate_dict_literal,
             nodes.CharLiteral: lambda value: cpp_nodes.CharLiteral(value.value),
             nodes.BoolLiteral: lambda value: cpp_nodes.BoolLiteral(value.value.lower()),
@@ -135,6 +137,15 @@ class Translator:
             left = cpp_nodes.Subscript(tmp, translated_key)
             self.nodes_buffer.append(cpp_nodes.Assignment(left, cpp_nodes.Operator.eq, translated_value))
         return tmp
+
+    def translate_optional_type_constructor(self, constructor: nodes.OptionalTypeConstructor) -> cpp_nodes.Expression:
+        assert constructor.value == nodes.OptionalTypeConstructor.none.value
+        return cpp_nodes.StdName.nullopt
+
+    def translate_optional_some_call(self, call: nodes.OptionalSomeCall) -> cpp_nodes.Expression:
+        result = self.translate_expression(call.value)
+        assert result is not None
+        return result
 
     def translate_binary_expression(self, value: nodes.BinaryExpression) -> cpp_nodes.Expression:
         left = self.translate_expression(value.left)

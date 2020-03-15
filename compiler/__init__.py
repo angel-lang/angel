@@ -23,6 +23,7 @@ def compile_string(string: str) -> str:
     try:
         cpp_ast = translator.translate(analyzer.analyze(parser.parse(string)))
     except errors.AngelError as e:
+        raise e
         print(str(e))
         print()
         sys.exit(1)

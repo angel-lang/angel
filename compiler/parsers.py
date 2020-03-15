@@ -45,6 +45,11 @@ class TupleTrailer(Trailer):
     args: t.List[nodes.Expression]
 
 
+@dataclass
+class FieldTrailer(Trailer):
+    field: str
+
+
 class OptionalTypeTrailer(Trailer):
     pass
 
@@ -490,6 +495,8 @@ class Parser:
         while trailer is not None:
             if isinstance(trailer, TupleTrailer):
                 atom = nodes.FunctionCall(trailer.line, atom, trailer.args)
+            elif isinstance(trailer, FieldTrailer):
+                atom = nodes.Field(trailer.line, atom, trailer.field)
             else:
                 raise errors.AngelNotImplemented
             trailer = self.parse_trailer()
@@ -511,6 +518,11 @@ class Parser:
         args = self.parse_container(
             open_container="(", close_container=")", element_separator=",", element_parser=self.parse_expression)
         if args is None:
+            if self.parse_raw("."):
+                field = self.parse_identifier()
+                if not field:
+                    raise errors.AngelSyntaxError("expected identifier", self.get_code())
+                return FieldTrailer(line, field)
             return None
         return TupleTrailer(line, args)
 

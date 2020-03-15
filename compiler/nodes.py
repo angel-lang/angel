@@ -89,6 +89,32 @@ class TemplateType(Type):
         return f"T<{self.id}>"
 
 
+@dataclass
+class Field(Expression):
+    line: int
+    base: Expression
+    field: str
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.base.to_code()}.{self.field}"
+
+
+@dataclass
+class OptionalSomeCall(Expression):
+    value: Expression
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"Optional.Some({self.value.to_code()})"
+
+
+class OptionalTypeConstructor(Expression, enum.Enum):
+    none = "None"
+    some = "Some"
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"Optional.{self.value}"
+
+
 class BuiltinType(Type, enum.Enum):
     i8 = "I8"
     i16 = "I16"
@@ -109,6 +135,9 @@ class BuiltinType(Type, enum.Enum):
     void = "Void"
 
     convertible_to_string = "ConvertibleToString"
+
+    # These types are mentioned only in expressions.
+    optional = "Optional"
 
     @classmethod
     def finite_signed_int_types(cls) -> t.List[str]:

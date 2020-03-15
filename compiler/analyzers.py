@@ -3,6 +3,7 @@ import typing as t
 from itertools import zip_longest
 from functools import partial
 from decimal import Decimal
+from dataclasses import dataclass
 
 from . import nodes, errors, environment, environment_entries as entries
 from .utils import dispatch
@@ -153,6 +154,16 @@ class BreakEvaluated:
     pass
 
 
+@dataclass  # For eq.
+class OptionalNoneEvaluated:
+    pass
+
+
+@dataclass
+class OptionalSomeEvaluated:
+    value: t.Any
+
+
 class Analyzer:
 
     def __init__(self, lines: t.List[str], env: t.Optional[environment.Environment] = None):
@@ -207,6 +218,8 @@ class Analyzer:
                 self.repl_eval_expression(key): self.repl_eval_expression(val)
                 for key, val in zip(value.keys, value.values)
             },
+            nodes.OptionalTypeConstructor: self.repl_eval_optional_type_constructor,
+            nodes.OptionalSomeCall: self.repl_eval_optional_some_call,
             nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
             nodes.BinaryExpression: partial(self.eval_binary_expression, self.repl_eval_expression),
@@ -243,6 +256,8 @@ class Analyzer:
                 self.analyzer_eval_expression(key): self.analyzer_eval_expression(val)
                 for key, val in zip(value.keys, value.values)
             },
+            nodes.OptionalTypeConstructor: self.analyzer_eval_optional_type_constructor,
+            nodes.OptionalSomeCall: self.analyzer_eval_optional_some_call,
             nodes.CharLiteral: lambda value: value.value,
             nodes.BoolLiteral: lambda value: value.value == nodes.BoolLiteral.true.value,
             nodes.BinaryExpression: partial(self.eval_binary_expression, self.analyzer_eval_expression),
@@ -298,6 +313,8 @@ class Analyzer:
             nodes.StringLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.string, supertype),
             nodes.VectorLiteral: self.infer_type_from_vector_literal,
             nodes.DictLiteral: self.infer_type_from_dict_literal,
+            nodes.OptionalTypeConstructor: self.infer_type_from_optional_type_constructor,
+            nodes.OptionalSomeCall: self.infer_type_from_optional_some_call,
             nodes.CharLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.char, supertype),
             nodes.BoolLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.bool, supertype),
             nodes.BinaryExpression: lambda value, supertype: self.infer_type_from_binary_expression(
@@ -372,6 +389,7 @@ class Analyzer:
         checked_function_call_dispatcher_by_function_path = {
             nodes.Name: self.checked_function_as_name_call,
             nodes.BuiltinFunc: self.checked_function_as_builtin_func_call,
+            nodes.OptionalTypeConstructor: self.checked_function_as_optional_constructor_call,
         }
         self.checked_function_call = lambda line, path, args: dispatch(
             checked_function_call_dispatcher_by_function_path, type(path), line, path, args
@@ -528,6 +546,15 @@ class Analyzer:
             raise errors.AngelNoncallableCall(path, self.get_code(self.current_line))
         return nodes.FunctionCall(line, path, args)
 
+    def checked_function_as_optional_constructor_call(
+            self, line: int, path: nodes.OptionalTypeConstructor, args: t.List[nodes.Expression]
+    ) -> nodes.Expression:
+        if path.value == nodes.OptionalTypeConstructor.none.value:
+            raise errors.AngelNoncallableCall(path, self.get_code(line))
+        if len(args) != 1:
+            raise errors.AngelWrongArguments("(value: T)", self.get_code(self.current_line), args)
+        return nodes.OptionalSomeCall(args[0])
+
     def checked_print_call(self, line: int, path: nodes.BuiltinFunc, args: t.List[nodes.Expression]):
         if len(args) != 1:
             raise errors.AngelWrongArguments(
@@ -555,7 +582,7 @@ class Analyzer:
 
     def clarify_expression(self, value):
         if isinstance(value, nodes.Name):
-            for cls in (nodes.BuiltinFunc, nodes.BoolLiteral):
+            for cls in (nodes.BuiltinFunc, nodes.BuiltinType, nodes.BoolLiteral):
                 try:
                     clarified = cls(value.member)
                 except ValueError:
@@ -574,6 +601,13 @@ class Analyzer:
             keys = [self.clarify_expression(key) for key in value.keys]
             values = [self.clarify_expression(val) for val in value.values]
             return nodes.DictLiteral(keys, values, annotation=self.infer_type(nodes.DictLiteral(keys, values)))
+        elif isinstance(value, nodes.Field):
+            clarified_base = self.clarify_expression(value.base)
+            if isinstance(clarified_base, nodes.BuiltinType) and (
+                    clarified_base.value == nodes.BuiltinType.optional.value):
+                return nodes.OptionalTypeConstructor(value.field)
+            else:
+                raise errors.AngelNotImplemented
         return value
 
     def clarify_binary_expression(
@@ -582,6 +616,8 @@ class Analyzer:
         left_type = self.infer_type(left)
         if isinstance(left_type, nodes.BuiltinType):
             # It is easier to translate.
+            return nodes.BinaryExpression(left, operator, right)
+        elif isinstance(left_type, nodes.OptionalType):
             return nodes.BinaryExpression(left, operator, right)
         raise errors.AngelNotImplemented
 
@@ -716,6 +752,18 @@ class Analyzer:
             self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type]
     ) -> nodes.Type:
         return self.unify_types(nodes.BuiltinType.string, supertype)
+
+    def infer_type_from_optional_type_constructor(
+            self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        inner_type = self.create_template_type()
+        return self.unify_types(nodes.OptionalType(inner_type), supertype)
+
+    def infer_type_from_optional_some_call(
+            self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        inner_type = self.infer_type(value.value)
+        return self.unify_types(nodes.OptionalType(inner_type), supertype)
 
     def unify_types(self, subtype: nodes.Type, supertype: t.Optional[nodes.Type]) -> nodes.Type:
         if supertype is None:
@@ -857,6 +905,22 @@ class Analyzer:
             if self.repl_eval_expression(elif_condition):
                 return self.repl_eval_ast(elif_body)
         return self.repl_eval_ast(node.else_)
+
+    def repl_eval_optional_type_constructor(self, value: nodes.OptionalTypeConstructor) -> t.Any:
+        if value.value == nodes.OptionalTypeConstructor.none.value:
+            return OptionalNoneEvaluated()
+        raise errors.AngelNotImplemented
+
+    def repl_eval_optional_some_call(self, value: nodes.OptionalSomeCall) -> t.Any:
+        return OptionalSomeEvaluated(self.repl_eval_expression(value.value))
+
+    def analyzer_eval_optional_type_constructor(self, value: nodes.OptionalTypeConstructor) -> t.Any:
+        if value.value == nodes.OptionalTypeConstructor.none.value:
+            return OptionalNoneEvaluated()
+        raise errors.AngelNotImplemented
+
+    def analyzer_eval_optional_some_call(self, value: nodes.OptionalSomeCall) -> t.Any:
+        return OptionalSomeEvaluated(self.analyzer_eval_expression(value.value))
 
     def repl_eval_function_as_name_call(self, path: nodes.Name, args: t.List[nodes.Expression]) -> t.Any:
         entry = self.env[path.member]
