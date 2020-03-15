@@ -43,6 +43,13 @@ int main() {
   } else {
     std::cout << "YES" << std::endl;
   }
+  auto __tmp_2 = optionalName;
+  if (__tmp_2 != std::nullopt) {
+    std::string realName = *__tmp_2;
+    std::cout << realName << std::endl;
+  } else {
+    std::cout << "No name" << std::endl;
+  }
   std::string name = "Mike";
   std::int_fast8_t age = 20;
   age = 21;

@@ -175,6 +175,20 @@ class GenericType(Type):
 
 
 @dataclass
+class Auto(Type):
+    def to_code(self) -> str:
+        return "auto"
+
+
+@dataclass
+class Deref(Expression):
+    value: Expression
+
+    def to_code(self) -> str:
+        return f"*{self.value.to_code()}"
+
+
+@dataclass
 class BinaryExpression(Expression):
     left: Expression
     operator: Operator
@@ -229,6 +243,16 @@ class Include(Node):
 
 
 @dataclass
+class SubDeclaration(Node):
+    type: Type
+    name: str
+    value: Expression
+
+    def to_code(self) -> str:
+        return f"{self.type.to_code()} {self.name}={self.value.to_code()}"
+
+
+@dataclass
 class Declaration(Node):
     type: Type
     name: str
@@ -238,6 +262,10 @@ class Declaration(Node):
         if self.value is None:
             return f"{self.type.to_code()} {self.name};"
         return f"{self.type.to_code()} {self.name}={self.value.to_code()};"
+
+    def to_sub_declaration(self) -> SubDeclaration:
+        assert self.value is not None
+        return SubDeclaration(self.type, self.name, self.value)
 
 
 @dataclass

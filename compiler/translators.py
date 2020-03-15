@@ -54,9 +54,7 @@ class Translator:
         )
 
         self.translate_node_dispatcher = {
-            nodes.ConstantDeclaration: lambda node: cpp_nodes.Declaration(
-                self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
-            ),
+            nodes.ConstantDeclaration: self.translate_constant_declaration,
             nodes.VariableDeclaration: lambda node: cpp_nodes.Declaration(
                 self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
             ),
@@ -76,6 +74,7 @@ class Translator:
             nodes.VectorLiteral: self.translate_vector_literal,
             nodes.OptionalTypeConstructor: self.translate_optional_type_constructor,
             nodes.OptionalSomeCall: self.translate_optional_some_call,
+            nodes.OptionalSomeValue: self.translate_optional_some_value,
             nodes.DictLiteral: self.translate_dict_literal,
             nodes.CharLiteral: lambda value: cpp_nodes.CharLiteral(value.value),
             nodes.BoolLiteral: lambda value: cpp_nodes.BoolLiteral(value.value.lower()),
@@ -128,15 +127,15 @@ class Translator:
         assert literal.annotation is not None
         if not literal.keys:
             return None
-        tmp = self.create_tmp(self.translate_type(literal.annotation))
+        _, cpp_tmp = self.create_tmp(self.translate_type(literal.annotation))
         for key, value in zip(literal.keys, literal.values):
             translated_key = self.translate_expression(key)
             translated_value = self.translate_expression(value)
             assert translated_key is not None
             assert translated_value is not None
-            left = cpp_nodes.Subscript(tmp, translated_key)
+            left = cpp_nodes.Subscript(cpp_tmp, translated_key)
             self.nodes_buffer.append(cpp_nodes.Assignment(left, cpp_nodes.Operator.eq, translated_value))
-        return tmp
+        return cpp_tmp
 
     def translate_optional_type_constructor(self, constructor: nodes.OptionalTypeConstructor) -> cpp_nodes.Expression:
         assert constructor.value == nodes.OptionalTypeConstructor.none.value
@@ -146,6 +145,11 @@ class Translator:
         result = self.translate_expression(call.value)
         assert result is not None
         return result
+
+    def translate_optional_some_value(self, value: nodes.OptionalSomeValue) -> cpp_nodes.Expression:
+        inner_value = self.translate_expression(value.value)
+        assert inner_value is not None
+        return cpp_nodes.Deref(inner_value)
 
     def translate_binary_expression(self, value: nodes.BinaryExpression) -> cpp_nodes.Expression:
         left = self.translate_expression(value.left)
@@ -215,24 +219,57 @@ class Translator:
         self.env.dec_nesting()
         return cpp_nodes.While(condition, body)
 
+    def translate_constant_declaration(self, node: nodes.ConstantDeclaration) -> cpp_nodes.Declaration:
+        assert node.type is not None
+        if node.value is None:
+            value = None
+        else:
+            value = self.translate_expression(node.value)
+        return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value)
+
     def translate_if_statement(self, node: nodes.If) -> cpp_nodes.If:
-        condition = self.translate_expression(node.condition)
-        assert condition is not None
+        condition, new_body = self.desugar_if_condition(node.condition, node.body)
         self.env.inc_nesting()
-        body = self.translate_body(node.body)
+        nodes_buffer = self.nodes_buffer
+        self.nodes_buffer = []
+        body = self.translate_body(new_body)
+        self.nodes_buffer = nodes_buffer
         self.env.dec_nesting()
         else_ifs = []
         for elif_condition, elif_body in node.elifs:
-            else_if_condition = self.translate_expression(elif_condition)
-            assert else_if_condition is not None
+            else_if_condition, new_elif_body = self.desugar_if_condition(elif_condition, elif_body)
             self.env.inc_nesting()
-            else_if_body = self.translate_body(elif_body)
+            nodes_buffer = self.nodes_buffer
+            self.nodes_buffer = []
+            else_if_body = self.translate_body(new_elif_body)
+            self.nodes_buffer = nodes_buffer
             self.env.dec_nesting()
             else_ifs.append((else_if_condition, else_if_body))
         self.env.inc_nesting()
+        nodes_buffer = self.nodes_buffer
+        self.nodes_buffer = []
         else_ = self.translate_body(node.else_)
+        self.nodes_buffer = nodes_buffer
         self.env.dec_nesting()
         return cpp_nodes.If(condition, body, else_ifs, else_)
+
+    def desugar_if_condition(
+            self, condition: nodes.Expression, body: nodes.AST
+    ) -> t.Tuple[cpp_nodes.Expression, nodes.AST]:
+        if isinstance(condition, nodes.ConstantDeclaration):
+            assert condition.value is not None
+            tmp, cpp_tmp = self.create_tmp(type_=cpp_nodes.Auto(), value=self.translate_expression(condition.value))
+            new_condition = cpp_nodes.BinaryExpression(cpp_tmp, cpp_nodes.Operator.neq, cpp_nodes.StdName.nullopt)
+            assert isinstance(condition.type, nodes.OptionalType)
+            new_declaration: nodes.Node = nodes.ConstantDeclaration(
+                condition.line, condition.name, condition.type.inner_type, nodes.OptionalSomeValue(tmp)
+            )
+            new_body = [new_declaration] + body
+            return new_condition, new_body
+        else:
+            expression = self.translate_expression(condition)
+            assert expression is not None
+            return expression, body
 
     def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(args) == 1
@@ -247,12 +284,12 @@ class Translator:
     def translate_read_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(args) == 1
         self.add_include(cpp_nodes.StdModule.iostream)
-        tmp = self.create_tmp(self.translate_type(nodes.BuiltinType.string))
+        tmp, cpp_tmp = self.create_tmp(self.translate_type(nodes.BuiltinType.string))
         self.nodes_buffer.append(cpp_nodes.Semicolon(self.translate_print_function_call(args)))
         self.nodes_buffer.append(
-            cpp_nodes.Semicolon(cpp_nodes.BinaryExpression(cpp_nodes.StdName.cin, cpp_nodes.Operator.rshift, tmp))
+            cpp_nodes.Semicolon(cpp_nodes.BinaryExpression(cpp_nodes.StdName.cin, cpp_nodes.Operator.rshift, cpp_tmp))
         )
-        return tmp
+        return cpp_tmp
 
     def translate_vector_type(self, vector_type: nodes.VectorType) -> cpp_nodes.Type:
         self.add_include(cpp_nodes.StdModule.vector)
@@ -282,11 +319,13 @@ class Translator:
     def translate_operator(self, operator: nodes.Operator) -> cpp_nodes.Operator:
         return cpp_nodes.Operator(operator.value)
 
-    def create_tmp(self, type_: cpp_nodes.Type) -> cpp_nodes.Id:
+    def create_tmp(
+            self, type_: cpp_nodes.Type, value: t.Optional[cpp_nodes.Expression] = None
+    ) -> t.Tuple[nodes.Name, cpp_nodes.Id]:
         tmp_name = TMP_PREFIX + str(self.tmp_count)
-        self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name, value=None))
+        self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name, value=value))
         self.tmp_count += 1
-        return cpp_nodes.Id(tmp_name)
+        return nodes.Name(tmp_name), cpp_nodes.Id(tmp_name)
 
     def add_include(self, module: cpp_nodes.StdModule):
         self.includes[module.value] = cpp_nodes.Include(module)

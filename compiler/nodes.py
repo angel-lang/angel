@@ -100,6 +100,14 @@ class Field(Expression):
 
 
 @dataclass
+class OptionalSomeValue(Expression):
+    value: Expression
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.value.to_code()}!"
+
+
+@dataclass
 class OptionalSomeCall(Expression):
     value: Expression
 
@@ -473,7 +481,7 @@ class While(Node):
 
 @dataclass
 class If(Node):
-    condition: Expression
+    condition: t.Union[ConstantDeclaration, Expression]
     body: AST
     elifs: t.List[t.Tuple[Expression, AST]]
     else_: AST

@@ -191,9 +191,7 @@ class Parser:
         if not self.parse_raw("if"):
             return None
         self.spaces()
-        condition = self.parse_expression()
-        if condition is None:
-            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        condition = self.parse_if_condition()
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
         body = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
@@ -204,9 +202,7 @@ class Parser:
         self.spaces()
         while self.parse_raw("elif"):
             self.spaces()
-            elif_condition = self.parse_expression()
-            if elif_condition is None:
-                raise errors.AngelSyntaxError("expected expression", self.get_code())
+            elif_condition = self.parse_if_condition()
             if not self.parse_raw(":"):
                 raise errors.AngelSyntaxError("expected ':'", self.get_code())
             elif_body = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
@@ -225,6 +221,17 @@ class Parser:
         if not elifs and not else_:
             self.restore_state(state)
         return nodes.If(line, condition, body, elifs, else_)
+
+    def parse_if_condition(self) -> nodes.Expression:
+        condition: t.Optional[nodes.Expression] = self.parse_constant_declaration()
+        if isinstance(condition, nodes.ConstantDeclaration):
+            assert condition.value is not None
+            return condition
+        else:
+            condition = self.parse_expression()
+            if condition is None:
+                raise errors.AngelSyntaxError("expected expression or 'let'", self.get_code())
+            return condition
 
     def parse_function_declaration(self) -> t.Optional[nodes.FunctionDeclaration]:
         line = self.position.line

@@ -47,6 +47,12 @@ if optionalName == Optional.None:
 else:
     print("YES")
 
+// If let
+if let realName = optionalName:
+    print(realName)
+else:
+    print("No name")
+
 let name = "Mike"
 var age: I8 = 20
 age = 21

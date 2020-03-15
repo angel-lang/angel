@@ -129,6 +129,26 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['true'])
 
+    def test_if_let_1(self):
+        code = [
+            'if let name = Optional.None:',
+            '    print("No")',
+            'else:',
+            '    print("Yes")',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ["Yes"])
+
+    def test_if_let_2(self):
+        code = [
+            'if let name = Optional.Some("John"):',
+            '    print(name)',
+            'else:',
+            '    print("NO")',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ["John"])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -200,6 +200,14 @@ let example: String? = Optional.Some("John")
 
 It supports `==` and `!=` operators.
 
+To get real value from Optional type use `if let`:
+```
+if let realValue = getRandomOptionalValue():
+    print(realValue)
+else:
+    print("No value because of Optional.None")
+```
+
 ## Coming soon
 - Defined structs cannot be used
 - Functions with `return` will be tested soon
