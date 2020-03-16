@@ -33,19 +33,19 @@ class Expression:
 
 
 @dataclass
-class Node(Expression):
-    """Base class for statements.
-
-    Every statement is an expression.
-    """
+class Node:
+    """Base class for statements."""
     line: int
 
+    def to_code(self, indentation_level: int = 0) -> str:
+        return ""
 
-class Type(Expression):
-    """Base class for types.
 
-    Every type is an expression.
-    """
+class Type:
+    """Base class for types."""
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return ""
 
 
 AST = t.List[Node]
@@ -280,6 +280,10 @@ class Operator(enum.Enum):
         return [Operator.lt_eq, Operator.gt_eq, Operator.eq_eq, Operator.neq, Operator.lt, Operator.gt]
 
     @classmethod
+    def comparison_operators_names(cls):
+        return [op.value for op in cls.comparison_operators()]
+
+    @classmethod
     def assignment_operators(cls):
         return [Operator.add_eq, Operator.sub_eq, Operator.mul_eq, Operator.div_eq, Operator.eq]
 
@@ -309,16 +313,7 @@ class BinaryExpression(Expression):
 
 
 @dataclass
-class UnaryExpression(Expression):
-    operator: Operator
-    value: Expression
-
-    def to_code(self, indentation_level: int = 0) -> str:
-        return f"{self.operator.value} {self.value.to_code()}"
-
-
-@dataclass
-class Name(Type):
+class Name(Type, Expression):
     member: str
     module: t.Optional[str] = None
 
@@ -347,7 +342,7 @@ class BoolLiteral(Expression, enum.Enum):
 
 
 @dataclass
-class IntegerLiteral(Type):
+class IntegerLiteral(Expression):
     value: str
 
     def to_code(self, indentation_level: int = 0) -> str:
@@ -400,7 +395,7 @@ class DictLiteral(Expression):
 
 
 @dataclass
-class FunctionCall(Node):
+class FunctionCall(Node, Expression):
     function_path: Expression
     args: t.List[Expression]
 
@@ -421,7 +416,7 @@ class Assignment(Node):
 
 
 @dataclass
-class ConstantDeclaration(Node):
+class ConstantDeclaration(Node, Expression):
     name: Name
     type: t.Optional[Type]
     value: t.Optional[Expression]
@@ -514,13 +509,28 @@ class Return(Node):
         return f"return {self.value.to_code()}"
 
 
-@dataclass
 class Argument:
     name: Name
     type: Type
 
+    def __init__(self, name: t.Union[str, Name], type_: Type):
+        if isinstance(name, str):
+            self.name = Name(name)
+        else:
+            self.name = name
+        self.type = type_
+
     def to_code(self) -> str:
         return f"{self.name.to_code()}: {self.type.to_code()}"
+
+
+@dataclass
+class FunctionType(Type):
+    args: t.List[Argument]
+    return_type: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()}"
 
 
 @dataclass

@@ -1,1 +1,1 @@
-./run-checkers && ./test-repl && ./test-translation
+./run-checkers && ./test-unittest && ./test-translation

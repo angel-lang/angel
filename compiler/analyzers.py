@@ -5,44 +5,12 @@ from functools import partial
 from decimal import Decimal
 from dataclasses import dataclass
 
-from . import nodes, errors, environment, environment_entries as entries
+from . import (
+    nodes, errors, environment, environment_entries as entries,
+    type_checking
+)
 from .utils import dispatch
 
-
-def get_possible_unsigned_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
-    if value < 0:
-        return []
-    elif value <= 255:
-        return [nodes.BuiltinType.u8, nodes.BuiltinType.u16, nodes.BuiltinType.u32, nodes.BuiltinType.u64]
-    elif value <= 65535:
-        return [nodes.BuiltinType.u16, nodes.BuiltinType.u32, nodes.BuiltinType.u64]
-    elif value <= 4294967295:
-        return [nodes.BuiltinType.u32, nodes.BuiltinType.u64]
-    elif value <= 18446744073709551615:
-        return [nodes.BuiltinType.u64]
-    return []
-
-
-def get_possible_signed_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
-    if -128 <= value <= 127:
-        return [nodes.BuiltinType.i8, nodes.BuiltinType.i16, nodes.BuiltinType.i32, nodes.BuiltinType.i64]
-    elif -32768 <= value <= 32767:
-        return [nodes.BuiltinType.i16, nodes.BuiltinType.i32, nodes.BuiltinType.i64]
-    elif -2147483648 <= value <= 2147483647:
-        return [nodes.BuiltinType.i32, nodes.BuiltinType.i64]
-    elif -9223372036854775808 <= value <= 9223372036854775807:
-        return [nodes.BuiltinType.i64]
-    return []
-
-
-def get_possible_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
-    return get_possible_signed_int_types_based_on_value(value) + get_possible_unsigned_int_types_based_on_value(value)
-
-
-MAX_FLOAT32 = Decimal('3.402823700000000000000000000E+38')
-MIN_FLOAT32 = Decimal('1.17549400000000000000000000E-38')
-MAX_FLOAT64 = Decimal('1.79769313486231570000000000E308')
-MIN_FLOAT64 = Decimal('2.22507385850720140000000000E-308')
 
 OPERATOR_TO_METHOD_NAME = {
     nodes.Operator.eq_eq.value: nodes.SpecialMethods.eq.value,
@@ -54,15 +22,6 @@ OPERATOR_TO_METHOD_NAME = {
     nodes.Operator.mul.value: nodes.SpecialMethods.mul.value,
     nodes.Operator.div.value: nodes.SpecialMethods.div.value,
 }
-
-
-def get_possible_float_types_base_on_value(value: str) -> t.List[nodes.Type]:
-    decimal = Decimal(value)
-    if MIN_FLOAT32 <= decimal <= MAX_FLOAT32 or -MAX_FLOAT32 <= decimal <= -MIN_FLOAT32 or decimal == 0:
-        return [nodes.BuiltinType.f32, nodes.BuiltinType.f64]
-    elif MIN_FLOAT64 <= decimal <= MAX_FLOAT64 or -MAX_FLOAT64 <= decimal <= -MIN_FLOAT64:
-        return [nodes.BuiltinType.f64]
-    return []
 
 
 def add(x, y):
@@ -172,9 +131,9 @@ class Analyzer:
         self.current_line = 1
         self.function_return_types: t.List[nodes.Type] = []
         self.parents: t.List[nodes.Name] = []
-        self.template_type_id = -1
         self.repl_tmp_count = 0
-        self.template_types: t.List[t.Optional[nodes.Type]] = []
+
+        self.type_checker = type_checking.TypeChecker()
 
         # REPL eval
         repl_eval_builtin_function_call_dispatcher: t.Dict[str, t.Callable[[t.List[nodes.Expression]], t.Any]] = {
@@ -300,78 +259,6 @@ class Analyzer:
         }
         self.analyze_node = lambda node: dispatch(analyze_node_dispatcher, type(node), node)
         self.analyze = lambda ast: [self.analyze_node(node) for node in ast]
-
-        infer_type_from_builtin_func_call_dispatcher = {
-            nodes.BuiltinFunc.read.value: self.infer_type_from_read_function_call,
-        }
-        infer_type_from_function_call_dispatcher = {
-            nodes.BuiltinFunc: lambda value, supertype: dispatch(
-                infer_type_from_builtin_func_call_dispatcher, value.function_path.value, value.args, supertype
-            ),
-        }
-
-        infer_type_dispatcher = {
-            nodes.IntegerLiteral: self.infer_type_from_integer_literal,
-            nodes.DecimalLiteral: self.infer_type_from_decimal_literal,
-            nodes.StringLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.string, supertype),
-            nodes.VectorLiteral: self.infer_type_from_vector_literal,
-            nodes.DictLiteral: self.infer_type_from_dict_literal,
-            nodes.OptionalTypeConstructor: self.infer_type_from_optional_type_constructor,
-            nodes.OptionalSomeCall: self.infer_type_from_optional_some_call,
-            nodes.OptionalSomeValue: self.infer_type_from_optional_some_value,
-            nodes.CharLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.char, supertype),
-            nodes.BoolLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.bool, supertype),
-            nodes.BinaryExpression: lambda value, supertype: self.infer_type_from_binary_expression(
-                value.left, value.operator, value.right, supertype),
-            nodes.Name: self.infer_type_from_name,
-            nodes.FunctionCall: lambda value, supertype: dispatch(
-                infer_type_from_function_call_dispatcher, type(value.function_path), value, supertype
-            ),
-            nodes.Cast: lambda value, supertype: self.unify_types(value.to_type, supertype)
-        }
-        self.infer_type = lambda value, supertype=None: dispatch(infer_type_dispatcher, type(value), value, supertype)
-
-        self.unify_types_dispatcher = {
-            (nodes.BuiltinType, nodes.BuiltinType): self.unify_builtin_types,
-            (nodes.VectorType, nodes.VectorType): self.unify_vector_types,
-            (nodes.DictType, nodes.DictType): self.unify_dict_types,
-            (nodes.TemplateType, nodes.TemplateType): self.unify_template_types,
-            (nodes.OptionalType, nodes.OptionalType): self.unify_optional_types,
-
-            (nodes.BuiltinType, nodes.VectorType): self.unification_failed,
-            (nodes.BuiltinType, nodes.DictType): self.unification_failed,
-            (nodes.BuiltinType, nodes.OptionalType): self.unification_failed,
-            (nodes.BuiltinType, nodes.TemplateType): self.unification_template_supertype_success,
-
-            (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype: (
-                supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
-                else self.unification_failed(subtype, supertype)
-            ),
-            (nodes.VectorType, nodes.TemplateType): self.unification_template_supertype_success,
-            (nodes.VectorType, nodes.DictType): self.unification_failed,
-            (nodes.VectorType, nodes.OptionalType): self.unification_failed,
-
-            (nodes.TemplateType, nodes.BuiltinType): self.unification_template_subtype_success,
-            (nodes.TemplateType, nodes.VectorType): self.unification_template_subtype_success,
-            (nodes.TemplateType, nodes.DictType): self.unification_template_subtype_success,
-            (nodes.TemplateType, nodes.OptionalType): self.unification_template_subtype_success,
-
-            (nodes.DictType, nodes.BuiltinType): lambda subtype, supertype: (
-                supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
-                else self.unification_failed(subtype, supertype)
-            ),
-            (nodes.DictType, nodes.VectorType): self.unification_failed,
-            (nodes.DictType, nodes.OptionalType): self.unification_failed,
-            (nodes.DictType, nodes.TemplateType): self.unification_template_supertype_success,
-
-            (nodes.OptionalType, nodes.BuiltinType): lambda subtype, supertype: (
-                supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
-                else self.unification_failed(subtype, supertype)
-            ),
-            (nodes.OptionalType, nodes.VectorType): self.unification_failed,
-            (nodes.OptionalType, nodes.DictType): self.unification_failed,
-            (nodes.OptionalType, nodes.TemplateType): self.unification_template_supertype_success,
-        }
 
         can_assign_dispatcher = {
             nodes.Name: self.can_assign_name,
@@ -663,203 +550,6 @@ class Analyzer:
             return not entry.has_value
         return False
 
-    def infer_type_from_integer_literal(
-            self, value: nodes.IntegerLiteral, supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        possible_types = get_possible_int_types_based_on_value(int(value.value))
-        try:
-            result = self.unify_list_types(possible_types, supertype)
-        except errors.AngelTypeError:
-            if supertype is None:
-                if int(value.value) > 0:
-                    message = f"{value.value} is too big"
-                else:
-                    message = f"{value.value} is too small"
-            elif isinstance(supertype, nodes.BuiltinType) and supertype.is_finite_int_type:
-                message = f"{value.value} is not in range {supertype.get_range()}"
-            else:
-                message = f"'{supertype.to_code()}' is not a possible type for {value.value}"
-            raise errors.AngelTypeError(message, self.get_code(self.current_line), possible_types)
-        else:
-            return result
-
-    def infer_type_from_decimal_literal(
-            self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        possible_types = get_possible_float_types_base_on_value(value.value)
-        try:
-            result = self.unify_list_types(possible_types, supertype)
-        except errors.AngelTypeError:
-            if supertype is None:
-                if int(value.value) > 0:
-                    message = f"{value.value} is too big"
-                else:
-                    message = f"{value.value} is too small"
-            elif isinstance(supertype, nodes.BuiltinType) and supertype.is_finite_float_type:
-                message = f"{value.value} is not in range {supertype.get_range()}"
-            else:
-                message = f"'{supertype.to_code()}' is not a possible type for {value.value}"
-            raise errors.AngelTypeError(message, self.get_code(self.current_line), possible_types)
-        else:
-            return result
-
-    def infer_type_from_vector_literal(
-            self, value: nodes.VectorLiteral, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        element_type: nodes.Type = self.create_template_type()
-        for element in value.elements:
-            current_element_type = self.infer_type(element)
-            try:
-                element_type = self.unify_types(element_type, current_element_type)
-            except errors.AngelTypeError:
-                element_type = self.unify_types(current_element_type, element_type)
-        return self.unify_types(nodes.VectorType(element_type), supertype)
-
-    def infer_type_from_dict_literal(
-            self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        key_type: nodes.Type = self.create_template_type()
-        value_type: nodes.Type = self.create_template_type()
-        for key, val in zip(value.keys, value.values):
-            current_key_type = self.infer_type(key)
-            try:
-                key_type = self.unify_types(key_type, current_key_type)
-            except errors.AngelTypeError:
-                key_type = self.unify_types(current_key_type, key_type)
-
-            current_value_type = self.infer_type(val)
-            try:
-                value_type = self.unify_types(value_type, current_value_type)
-            except errors.AngelTypeError:
-                value_type = self.unify_types(current_value_type, value_type)
-        return self.unify_types(nodes.DictType(key_type, value_type), supertype)
-
-    def infer_type_from_name(self, value: nodes.Name, supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        entry = self.env[value.member]
-        if entry is None:
-            raise errors.AngelNameError(value, self.get_code(self.current_line))
-        elif isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
-            return self.unify_types(entry.type, supertype)
-        else:
-            raise errors.AngelNotImplemented
-
-    def infer_type_from_binary_expression(
-            self, left: nodes.Expression, operator: nodes.Operator, right: nodes.Expression,
-            supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        result = self.analyzer_eval_expression(nodes.BinaryExpression(left, operator, right))
-        if isinstance(result, bool):
-            return self.unify_types(nodes.BuiltinType.bool, supertype)
-        elif isinstance(result, (int, float)):
-            return self.infer_type_from_integer_literal(nodes.IntegerLiteral(str(int(result))), supertype)
-        elif isinstance(result, Decimal):
-            return self.infer_type_from_decimal_literal(nodes.DecimalLiteral(str(result)), supertype)
-        elif isinstance(result, nodes.DynValue):
-            return self.unify_types(result.type, supertype)
-        else:
-            raise errors.AngelNotImplemented
-
-    def infer_type_from_read_function_call(
-            self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        return self.unify_types(nodes.BuiltinType.string, supertype)
-
-    def infer_type_from_optional_type_constructor(
-            self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        inner_type = self.create_template_type()
-        return self.unify_types(nodes.OptionalType(inner_type), supertype)
-
-    def infer_type_from_optional_some_call(
-            self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        inner_type = self.infer_type(value.value)
-        return self.unify_types(nodes.OptionalType(inner_type), supertype)
-
-    def infer_type_from_optional_some_value(
-            self, value: nodes.OptionalSomeValue, _: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        optional_type = self.infer_type(value.value)
-        assert isinstance(optional_type, nodes.OptionalType)
-        # OptionalSomeValue is generated by compiler, so we assume that it is correct.
-        return optional_type.inner_type
-
-    def unify_types(self, subtype: nodes.Type, supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        if supertype is None:
-            return subtype
-        return dispatch(self.unify_types_dispatcher, (type(subtype), type(supertype)), subtype, supertype)
-
-    def unify_builtin_types(self, subtype: nodes.BuiltinType, supertype: nodes.BuiltinType) -> nodes.Type:
-        if supertype.value in subtype.get_builtin_supertypes():
-            return supertype
-        raise self.basic_type_error(subtype, supertype)
-
-    def unify_builtin_type_with_template_type(
-            self, subtype: nodes.BuiltinType, supertype: nodes.TemplateType
-    ) -> nodes.Type:
-        assert self.template_types[supertype.id] is None
-        self.template_types[supertype.id] = subtype
-        return subtype
-
-    def unification_template_supertype_success(self, subtype: nodes.Type, supertype: nodes.TemplateType) -> nodes.Type:
-        assert self.template_types[supertype.id] is None
-        self.template_types[supertype.id] = subtype
-        return subtype
-
-    def unification_template_subtype_success(self, subtype: nodes.TemplateType, supertype: nodes.Type) -> nodes.Type:
-        assert self.template_types[subtype.id] is None
-        self.template_types[subtype.id] = supertype
-        return supertype
-
-    def unify_vector_types(self, subtype: nodes.VectorType, supertype: nodes.VectorType) -> nodes.Type:
-        try:
-            element_type = self.unify_types(subtype.subtype, supertype.subtype)
-            return nodes.VectorType(element_type)
-        except errors.AngelTypeError:
-            raise self.basic_type_error(subtype, supertype)
-
-    def unify_optional_types(self, subtype: nodes.OptionalType, supertype: nodes.OptionalType) -> nodes.Type:
-        try:
-            inner_type = self.unify_types(subtype.inner_type, supertype.inner_type)
-            return nodes.OptionalType(inner_type)
-        except errors.AngelTypeError:
-            raise self.basic_type_error(subtype, supertype)
-
-    def unify_dict_types(self, subtype: nodes.DictType, supertype: nodes.DictType) -> nodes.Type:
-        try:
-            key_type = self.unify_types(subtype.key_type, supertype.key_type)
-            value_type = self.unify_types(subtype.value_type, supertype.value_type)
-            return nodes.DictType(key_type, value_type)
-        except errors.AngelTypeError:
-            raise self.basic_type_error(subtype, supertype)
-
-    def unification_failed(self, subtype: nodes.Type, supertype: nodes.Type) -> nodes.Type:
-        raise self.basic_type_error(subtype, supertype)
-
-    def unify_template_types(self, subtype: nodes.TemplateType, supertype: nodes.TemplateType) -> nodes.Type:
-        real_type = self.template_types[subtype.id] or self.template_types[supertype.id]
-        self.template_types[subtype.id] = real_type
-        self.template_types[supertype.id] = real_type
-        return real_type or subtype
-
-    def unify_list_types(self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        fail = None
-        for subtype in subtypes:
-            try:
-                result = self.unify_types(subtype, supertype)
-            except errors.AngelTypeError as e:
-                fail = e
-            else:
-                return result
-        if fail is not None:
-            raise errors.AngelTypeError(fail.message, self.get_code(self.current_line), list(subtypes))
-        raise errors.AngelTypeError("no subtypes to unify", self.get_code(self.current_line), list(subtypes))
-
-    def basic_type_error(self, subtype: nodes.Type, supertype: nodes.Type) -> errors.AngelTypeError:
-        return errors.AngelTypeError(
-            f"{supertype.to_code()} is not a supertype of {subtype.to_code()}", self.get_code(self.current_line),
-            [subtype]
-        )
-
     def get_code(self, line: int) -> errors.Code:
         return errors.Code(self.lines[line - 1], line)
 
@@ -1083,7 +773,13 @@ class Analyzer:
     def analyzer_eval_read_function_call(self, _: t.List[nodes.Expression]) -> t.Any:
         return nodes.DynValue(nodes.BuiltinType.string)
 
-    def create_template_type(self) -> nodes.TemplateType:
-        self.template_types.append(None)
-        self.template_type_id += 1
-        return nodes.TemplateType(self.template_type_id)
+    # Type checking
+    def infer_type(self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
+        """Wrapper around TypeChecker.infer_type that helps to keep Environment up to date."""
+        self.type_checker.update_context(self.env, self.get_code(self.current_line))
+        return self.type_checker.infer_type(value, supertype)
+
+    def unify_types(self, subtype: nodes.Type, supertype: t.Optional[nodes.Type]) -> nodes.Type:
+        """Wrapper around TypeChecker.unify_types that helps to keep Environment up to date."""
+        self.type_checker.update_context(self.env, self.get_code(self.current_line))
+        return self.type_checker.unify_types(subtype, supertype)
