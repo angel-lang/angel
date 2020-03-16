@@ -231,6 +231,7 @@ class TypeChecker:
                 value_type = self.unify_types(value_type, current_value_type)
             except errors.AngelTypeError:
                 value_type = self.unify_types(current_value_type, value_type)
+        value.annotation = nodes.DictType(key_type, value_type)
         return self.unify_types(nodes.DictType(key_type, value_type), supertype)
 
     def infer_type_from_binary_expression(

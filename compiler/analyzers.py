@@ -298,36 +298,34 @@ class Analyzer:
 
     def analyze_constant_declaration(self, node: nodes.ConstantDeclaration) -> nodes.ConstantDeclaration:
         self.current_line = node.line
-        value = self.clarify_expression(node.value)
-        clarified_type = self.clarify_type(node.type)
-        if value:
-            type_ = self.infer_type(value, supertype=clarified_type)
+        if node.value:
+            type_ = self.infer_type(node.value, supertype=node.type)
         else:
-            assert clarified_type is not None
-            type_ = self.unify_types(clarified_type, clarified_type)
-        self.env.add_constant(node.line, node.name, type_, value, analyzed_value=self.analyzer_eval_expression(value))
-        return nodes.ConstantDeclaration(node.line, node.name, type_, value)
+            assert node.type is not None
+            type_ = self.unify_types(node.type, node.type)
+        self.env.add_constant(
+            node.line, node.name, type_, node.value, analyzed_value=self.analyzer_eval_expression(node.value)
+        )
+        return nodes.ConstantDeclaration(node.line, node.name, type_, node.value)
 
     def analyze_variable_declaration(self, node: nodes.VariableDeclaration) -> nodes.VariableDeclaration:
         self.current_line = node.line
-        value = self.clarify_expression(node.value)
-        clarified_type = self.clarify_type(node.type)
-        if value:
-            type_ = self.infer_type(value, supertype=clarified_type)
+        if node.value:
+            type_ = self.infer_type(node.value, supertype=node.type)
         else:
-            assert clarified_type is not None
-            type_ = self.unify_types(clarified_type, clarified_type)
-        self.env.add_variable(node.line, node.name, type_, analyzed_value=self.analyzer_eval_expression(value))
-        return nodes.VariableDeclaration(node.line, node.name, type_, value)
+            assert node.type is not None
+            type_ = self.unify_types(node.type, node.type)
+        self.env.add_variable(
+            node.line, node.name, type_, analyzed_value=self.analyzer_eval_expression(node.value)
+        )
+        return nodes.VariableDeclaration(node.line, node.name, type_, node.value)
 
     def analyze_function_declaration(self, node: nodes.FunctionDeclaration) -> nodes.FunctionDeclaration:
         self.current_line = node.line
         args = []
         for arg in node.args:
-            clarified_type = self.clarify_type(arg.type)
-            args.append(nodes.Argument(arg.name, self.unify_types(clarified_type, clarified_type)))
-        clarified_return_type = self.clarify_type(node.return_type)
-        return_type = self.unify_types(clarified_return_type, clarified_return_type)
+            args.append(nodes.Argument(arg.name, self.unify_types(arg.type, arg.type)))
+        return_type = self.unify_types(node.return_type, node.return_type)
         if self.parents:
             self.env.add_method(self.parents[-1], node.line, node.name, args, return_type)
         else:
@@ -355,25 +353,24 @@ class Analyzer:
     def analyze_field_declaration(self, node: nodes.FieldDeclaration) -> nodes.FieldDeclaration:
         assert self.parents
         self.current_line = node.line
-        type_ = self.clarify_type(node.type)
-        self.env.add_field(self.parents[-1], node.line, node.name, type_)
-        return nodes.FieldDeclaration(node.line, node.name, type_)
+        self.env.add_field(self.parents[-1], node.line, node.name, node.type)
+        return nodes.FieldDeclaration(node.line, node.name, node.type)
 
     def analyze_assignment(self, node: nodes.Assignment) -> nodes.Assignment:
         self.current_line = node.line
-        left = self.clarify_expression(node.left)
-        if not self.can_assign(left):
-            raise errors.AngelConstantReassignment(left, self.get_code(node.line), self.get_definition_code(left))
+        if not self.can_assign(node.left):
+            raise errors.AngelConstantReassignment(
+                node.left, self.get_code(node.line), self.get_definition_code(node.left)
+            )
         if node.operator.value != nodes.Operator.eq.value:
             right: nodes.Expression = nodes.BinaryExpression(
                 node.left, node.operator.to_arithmetic_operator(), node.right
             )
         else:
             right = node.right
-        right = self.clarify_expression(right)
         # Type checking
-        self.infer_type(right, supertype=self.infer_type(left))
-        result = nodes.Assignment(node.line, left, nodes.Operator.eq, right)
+        self.infer_type(right, supertype=self.infer_type(node.left))
+        result = nodes.Assignment(node.line, node.left, nodes.Operator.eq, right)
         self.analyzer_reassign(result)
         return result
 
@@ -382,25 +379,22 @@ class Analyzer:
 
     def analyze_function_call(self, node: nodes.FunctionCall) -> nodes.FunctionCall:
         self.current_line = node.line
-        function_path = self.clarify_expression(node.function_path)
-        args = [self.clarify_expression(arg) for arg in node.args]
-        return self.checked_function_call(node.line, function_path, args)
+        return self.checked_function_call(node.line, node.function_path, node.args)
 
     def analyze_while_statement(self, node: nodes.While) -> nodes.While:
         self.current_line = node.line
-        condition = self.clarify_expression(node.condition)
-        self.infer_type(condition, supertype=nodes.BuiltinType.bool)
+        self.infer_type(node.condition, supertype=nodes.BuiltinType.bool)
         self.env.inc_nesting()
         body = self.analyze(node.body)
         self.env.dec_nesting()
-        return nodes.While(node.line, condition, body)
+        return nodes.While(node.line, node.condition, body)
 
     def analyze_if_statement(self, node: nodes.If) -> nodes.If:
         self.current_line = node.line
         if isinstance(node.condition, nodes.ConstantDeclaration):
             condition = self.analyze_node(node.condition)
         else:
-            condition = self.clarify_expression(node.condition)
+            condition = node.condition
             self.infer_type(condition, supertype=nodes.BuiltinType.bool)
         self.env.inc_nesting()
         body = self.analyze(node.body)
@@ -408,14 +402,13 @@ class Analyzer:
         elifs = []
         for elif_condition, elif_body in node.elifs:
             if isinstance(elif_condition, nodes.ConstantDeclaration):
-                elif_condition_clarified = self.analyze_node(elif_condition)
+                elif_condition = self.analyze_node(elif_condition)
             else:
-                elif_condition_clarified = self.clarify_expression(elif_condition)
-                self.infer_type(elif_condition_clarified, supertype=nodes.BuiltinType.bool)
+                self.infer_type(elif_condition, supertype=nodes.BuiltinType.bool)
             self.env.inc_nesting()
-            elif_body_clarified = self.analyze(elif_body)
+            elif_body_analyzed = self.analyze(elif_body)
             self.env.dec_nesting()
-            elifs.append((elif_condition_clarified, elif_body_clarified))
+            elifs.append((elif_condition, elif_body_analyzed))
         self.env.inc_nesting()
         else_ = self.analyze(node.else_)
         self.env.dec_nesting()
@@ -423,9 +416,8 @@ class Analyzer:
 
     def analyze_return_statement(self, node: nodes.Return) -> nodes.Return:
         self.current_line = node.line
-        value = self.clarify_expression(node.value)
-        self.infer_type(value, supertype=self.function_return_types[-1])
-        return nodes.Return(node.line, value)
+        self.infer_type(node.value, supertype=self.function_return_types[-1])
+        return nodes.Return(node.line, node.value)
 
     def checked_function_as_name_call(self, line: int, path: nodes.Name, args: t.List[nodes.Expression]):
         entry = self.env[path.member]
@@ -468,79 +460,6 @@ class Analyzer:
             )
         self.infer_type(args[0], supertype=nodes.BuiltinType.string)
         return nodes.FunctionCall(line, path, args)
-
-    @t.overload
-    def clarify_expression(self, value: None) -> None:
-        ...
-
-    @t.overload
-    def clarify_expression(self, value: nodes.Expression) -> nodes.Expression:
-        ...
-
-    def clarify_expression(self, value):
-        if isinstance(value, nodes.Name):
-            for cls in (nodes.BuiltinFunc, nodes.BuiltinType, nodes.BoolLiteral):
-                try:
-                    clarified = cls(value.member)
-                except ValueError:
-                    continue
-                else:
-                    return clarified
-            return value
-        elif isinstance(value, nodes.BinaryExpression):
-            return self.clarify_binary_expression(
-                self.clarify_expression(value.left), value.operator, self.clarify_expression(value.right))
-        elif isinstance(value, nodes.FunctionCall):
-            return self.analyze_function_call(value)
-        elif isinstance(value, nodes.VectorLiteral):
-            return nodes.VectorLiteral([self.clarify_expression(element) for element in value.elements])
-        elif isinstance(value, nodes.DictLiteral):
-            keys = [self.clarify_expression(key) for key in value.keys]
-            values = [self.clarify_expression(val) for val in value.values]
-            return nodes.DictLiteral(keys, values, annotation=self.infer_type(nodes.DictLiteral(keys, values)))
-        elif isinstance(value, nodes.Field):
-            clarified_base = self.clarify_expression(value.base)
-            if isinstance(clarified_base, nodes.BuiltinType) and (
-                    clarified_base.value == nodes.BuiltinType.optional.value):
-                return nodes.OptionalTypeConstructor(value.field)
-            else:
-                raise errors.AngelNotImplemented
-        return value
-
-    def clarify_binary_expression(
-            self, left: nodes.Expression, operator: nodes.Operator, right: nodes.Expression
-    ) -> nodes.Expression:
-        left_type = self.infer_type(left)
-        if isinstance(left_type, nodes.BuiltinType):
-            # It is easier to translate.
-            return nodes.BinaryExpression(left, operator, right)
-        elif isinstance(left_type, nodes.OptionalType):
-            return nodes.BinaryExpression(left, operator, right)
-        raise errors.AngelNotImplemented
-
-    @t.overload
-    def clarify_type(self, type_: None) -> None:
-        ...
-
-    @t.overload
-    def clarify_type(self, type_: nodes.Type) -> nodes.Type:
-        ...
-
-    def clarify_type(self, type_: t.Optional[nodes.Type]) -> t.Optional[nodes.Type]:
-        if isinstance(type_, nodes.Name):
-            try:
-                builtin_type = nodes.BuiltinType(type_.member)
-            except ValueError:
-                return type_
-            else:
-                return builtin_type
-        elif isinstance(type_, nodes.VectorType):
-            return nodes.VectorType(self.clarify_type(type_.subtype))
-        elif isinstance(type_, nodes.OptionalType):
-            return nodes.OptionalType(self.clarify_type(type_.inner_type))
-        elif isinstance(type_, nodes.DictType):
-            return nodes.DictType(self.clarify_type(type_.key_type), self.clarify_type(type_.value_type))
-        return type_
 
     def can_assign_name(self, value: nodes.Name) -> bool:
         entry = self.env[value.member]

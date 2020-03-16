@@ -381,11 +381,15 @@ class VectorLiteral(Expression):
         return "[" + ', '.join(element.to_code() for element in self.elements) + "]"
 
 
-@dataclass
 class DictLiteral(Expression):
     keys: t.List[Expression]
     values: t.List[Expression]
     annotation: t.Optional[Type] = None
+
+    def __init__(self, keys, values, annotation=None):
+        self.keys = keys
+        self.values = values
+        self.annotation = annotation
 
     def to_code(self, indentation_level: int = 0) -> str:
         inner = []

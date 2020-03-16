@@ -1,14 +1,15 @@
 import typing as t
 import unittest
 
-from compiler import parsers, analyzers, environment
+from compiler import parsers, analyzers, environment, clarification
 
 
 class TestEval(unittest.TestCase):
     def get_env(self, lines: t.List[str]) -> environment.Environment:
         parser = parsers.Parser()
+        clarifier = clarification.Clarifier()
         analyzer = analyzers.Analyzer(lines)
-        analyzer.repl_eval_ast(parser.parse("\n".join(lines)))
+        analyzer.repl_eval_ast(clarifier.clarify_ast(parser.parse("\n".join(lines))))
         return analyzer.env
 
     def eval(
@@ -25,11 +26,14 @@ class TestEval(unittest.TestCase):
 
         env = env or environment.Environment()
         parser = parsers.Parser()
+        clarifier = clarification.Clarifier()
         analyzer = analyzers.Analyzer(lines, env)
         analyzer.repl = True
         analyzers.print = print_test
         analyzers.input = input_test
-        result = analyzer.repl_eval_ast(parser.parse("\n".join(lines)))
+        result = analyzer.repl_eval_ast(
+            clarifier.clarify_ast(parser.parse("\n".join(lines)))
+        )
         return result, output
 
     def test_integer_literal(self):
