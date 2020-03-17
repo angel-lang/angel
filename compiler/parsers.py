@@ -174,9 +174,7 @@ class Parser:
         if not self.parse_raw("while"):
             return None
         self.spaces()
-        condition = self.parse_expression()
-        if condition is None:
-            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        condition = self.parse_if_condition()
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
         self.additional_statement_parsers.append(self.parse_break)

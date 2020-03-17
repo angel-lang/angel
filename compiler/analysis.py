@@ -87,6 +87,7 @@ class Analyzer:
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
         self.env.dec_nesting()
+        self.env.update_function_body(declaration.name, body)
         return nodes.FunctionDeclaration(declaration.line, declaration.name, args, return_type, body)
 
     def analyze_struct_declaration(self, declaration: nodes.StructDeclaration) -> nodes.StructDeclaration:
@@ -137,11 +138,15 @@ class Analyzer:
         return nodes.If(statement.line, condition, body, elifs, else_)
 
     def analyze_while_statement(self, statement: nodes.While) -> nodes.While:
-        self.infer_type(statement.condition, supertype=nodes.BuiltinType.bool)
+        if isinstance(statement.condition, nodes.ConstantDeclaration):
+            condition: nodes.Expression = self.analyze_constant_declaration(statement.condition)
+        else:
+            condition = statement.condition
+            self.infer_type(condition, supertype=nodes.BuiltinType.bool)
         self.env.inc_nesting()
         body = self.analyze_ast(statement.body)
         self.env.dec_nesting()
-        return nodes.While(statement.line, statement.condition, body)
+        return nodes.While(statement.line, condition, body)
 
     def analyze_return(self, statement: nodes.Return) -> nodes.Return:
         assert self.function_return_types

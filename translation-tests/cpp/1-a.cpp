@@ -4,6 +4,12 @@
 #include <optional>
 #include <string>
 #include <vector>
+std::optional<std::int_fast8_t> getN(std::int_fast8_t i) {
+  if (i <= 3) {
+    return i;
+  }
+  return std::nullopt;
+}
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;
@@ -49,6 +55,14 @@ int main() {
     std::cout << realName << std::endl;
   } else {
     std::cout << "No name" << std::endl;
+  }
+  std::int_fast8_t lol = 0;
+  auto __tmp_3 = getN(lol);
+  while (__tmp_3 != std::nullopt) {
+    std::int_fast8_t n = *__tmp_3;
+    std::cout << n << std::endl;
+    lol = lol + 1;
+    __tmp_3 = getN(lol);
   }
   std::string name = "Mike";
   std::int_fast8_t age = 20;

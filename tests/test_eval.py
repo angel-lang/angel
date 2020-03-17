@@ -154,6 +154,20 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ["John"])
 
+    def test_while_let(self):
+        code = [
+            'fun getN(i: I8) -> I8?:',
+            '    if i <= 3:',
+            '        return Optional.Some(i)',
+            '    return Optional.None',
+            'var i = 0',
+            'while let n = getN(i):',
+            '    print(n)',
+            '    i += 1'
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['0', '1', '2', '3'])
+
 
 if __name__ == '__main__':
     unittest.main()

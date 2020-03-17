@@ -480,7 +480,7 @@ class While(Node):
 
 @dataclass
 class If(Node):
-    condition: t.Union[ConstantDeclaration, Expression]
+    condition: Expression
     body: AST
     elifs: t.List[t.Tuple[Expression, AST]]
     else_: AST

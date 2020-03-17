@@ -108,6 +108,8 @@ class Evaluator:
         result = None
         for node in ast:
             result = self.estimate_node(node)
+            if result is not None and not isinstance(result, enodes.Void):
+                return result
         return result
 
     def estimate_constant_declaration(self, declaration: nodes.ConstantDeclaration) -> None:
@@ -158,39 +160,48 @@ class Evaluator:
             assert 0, f"REPL cannot reassign {type(entry)}"
 
     def estimate_while_statement(self, statement: nodes.While) -> t.Optional[enodes.Expression]:
-        condition = self.estimate_expression(statement.condition)
-        assert isinstance(condition, enodes.Bool)
-        while condition.value:
-            result = self.estimate_ast(statement.body)
+        condition, body, assignment = self.desugar_if_let(statement.condition, statement.body)
+        estimated_condition = self.estimate_expression(condition)
+        if assignment is not None:
+            body.append(assignment)
+        assert isinstance(estimated_condition, enodes.Bool)
+        while estimated_condition.value:
+            result = self.estimate_ast(body)
             if isinstance(result, enodes.Break):
                 break
             elif result is not None:
                 return result
-            condition = self.estimate_expression(statement.condition)
-            assert isinstance(condition, enodes.Bool)
+            estimated_condition = self.estimate_expression(condition)
+            assert isinstance(estimated_condition, enodes.Bool)
         return None
 
-    def desugar_if_let(self, condition: nodes.Expression, body: nodes.AST) -> t.Tuple[nodes.Expression, nodes.AST]:
+    def desugar_if_let(
+            self, condition: nodes.Expression, body: nodes.AST
+    ) -> t.Tuple[nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
+        assignment = None
         if isinstance(condition, nodes.ConstantDeclaration):
             assert condition.value is not None
             tmp_right = self.create_repl_tmp(condition.value)
             to_prepend: t.List[nodes.Node] = [
-                nodes.ConstantDeclaration(
+                nodes.VariableDeclaration(
                     condition.line, condition.name, condition.type, nodes.OptionalSomeValue(tmp_right)
                 )
             ]
             body = to_prepend + body
+            assignment = nodes.Assignment(
+                condition.line, tmp_right, nodes.Operator.eq, condition.value
+            )
             condition = nodes.BinaryExpression(tmp_right, nodes.Operator.neq, nodes.OptionalTypeConstructor.none)
-        return condition, body
+        return condition, body, assignment
 
     def estimate_if_statement(self, statement: nodes.If) -> t.Optional[enodes.Expression]:
-        condition, body = self.desugar_if_let(statement.condition, statement.body)
+        condition, body, _ = self.desugar_if_let(statement.condition, statement.body)
         evaluated_condition = self.estimate_expression(condition)
         assert isinstance(evaluated_condition, enodes.Bool)
         if evaluated_condition.value:
             return self.estimate_ast(body)
         for elif_condition, elif_body in statement.elifs:
-            elif_condition, elif_body = self.desugar_if_let(elif_condition, elif_body)
+            elif_condition, elif_body, _ = self.desugar_if_let(elif_condition, elif_body)
             cond = self.estimate_expression(elif_condition)
             assert isinstance(cond, enodes.Bool)
             if cond.value:
@@ -200,7 +211,7 @@ class Evaluator:
     def create_repl_tmp(self, value: nodes.Expression) -> nodes.Name:
         name = nodes.Name("__repl_tmp" + str(self.repl_tmp_count))
         self.repl_tmp_count += 1
-        self.env.add_constant(0, name, self.infer_type(value), value, estimated_value=self.estimate_expression(value))
+        self.env.add_variable(0, name, self.infer_type(value), value, estimated_value=self.estimate_expression(value))
         return name
 
     def estimate_return(self, statement: nodes.Return) -> enodes.Expression:
@@ -272,6 +283,14 @@ class Evaluator:
         right = self.estimate_expression(expression.right)
         if expression.operator.value == nodes.Operator.neq.value:
             result = dispatch(self.binary_operator_dispatcher, nodes.Operator.eq_eq.value, left, right)
+            assert isinstance(result, enodes.Bool)
+            return enodes.Bool(not result.value)
+        elif expression.operator.value == nodes.Operator.lt_eq.value:
+            result = dispatch(self.binary_operator_dispatcher, nodes.Operator.gt.value, left, right)
+            assert isinstance(result, enodes.Bool)
+            return enodes.Bool(not result.value)
+        elif expression.operator.value == nodes.Operator.gt_eq.value:
+            result = dispatch(self.binary_operator_dispatcher, nodes.Operator.lt.value, left, right)
             assert isinstance(result, enodes.Bool)
             return enodes.Bool(not result.value)
         return dispatch(self.binary_operator_dispatcher, expression.operator.value, left, right)

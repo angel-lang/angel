@@ -53,6 +53,17 @@ if let realName = optionalName:
 else:
     print("No name")
 
+// While let
+fun getN(i: I8) -> I8?:
+    if i <= 3:
+        return Optional.Some(i)
+    return Optional.None
+
+var lol = 0
+while let n = getN(lol):
+    print(n)
+    lol += 1
+
 let name = "Mike"
 var age: I8 = 20
 age = 21

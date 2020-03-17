@@ -65,6 +65,7 @@ class Translator:
             nodes.FunctionCall: lambda node: cpp_nodes.Semicolon(self.translate_function_call(node)),
             nodes.While: self.translate_while_statement,
             nodes.If: self.translate_if_statement,
+            nodes.Return: self.translate_return_statement,
         }
 
         translate_expression_dispatcher = {
@@ -212,12 +213,17 @@ class Translator:
         return cpp_nodes.Assignment(left, self.translate_operator(node.operator), right)
 
     def translate_while_statement(self, node: nodes.While) -> cpp_nodes.While:
-        condition = self.translate_expression(node.condition)
-        assert condition is not None
+        translated_condition, body, assignment = self.desugar_if_condition(node.condition, node.body)
+        if assignment is not None:
+            body.append(assignment)
+        assert translated_condition is not None
         self.env.inc_nesting()
-        body = self.translate_body(node.body)
+        nodes_buffer = self.nodes_buffer
+        self.nodes_buffer = []
+        translated_body = self.translate_body(body)
+        self.nodes_buffer = nodes_buffer
         self.env.dec_nesting()
-        return cpp_nodes.While(condition, body)
+        return cpp_nodes.While(translated_condition, translated_body)
 
     def translate_constant_declaration(self, node: nodes.ConstantDeclaration) -> cpp_nodes.Declaration:
         assert node.type is not None
@@ -228,7 +234,7 @@ class Translator:
         return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value)
 
     def translate_if_statement(self, node: nodes.If) -> cpp_nodes.If:
-        condition, new_body = self.desugar_if_condition(node.condition, node.body)
+        condition, new_body, _ = self.desugar_if_condition(node.condition, node.body)
         self.env.inc_nesting()
         nodes_buffer = self.nodes_buffer
         self.nodes_buffer = []
@@ -237,7 +243,7 @@ class Translator:
         self.env.dec_nesting()
         else_ifs = []
         for elif_condition, elif_body in node.elifs:
-            else_if_condition, new_elif_body = self.desugar_if_condition(elif_condition, elif_body)
+            else_if_condition, new_elif_body, _ = self.desugar_if_condition(elif_condition, elif_body)
             self.env.inc_nesting()
             nodes_buffer = self.nodes_buffer
             self.nodes_buffer = []
@@ -255,7 +261,7 @@ class Translator:
 
     def desugar_if_condition(
             self, condition: nodes.Expression, body: nodes.AST
-    ) -> t.Tuple[cpp_nodes.Expression, nodes.AST]:
+    ) -> t.Tuple[cpp_nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
         if isinstance(condition, nodes.ConstantDeclaration):
             assert condition.value is not None
             tmp, cpp_tmp = self.create_tmp(type_=cpp_nodes.Auto(), value=self.translate_expression(condition.value))
@@ -265,11 +271,17 @@ class Translator:
                 condition.line, condition.name, condition.type.inner_type, nodes.OptionalSomeValue(tmp)
             )
             new_body = [new_declaration] + body
-            return new_condition, new_body
+            assignment = nodes.Assignment(condition.line, tmp, nodes.Operator.eq, condition.value)
+            return new_condition, new_body, assignment
         else:
             expression = self.translate_expression(condition)
             assert expression is not None
-            return expression, body
+            return expression, body, None
+
+    def translate_return_statement(self, statement: nodes.Return) -> cpp_nodes.Return:
+        value = self.translate_expression(statement.value)
+        assert value is not None
+        return cpp_nodes.Return(value)
 
     def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(args) == 1
