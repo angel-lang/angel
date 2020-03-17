@@ -7,8 +7,8 @@ from . import nodes
 
 @dataclass
 class Code:
-    string: str
-    line: int
+    string: str = ""
+    line: int = 0
     column: t.Optional[int] = None
 
     def __str__(self) -> str:

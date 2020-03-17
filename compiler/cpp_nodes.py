@@ -234,6 +234,9 @@ class Argument:
         return f"{self.type.to_code()} {self.name}"
 
 
+Arguments = t.List[Argument]
+
+
 @dataclass
 class Include(Node):
     module: StdModule
@@ -290,7 +293,7 @@ class Return(Node):
 class FunctionDeclaration(Node):
     return_type: Type
     name: str
-    args: t.List[Argument]
+    args: Arguments
     body: AST
 
     def to_code(self) -> str:

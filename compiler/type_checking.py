@@ -127,14 +127,16 @@ class TypeChecker:
 
     def infer_type_from_name(self, name: nodes.Name, supertype: t.Optional[nodes.Type]) -> nodes.Type:
         if name.module:
-            assert None, "Module system is not supported"
+            assert 0, "Module system is not supported"
         entry = self.env[name.member]
         if entry is None:
             raise errors.AngelNameError(name, self.code)
         elif isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
             return self.unify_types(entry.type, supertype)
+        elif isinstance(entry, entries.FunctionEntry):
+            return self.unify_types(nodes.FunctionType(entry.args, entry.return_type), supertype)
         else:
-            assert None, f"Type inference from name can't handle {type(entry)}"
+            assert 0, f"Type inference from name can't handle {type(entry)}"
 
     def infer_type_from_builtin_func(
             self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type]
@@ -355,3 +357,7 @@ class TypeChecker:
     @property
     def supported_nodes_by_type_inference(self):
         return set(node_type.__name__ for node_type in self.type_inference_dispatcher.keys())
+
+    @property
+    def supported_nodes_by_type_unification(self):
+        return set((type1.__name__, type2.__name__) for type1, type2 in self.unification_dispatcher.keys())

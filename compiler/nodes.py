@@ -528,9 +528,12 @@ class Argument:
         return f"{self.name.to_code()}: {self.type.to_code()}"
 
 
+Arguments = t.List[Argument]
+
+
 @dataclass
 class FunctionType(Type):
-    args: t.List[Argument]
+    args: Arguments
     return_type: Type
 
     def to_code(self, indentation_level: int = 0) -> str:
@@ -540,7 +543,7 @@ class FunctionType(Type):
 @dataclass
 class FunctionDeclaration(Node):
     name: Name
-    args: t.List[Argument]
+    args: Arguments
     return_type: Type
     body: AST
 

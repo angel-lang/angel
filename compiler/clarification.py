@@ -26,7 +26,7 @@ class Clarifier:
                     base.value == nodes.BuiltinType.optional.value):
                 return nodes.OptionalTypeConstructor(node.field)
             else:
-                assert None, "Fields are not supported"
+                assert 0, "Fields are not supported"
         elif isinstance(node, nodes.FunctionCall):
             function_path = self.clarify_node(node.function_path)
             args = self.clarify_node(node.args)
@@ -43,7 +43,7 @@ class Clarifier:
         else:
             values = []
             if getattr(node, '__dict__', None) is None:
-                assert None, f"NODE: {node}, TYPE: {type(node)}"
+                assert 0, f"NODE: {node}, TYPE: {type(node)}"
             for key, value in vars(node).items():
                 values.append(self.clarify_node(value))
             return type(node)(*values)

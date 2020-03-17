@@ -1,16 +1,17 @@
 import typing as t
 import unittest
 
-from compiler import parsers, analyzers, environment, clarification
+from compiler import parsers, analysis, environment, clarification, repl_evaluation
 
 
 class TestEval(unittest.TestCase):
     def get_env(self, lines: t.List[str]) -> environment.Environment:
         parser = parsers.Parser()
         clarifier = clarification.Clarifier()
-        analyzer = analyzers.Analyzer(lines)
-        analyzer.repl_eval_ast(clarifier.clarify_ast(parser.parse("\n".join(lines))))
-        return analyzer.env
+        analyzer = analysis.Analyzer(lines)
+        repl_evaluator = repl_evaluation.REPLEvaluator()
+        repl_evaluator.estimate_ast(analyzer.analyze_ast((clarifier.clarify_ast(parser.parse("\n".join(lines))))))
+        return repl_evaluator.env
 
     def eval(
             self, lines: t.List[str], inp: t.Optional[str] = None, env: t.Optional[environment.Environment] = None
@@ -27,12 +28,12 @@ class TestEval(unittest.TestCase):
         env = env or environment.Environment()
         parser = parsers.Parser()
         clarifier = clarification.Clarifier()
-        analyzer = analyzers.Analyzer(lines, env)
-        analyzer.repl = True
-        analyzers.print = print_test
-        analyzers.input = input_test
-        result = analyzer.repl_eval_ast(
-            clarifier.clarify_ast(parser.parse("\n".join(lines)))
+        analyzer = analysis.Analyzer(lines, env)
+        repl_evaluator = repl_evaluation.REPLEvaluator(env)
+        repl_evaluation.print = print_test
+        repl_evaluation.input = input_test
+        result = repl_evaluator.estimate_ast(
+            analyzer.analyze_ast(clarifier.clarify_ast(parser.parse("\n".join(lines))))
         )
         return result, output
 
@@ -40,7 +41,7 @@ class TestEval(unittest.TestCase):
         result, output = self.eval([
             "print(123)",
         ])
-        self.assertEqual(output, [123])
+        self.assertEqual(output, ['123'])
 
     def test_string_literal(self):
         result, output = self.eval([
@@ -79,7 +80,7 @@ class TestEval(unittest.TestCase):
             '    print(i)',
             '    i += 1'
         ], env=self.get_env(['var i = 0']))
-        self.assertEqual(output, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        self.assertEqual(output, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
 
     def test_if(self):
         code = [
@@ -121,7 +122,7 @@ class TestEval(unittest.TestCase):
     def test_vector(self):
         code = ["print([1, 2, 3])"]
         result, output = self.eval(code)
-        self.assertEqual(output, [[1, 2, 3]])
+        self.assertEqual(output, ['[1, 2, 3]'])
 
     def test_dict(self):
         code = ['print(["a": 1, "c": 0, "b": 3])']

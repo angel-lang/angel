@@ -3,6 +3,7 @@ import typing as t
 from dataclasses import dataclass
 
 from . import nodes
+from .estimation_nodes import Expression
 
 
 @dataclass
@@ -15,16 +16,15 @@ class ConstantEntry(Entry):
     name: nodes.Name
     type: nodes.Type
     has_value: bool
-    computed_value: t.Any = None
-    analyzed_value: t.Any = None
+    estimated_value: t.Optional[Expression] = None
 
 
 @dataclass
 class VariableEntry(Entry):
     name: nodes.Name
     type: nodes.Type
-    computed_value: t.Any = None
-    analyzed_value: t.Any = None
+    value: t.Optional[nodes.Expression]
+    estimated_value: t.Optional[Expression] = None
 
 
 @dataclass

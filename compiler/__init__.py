@@ -4,7 +4,9 @@ import traceback
 import typing as t
 import subprocess
 
-from . import parsers, translators, generators, analyzers, environment, errors, clarification
+from . import (
+    parsers, translators, generators, environment, errors, clarification, estimation, repl_evaluation, analysis
+)
 
 
 def compile_file(file_path: str) -> str:
@@ -19,11 +21,11 @@ def compile_string(string: str) -> str:
     lines = string.split("\n")
     parser = parsers.Parser()
     clarifier = clarification.Clarifier()
-    analyzer = analyzers.Analyzer(lines)
+    analyzer = analysis.Analyzer(lines)
     translator = translators.Translator()
     try:
         cpp_ast = translator.translate(
-            analyzer.analyze(clarifier.clarify_ast(parser.parse(string)))
+            analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
         )
     except errors.AngelError as e:
         print(str(e))
@@ -38,10 +40,11 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     lines = string.split("\n")
     parser = parsers.Parser()
     clarifier = clarification.Clarifier()
-    analyzer = analyzers.Analyzer(lines, env=env)
+    analyzer = analysis.Analyzer(lines, env=env)
+    repl_evaluator = repl_evaluation.REPLEvaluator()
     try:
-        return analyzer.repl_eval_ast(
-            clarifier.clarify_ast(parser.parse(string)), execute_only_last_node=True
+        return repl_evaluator.estimate_ast(
+            analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
         )
     except errors.AngelError as e:
         print(str(e))
