@@ -208,7 +208,11 @@ else:
     print("No value because of Optional.None")
 ```
 
+Or you can use `while let`:
+```
+while let realValue = getRandomOptionalValue():
+    print(realValue)
+```
+
 ## Coming soon
-- Defined structs cannot be used
-- Functions with `return` will be tested soon
-- `self`
+- User-defined structs
