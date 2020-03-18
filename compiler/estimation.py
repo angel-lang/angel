@@ -17,6 +17,7 @@ class Evaluator:
 
         self.expression_dispatcher = {
             nodes.Name: self.estimate_name,
+            nodes.SpecialName: self.estimate_special_name,
             nodes.BinaryExpression: self.estimate_binary_expression,
             nodes.Cast: self.estimate_cast,
             nodes.FunctionCall: self.estimate_function_call,
@@ -89,6 +90,8 @@ class Evaluator:
             nodes.VariableDeclaration: self.estimate_variable_declaration,
             nodes.FunctionDeclaration: self.estimate_function_declaration,
             nodes.FieldDeclaration: self.estimate_field_declaration,
+            nodes.InitDeclaration: self.estimate_init_declaration,
+            nodes.MethodDeclaration: self.estimate_method_declaration,
             nodes.StructDeclaration: self.estimate_struct_declaration,
             nodes.FunctionCall: self.estimate_expression,
 
@@ -134,10 +137,23 @@ class Evaluator:
         self.env.add_function(declaration.line, declaration.name, declaration.args, declaration.return_type)
         self.env.update_function_body(declaration.name, declaration.body)
 
+    def estimate_method_declaration(self, declaration: nodes.MethodDeclaration) -> None:
+        self.env.add_method(declaration.line, declaration.name, declaration.args, declaration.return_type)
+        self.env.update_method_body(declaration.name, declaration.body)
+
+    def estimate_init_declaration(self, declaration: nodes.InitDeclaration) -> None:
+        self.env.add_init_declaration(declaration.line, declaration.args)
+        self.env.update_init_declaration_body(declaration.args, declaration.body)
+
     def estimate_struct_declaration(self, declaration: nodes.StructDeclaration) -> None:
+        # list(...) for mypy
         self.env.add_struct(declaration.line, declaration.name)
         self.env.inc_nesting(declaration.name)
-        self.estimate_ast(declaration.body)
+        self.estimate_ast(list(declaration.private_fields))
+        self.estimate_ast(list(declaration.public_fields))
+        self.estimate_ast(list(declaration.init_declarations))
+        self.estimate_ast(list(declaration.private_methods))
+        self.estimate_ast(list(declaration.public_methods))
         self.env.dec_nesting(declaration.name)
 
     def estimate_field_declaration(self, declaration: nodes.FieldDeclaration) -> None:
@@ -263,6 +279,9 @@ class Evaluator:
         else:
             # @Completeness: must have branches for all entry types
             assert 0, f"{self.estimate_name} cannot dispatch entry type {type(entry)}"
+
+    def estimate_special_name(self, special_name: nodes.SpecialName) -> enodes.Expression:
+        return self.estimate_name(nodes.Name(special_name.value))
 
     def estimate_function_call(self, call: nodes.FunctionCall) -> enodes.Expression:
         function = self.estimate_expression(call.function_path)

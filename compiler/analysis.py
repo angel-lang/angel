@@ -32,6 +32,8 @@ class Analyzer:
             nodes.FunctionDeclaration: self.analyze_function_declaration,
             nodes.StructDeclaration: self.analyze_struct_declaration,
             nodes.FieldDeclaration: self.analyze_field_declaration,
+            nodes.MethodDeclaration: self.analyze_method_declaration,
+            nodes.InitDeclaration: self.analyze_init_declaration,
 
             nodes.Assignment: self.analyze_assignment,
             nodes.If: self.analyze_if_statement,
@@ -93,14 +95,92 @@ class Analyzer:
     def analyze_struct_declaration(self, declaration: nodes.StructDeclaration) -> nodes.StructDeclaration:
         self.env.add_struct(declaration.line, declaration.name)
         self.env.inc_nesting(declaration.name)
-        body = self.analyze_ast(declaration.body)
+        # list(...) for mypy
+        private_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.private_fields)))
+        public_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.public_fields)))
+        init_declarations = t.cast(t.List[nodes.InitDeclaration], self.analyze_ast(list(declaration.init_declarations)))
+        init_declarations = self.generate_default_init(private_fields, public_fields, init_declarations)
+        private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
+        public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
         self.env.dec_nesting(declaration.name)
-        return nodes.StructDeclaration(declaration.line, declaration.name, body)
+        return nodes.StructDeclaration(
+            declaration.line, declaration.name, private_fields, public_fields, init_declarations, private_methods,
+            public_methods
+        )
+
+    def generate_default_init(self, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]):
+        if not init_declarations:
+            init_declaration_body: nodes.AST = []
+            args = []
+            for field in public_fields:
+                args.append(nodes.Argument(field.name, field.type, field.value))
+                init_declaration_body.append(
+                    nodes.Assignment(
+                        0, nodes.Field(0, nodes.SpecialName.self, field.name.member), nodes.Operator.eq, field.name
+                    )
+                )
+            for field in private_fields:
+                if field.value is None:
+                    raise errors.AngelPrivateFieldsNotInitializedAndNoInit(field.name, self.get_code(field.line))
+                init_declaration_body.append(
+                    nodes.Assignment(
+                        0, nodes.Field(0, nodes.SpecialName.self, field.name.member), nodes.Operator.eq, field.value
+                    )
+                )
+            default_init_declaration = nodes.InitDeclaration(0, args, init_declaration_body)
+            return [default_init_declaration] + init_declarations
+        return init_declarations
 
     def analyze_field_declaration(self, declaration: nodes.FieldDeclaration) -> nodes.FieldDeclaration:
-        field_type = self.check_type(declaration.type)
+        if declaration.value:
+            field_type = self.infer_type(declaration.value, declaration.type)
+        else:
+            field_type = self.check_type(declaration.type)
         self.env.add_field(declaration.line, declaration.name, field_type)
-        return nodes.FieldDeclaration(declaration.line, declaration.name, field_type)
+        return nodes.FieldDeclaration(declaration.line, declaration.name, field_type, declaration.value)
+
+    def analyze_method_declaration(self, declaration: nodes.MethodDeclaration) -> nodes.MethodDeclaration:
+        args = []
+        for arg in declaration.args:
+            if arg.value is not None:
+                argument = nodes.Argument(arg.name, self.infer_type(arg.value, arg.type), arg.value)
+            else:
+                argument = nodes.Argument(arg.name, self.check_type(arg.type), arg.value)
+            args.append(argument)
+        return_type = self.check_type(declaration.return_type)
+        self.env.add_method(declaration.line, declaration.name, args, return_type)
+        self.env.inc_nesting()
+        self.function_return_types.append(return_type)
+        self.env.add_variable(
+            declaration.line, nodes.Name(nodes.SpecialName.self.value), self.env.parents[-1], value=None
+        )
+        for arg in args:
+            self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
+        body = self.analyze_ast(declaration.body)
+        self.function_return_types.pop()
+        self.env.dec_nesting()
+        self.env.update_method_body(declaration.name, body)
+        return nodes.MethodDeclaration(declaration.line, declaration.name, args, return_type, body)
+
+    def analyze_init_declaration(self, declaration: nodes.InitDeclaration) -> nodes.InitDeclaration:
+        args = []
+        for arg in declaration.args:
+            if arg.value is not None:
+                argument = nodes.Argument(arg.name, self.infer_type(arg.value, arg.type), arg.value)
+            else:
+                argument = nodes.Argument(arg.name, self.check_type(arg.type), arg.value)
+            args.append(argument)
+        self.env.add_init_declaration(declaration.line, args)
+        self.env.inc_nesting()
+        self.env.add_variable(
+            declaration.line, nodes.Name(nodes.SpecialName.self.value), self.env.parents[-1], value=None
+        )
+        for arg in args:
+            self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
+        body = self.analyze_ast(declaration.body)
+        self.env.dec_nesting()
+        self.env.update_init_declaration_body(args, body)
+        return nodes.InitDeclaration(declaration.line, args, body)
 
     def analyze_assignment(self, statement: nodes.Assignment) -> nodes.Assignment:
         if statement.operator.value != nodes.Operator.eq.value:

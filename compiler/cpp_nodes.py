@@ -93,6 +93,13 @@ class PrimitiveTypes(Type, enum.Enum):
         return self.value
 
 
+class SpecialName(Expression, enum.Enum):
+    this = "this"
+
+    def to_code(self) -> str:
+        return self.value
+
+
 @dataclass
 class VoidPtr(Type):
     def to_code(self) -> str:
@@ -208,6 +215,24 @@ class Cast(Expression):
 
 
 @dataclass
+class ArrowField(Expression):
+    base: Expression
+    field: str
+
+    def to_code(self) -> str:
+        return f"{self.base.to_code()}->{self.field}"
+
+
+@dataclass
+class DotField(Expression):
+    base: Expression
+    field: str
+
+    def to_code(self) -> str:
+        return f"{self.base.to_code()}.{self.field}"
+
+
+@dataclass
 class Semicolon(Node):
     expression: Expression
 
@@ -229,8 +254,11 @@ class FunctionCall(Node, Expression):
 class Argument:
     type: Type
     name: str
+    value: t.Optional[Expression] = None
 
     def to_code(self) -> str:
+        if self.value:
+            return f"{self.type.to_code()} {self.name}={self.value.to_code()}"
         return f"{self.type.to_code()} {self.name}"
 
 
@@ -332,11 +360,41 @@ class If(Node):
         return f"if({self.condition.to_code()}){{{body}}}{''.join(else_ifs)}{else_}"
 
 
+class AccessModifier(enum.Enum):
+    public = "public"
+    private = "private"
+    protected = "protected"
+
+
 @dataclass
-class StructDeclaration(Node):
+class InitDeclaration(Node):
     name: str
+    args: Arguments
     body: AST
 
     def to_code(self) -> str:
+        args = ','.join(arg.to_code() for arg in self.args)
         body = ''.join(node.to_code() for node in self.body)
-        return f"struct {self.name}{{{body}}};"
+        return f"{self.name}({args}){{{body}}}"
+
+
+@dataclass
+class ClassDeclaration(Node):
+    name: str
+    base_classes: t.List[t.Tuple[AccessModifier, Type]]
+    private: AST
+    public: AST
+
+    def to_code(self) -> str:
+        inheritance = ""
+        if self.base_classes:
+            inheritance = ":" + ",".join(
+                f"{modifier.value} {base_class.to_code()}" for modifier, base_class in self.base_classes
+            )
+        private = ""
+        if self.private:
+            private = "private:" + ''.join(node.to_code() for node in self.private)
+        public = ""
+        if self.public:
+            public = "public:" + ''.join(node.to_code() for node in self.public)
+        return f"class {self.name}{inheritance}{{{private}{public}}};"

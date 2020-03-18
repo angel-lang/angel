@@ -12,7 +12,7 @@ class Clarifier:
         if node is None:
             return None
         if isinstance(node, nodes.Name):
-            for cls in (nodes.BuiltinType, nodes.BuiltinFunc, nodes.BoolLiteral):
+            for cls in (nodes.BuiltinType, nodes.BuiltinFunc, nodes.BoolLiteral, nodes.SpecialName):
                 try:
                     result = cls(node.member)
                 except ValueError:
@@ -42,8 +42,6 @@ class Clarifier:
             return node
         else:
             values = []
-            if getattr(node, '__dict__', None) is None:
-                assert 0, f"NODE: {node}, TYPE: {type(node)}"
             for key, value in vars(node).items():
                 values.append(self.clarify_node(value))
             return type(node)(*values)

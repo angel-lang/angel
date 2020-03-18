@@ -62,6 +62,7 @@ class TypeChecker:
 
         self.type_inference_dispatcher = {
             nodes.Name: self.infer_type_from_name,
+            nodes.SpecialName: self.infer_type_from_special_name,
             nodes.BuiltinFunc: self.infer_type_from_builtin_func,
             nodes.BinaryExpression: self.infer_type_from_binary_expression,
             nodes.FunctionCall: self.infer_type_from_function_call,
@@ -137,6 +138,11 @@ class TypeChecker:
             return self.unify_types(nodes.FunctionType(entry.args, entry.return_type), supertype)
         else:
             assert 0, f"Type inference from name can't handle {type(entry)}"
+
+    def infer_type_from_special_name(
+            self, special_name: nodes.SpecialName, supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        return self.infer_type_from_name(nodes.Name(special_name.value), supertype)
 
     def infer_type_from_builtin_func(
             self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type]

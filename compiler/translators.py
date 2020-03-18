@@ -37,6 +37,7 @@ class Translator:
         self.env = environment.Environment()
         self.current_line = 1
         self.tmp_count = 0
+        self.struct_name = ""
 
         # Translation
         translate_builtin_function_dispatcher = {
@@ -61,6 +62,7 @@ class Translator:
             nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.StructDeclaration: self.translate_struct_declaration,
             nodes.FieldDeclaration: self.translate_field_declaration,
+            nodes.InitDeclaration: self.translate_init_declaration,
             nodes.Assignment: self.translate_assignment,
             nodes.FunctionCall: lambda node: cpp_nodes.Semicolon(self.translate_function_call(node)),
             nodes.While: self.translate_while_statement,
@@ -83,6 +85,8 @@ class Translator:
             nodes.FunctionCall: lambda value: self.translate_function_call(value),
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
             nodes.Cast: self.translate_cast,
+            nodes.Field: self.translate_field,
+            nodes.SpecialName: self.translate_special_name,
             type(None): lambda _: None,
         }
         self.translate_expression: t.Callable[[nodes.Expression], t.Optional[cpp_nodes.Expression]] = lambda value: \
@@ -103,6 +107,18 @@ class Translator:
         expr = self.translate_expression(value.value)
         assert expr is not None
         return cpp_nodes.Cast(expr, self.translate_type(value.to_type))
+
+    def translate_field(self, field: nodes.Field) -> cpp_nodes.Expression:
+        base = self.translate_expression(field.base)
+        assert base is not None
+        if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
+            return cpp_nodes.ArrowField(base, field.field)
+        return cpp_nodes.DotField(base, field.field)
+
+    def translate_special_name(self, name: nodes.SpecialName) -> cpp_nodes.Expression:
+        return {
+            nodes.SpecialName.self.value: cpp_nodes.SpecialName.this
+        }[name.value]
 
     def translate_function_as_name_call(
             self, path: nodes.Expression, args: t.List[nodes.Expression]
@@ -167,7 +183,7 @@ class Translator:
         self.tmp_count = 0
 
         for node in self.translate_body(ast):
-            if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.StructDeclaration)):
+            if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.ClassDeclaration)):
                 self.top_nodes.append(node)
             else:
                 self.main_function_body.extend(self.nodes_buffer)
@@ -198,9 +214,24 @@ class Translator:
         self.env.dec_nesting()
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
 
-    def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.StructDeclaration:
-        body = self.translate_body(node.body)
-        return cpp_nodes.StructDeclaration(node.name.member, body)
+    def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.ClassDeclaration:
+        # list(...) for mypy
+        private = self.translate_body(list(node.private_fields)) + self.translate_body(list(node.private_methods))
+        self.struct_name = node.name.member
+        public = self.translate_body(list(node.public_fields)) + self.translate_body(list(node.init_declarations)) +\
+            self.translate_body(list(node.public_methods))
+        return cpp_nodes.ClassDeclaration(node.name.member, [], private, public)
+
+    def translate_init_declaration(self, declaration: nodes.InitDeclaration) -> cpp_nodes.InitDeclaration:
+        args = []
+        for arg in declaration.args:
+            if arg.value is not None:
+                value = self.translate_expression(arg.value)
+            else:
+                value = None
+            args.append(cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member, value))
+        body = self.translate_body(declaration.body)
+        return cpp_nodes.InitDeclaration(self.struct_name, args, body)
 
     def translate_field_declaration(self, node: nodes.FieldDeclaration) -> cpp_nodes.Declaration:
         return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value=None)

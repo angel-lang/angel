@@ -6,7 +6,7 @@ from itertools import zip_longest
 from . import nodes, errors
 
 
-IDENTIFIER_REGEX = re.compile("[a-zA-Z][a-zA-Z0-9]*")
+IDENTIFIER_REGEX = re.compile("[_]?[a-zA-Z][a-zA-Z0-9]*")
 INTEGER_REGEX = re.compile("[0-9]+")
 
 
@@ -239,10 +239,10 @@ class Parser:
         name = self.parse_name()
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
-        args = self.parse_container(
+        args: t.Optional[nodes.Arguments] = self.parse_container(
             open_container="(", close_container=")", element_separator=",", element_parser=self.parse_argument)
         if args is None:
-            raise errors.AngelSyntaxError("expected '('", self.get_code())
+            args = []
         self.spaces()
         if self.parse_raw("->"):
             self.spaces()
@@ -289,7 +289,16 @@ class Parser:
         type_ = self.parse_type()
         if type_ is None:
             raise errors.AngelSyntaxError("expected type", self.get_code())
-        return nodes.FieldDeclaration(line, name, type_)
+        new_state = self.backup_state()
+        self.spaces()
+        if not self.parse_raw("="):
+            self.restore_state(new_state)
+            return nodes.FieldDeclaration(line, name, type_, value=None)
+        self.spaces()
+        value = self.parse_expression()
+        if value is None:
+            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        return nodes.FieldDeclaration(line, name, type_, value)
 
     def parse_struct_declaration(self) -> t.Optional[nodes.StructDeclaration]:
         line = self.position.line
@@ -308,12 +317,36 @@ class Parser:
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return nodes.StructDeclaration(line, name, body)
+        return self.make_struct_declaration(line, name, body)
 
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
         parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
+
+    def make_struct_declaration(self, line: int, name: nodes.Name, body: nodes.AST) -> nodes.StructDeclaration:
+        private_fields, public_fields, init_declarations, private_methods, public_methods = [], [], [], [], []
+        for node in body:
+            if isinstance(node, nodes.FieldDeclaration):
+                if node.name.member.startswith("_"):
+                    private_fields.append(node)
+                else:
+                    public_fields.append(node)
+            elif isinstance(node, nodes.FunctionDeclaration):
+                method_declaration = nodes.MethodDeclaration(
+                    node.line, node.name, node.args, node.return_type, node.body
+                )
+                if node.name.member.startswith("_"):
+                    private_methods.append(method_declaration)
+                else:
+                    public_methods.append(method_declaration)
+            elif isinstance(node, nodes.InitDeclaration):
+                init_declarations.append(node)
+            else:
+                raise errors.AngelSyntaxError("expected method, field or init declaration", self.get_code(node.line))
+        return nodes.StructDeclaration(
+            line, name, private_fields, public_fields, init_declarations, private_methods, public_methods
+        )
 
     def parse_body(self, statement_parsers) -> nodes.AST:
         def mega_parser() -> t.Optional[nodes.Node]:
@@ -712,5 +745,7 @@ class Parser:
         self.idx = state.idx
         self.position = state.position
 
-    def get_code(self) -> errors.Code:
+    def get_code(self, line: t.Optional[int] = None, column: t.Optional[int] = None) -> errors.Code:
+        if line is not None:
+            return errors.Code(self.code_lines[line - 1], line, column)
         return errors.Code(self.code_lines[self.position.line - 1], self.position.line, self.position.column)

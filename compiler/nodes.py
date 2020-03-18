@@ -251,6 +251,13 @@ class BuiltinFunc(Expression, enum.Enum):
         return self.value
 
 
+class SpecialName(Expression, enum.Enum):
+    self = "self"
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return self.value
+
+
 class Operator(enum.Enum):
     not_ = "not"
     and_ = "and"
@@ -516,15 +523,19 @@ class Return(Node):
 class Argument:
     name: Name
     type: Type
+    value: t.Optional[Expression]
 
-    def __init__(self, name: t.Union[str, Name], type_: Type):
+    def __init__(self, name: t.Union[str, Name], type_: Type, value: t.Optional[Expression] = None):
         if isinstance(name, str):
             self.name = Name(name)
         else:
             self.name = name
         self.type = type_
+        self.value = value
 
     def to_code(self) -> str:
+        if self.value:
+            return f"{self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
         return f"{self.name.to_code()}: {self.type.to_code()}"
 
 
@@ -555,20 +566,64 @@ class FunctionDeclaration(Node):
 
 
 @dataclass
+class MethodDeclaration(Node):
+    name: Name
+    args: Arguments
+    return_type: Type
+    body: AST
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        if self.args:
+            args = "(" + ', '.join(arg.to_code() for arg in self.args) + ")"
+        else:
+            args = ''
+        if self.return_type:
+            return_type = " -> " + self.return_type.to_code()
+        else:
+            return_type = ""
+        code = f"fun {self.name.to_code()}{args}{return_type}:\n{body}"
+        return INDENTATION * indentation_level + code
+
+
+@dataclass
 class FieldDeclaration(Node):
     name: Name
     type: Type
+    value: t.Optional[Expression]
 
     def to_code(self, indentation_level: int = 0) -> str:
+        if self.value:
+            return f"{self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
         return f"{self.name.to_code()}: {self.type.to_code()}"
+
+
+@dataclass
+class InitDeclaration(Node):
+    args: Arguments
+    body: AST
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        return INDENTATION * indentation_level + f"init({', '.join(arg.to_code() for arg in self.args)}):\n{body}"
 
 
 @dataclass
 class StructDeclaration(Node):
     name: Name
-    body: AST
+    private_fields: t.List[FieldDeclaration]
+    public_fields: t.List[FieldDeclaration]
+    init_declarations: t.List[InitDeclaration]
+    private_methods: t.List[MethodDeclaration]
+    public_methods: t.List[MethodDeclaration]
 
     def to_code(self, indentation_level: int = 0) -> str:
-        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
-        code = f"struct {self.name.to_code()}:\n{body}"
-        return INDENTATION * indentation_level + code
+        private_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_fields)
+        public_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_fields)
+        init_declarations = '\n'.join(node.to_code(indentation_level + 1) for node in self.init_declarations)
+        private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
+        public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
+        body = (
+            private_fields + public_fields + "\n" + init_declarations + "\n" + private_methods + "\n" + public_methods
+        )
+        return INDENTATION * indentation_level + f"struct {self.name.to_code()}:\n{body}"

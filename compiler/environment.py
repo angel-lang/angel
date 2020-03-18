@@ -49,17 +49,47 @@ class Environment:
             line, name, args, return_type, body=[]
         )
 
+    def add_method(
+            self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
+    ) -> None:
+        assert self.parents
+        entry = self[self.parents[-1].member]
+        assert isinstance(entry, entries.StructEntry)
+        entry.methods[name.member] = entries.FunctionEntry(line, name, args, return_type, body=[])
+
     def add_field(self, line: int, name: nodes.Name, type_: nodes.Type) -> None:
         assert self.parents
-        entry = self.space[self.nesting_level][self.parents[-1].member]
+        entry = self[self.parents[-1].member]
         assert isinstance(entry, entries.StructEntry)
         entry.fields[name.member] = entries.VariableEntry(line, name, type_, value=None)
 
+    def add_init_declaration(self, line: int, args: nodes.Arguments) -> None:
+        assert self.parents
+        entry = self[self.parents[-1].member]
+        assert isinstance(entry, entries.StructEntry)
+        entry.init_declarations[','.join(arg.to_code() for arg in args)] = entries.InitEntry(line, args, body=[])
+
     def add_struct(self, line: int, name: nodes.Name) -> None:
-        self.space[self.nesting_level][name.member] = entries.StructEntry(line, name, fields={}, methods={})
+        self.space[self.nesting_level][name.member] = entries.StructEntry(
+            line, name, fields={}, init_declarations={}, methods={}
+        )
 
     def update_function_body(self, name: nodes.Name, body: nodes.AST) -> None:
         self.space[self.nesting_level][name.member].body = body
+
+    def update_method_body(self, name: nodes.Name, body: nodes.AST) -> None:
+        assert self.parents
+        assert self.parents
+        entry = self[self.parents[-1].member]
+        assert isinstance(entry, entries.StructEntry)
+        entry.methods[name.member].body = body
+
+    def update_init_declaration_body(self, args: nodes.Arguments, body: nodes.AST) -> None:
+        assert self.parents
+        assert self.parents
+        entry = self[self.parents[-1].member]
+        assert isinstance(entry, entries.StructEntry)
+        entry.init_declarations[','.join(arg.to_code() for arg in args)].body = body
 
     def inc_nesting(self, parent: t.Optional[nodes.Name] = None) -> None:
         self.nesting_level += 1

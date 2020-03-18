@@ -28,6 +28,7 @@ def compile_string(string: str) -> str:
             analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
         )
     except errors.AngelError as e:
+        raise e
         print(str(e))
         print()
         sys.exit(1)

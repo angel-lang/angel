@@ -38,6 +38,20 @@ class AngelDivByZero(AngelError):
 
 
 @dataclass
+class AngelPrivateFieldsNotInitializedAndNoInit(AngelError):
+    field: nodes.Name
+    code: Code
+
+    def __str__(self) -> str:
+        return "\n".join((
+            "Initialization Error: all private fields must be initialized to generate default init",
+            f"                      however, field '{self.field.to_code()}' does not have default value",
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelTypeError(AngelError):
     message: str
     code: Code

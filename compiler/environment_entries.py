@@ -36,7 +36,14 @@ class FunctionEntry(Entry):
 
 
 @dataclass
+class InitEntry(Entry):
+    args: t.List[nodes.Argument]
+    body: nodes.AST
+
+
+@dataclass
 class StructEntry(Entry):
     name: nodes.Name
     fields: t.Dict[str, Entry]
+    init_declarations: t.Dict[str, InitEntry]
     methods: t.Dict[str, FunctionEntry]

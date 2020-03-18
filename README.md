@@ -114,6 +114,24 @@ struct Person:
     last: String
 ```
 
+The field is private if its name starts with `_`.
+Private fields can be used only in methods.
+
+Default init will be generated if structure doesn't have `init`s.
+It will expect all public fields as arguments and assign these arguments
+to corresponding fields. All private fields must have a default value because
+these will be initialized by their default values.
+
+```
+struct Person:
+    first: String
+    last: String
+
+    init(first: String, last: String):
+        self.first = first
+        self.last = last
+```
+
 ### Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")
