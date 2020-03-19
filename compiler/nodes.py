@@ -415,6 +415,27 @@ class FunctionCall(Node, Expression):
         return INDENTATION * indentation_level + code
 
 
+class MethodCall(Node, Expression):
+    line: int
+    instance_path: Expression
+    method: str
+    args: t.List[Expression]
+    instance_type: t.Optional[Type] = None
+
+    def __init__(
+            self, line: int, instance_path: Expression, method: str, args: t.List[Expression],
+            instance_type: t.Optional[Type] = None
+    ):
+        self.line = line
+        self.instance_path = instance_path
+        self.method = method
+        self.args = args
+        self.instance_type = instance_type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.instance_path.to_code()}.{self.method}({', '.join(arg.to_code() for arg in self.args)})"
+
+
 @dataclass
 class Assignment(Node):
     left: Expression
@@ -549,6 +570,18 @@ class FunctionType(Type):
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()}"
+
+
+class StringFields(enum.Enum):
+    split = "split"
+
+    @property
+    def as_type(self) -> Type:
+        return {
+            StringFields.split.value: FunctionType(
+                [Argument("by", BuiltinType.char)], return_type=VectorType(BuiltinType.string)
+            )
+        }[self.value]
 
 
 @dataclass

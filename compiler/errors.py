@@ -52,6 +52,22 @@ class AngelPrivateFieldsNotInitializedAndNoInit(AngelError):
 
 
 @dataclass
+class AngelFieldError(AngelError):
+    instance: nodes.Expression
+    instance_type: nodes.Type
+    field_name: str
+    code: Code
+
+    def __str__(self) -> str:
+        return "\n".join((
+            (f"Field Error: '{self.instance.to_code()}' of type '{self.instance_type.to_code()}' "
+             "does not have '{self.field_name}' field"),
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelTypeError(AngelError):
     message: str
     code: Code

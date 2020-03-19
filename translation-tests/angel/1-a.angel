@@ -64,6 +64,9 @@ while let n = getN(lol):
     print(n)
     lol += 1
 
+// String.split
+let names = "John,Mike,Kale".split(',')
+
 let name = "Mike"
 var age: I8 = 20
 age = 21

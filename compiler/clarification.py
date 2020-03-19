@@ -25,14 +25,15 @@ class Clarifier:
             if isinstance(base, nodes.BuiltinType) and (
                     base.value == nodes.BuiltinType.optional.value):
                 return nodes.OptionalTypeConstructor(node.field)
-            else:
-                assert 0, "Fields are not supported"
+            return nodes.Field(node.line, base, node.field)
         elif isinstance(node, nodes.FunctionCall):
             function_path = self.clarify_node(node.function_path)
             args = self.clarify_node(node.args)
             if isinstance(function_path, nodes.OptionalTypeConstructor):
                 assert len(args) == 1
                 return nodes.OptionalSomeCall(args[0])
+            elif isinstance(function_path, nodes.Field):
+                return nodes.MethodCall(node.line, function_path.base, function_path.field, args)
             return nodes.FunctionCall(node.line, function_path, args)
         elif isinstance(node, list):
             return [self.clarify_node(element) for element in node]

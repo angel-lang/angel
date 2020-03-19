@@ -25,6 +25,26 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
 
 
 TMP_PREFIX = "__tmp_"
+STRING_SPLIT_FUNC = "__split_string"
+
+STRING_SPLIT_FUNC_BODY = cpp_nodes.Insertion(f"""
+std::vector<std::string> {STRING_SPLIT_FUNC}(const std::string self, const char delimiter) {{
+    std::vector<std::string> result;
+    std::string buffer{{""}};
+    for (auto c : self) {{
+        if (c != delimiter) {{
+           buffer += c; 
+        }} else if (c == delimiter && buffer != "") {{
+            result.push_back(buffer);
+            buffer = "";
+        }}
+    }}
+    if (buffer != "") {{
+        result.push_back(buffer);
+    }}
+    return result;
+}}
+""")
 
 
 class Translator:
@@ -32,6 +52,7 @@ class Translator:
     main_function_body: cpp_nodes.AST
     nodes_buffer: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
+    functions: t.Dict[str, cpp_nodes.Insertion]
 
     def __init__(self) -> None:
         self.env = environment.Environment()
@@ -54,7 +75,16 @@ class Translator:
             node.function_path, node.args
         )
 
-        self.translate_node_dispatcher = {
+        self.builtin_type_method_call = {
+            nodes.BuiltinType.string.value: self.translate_string_type_method_call
+        }
+        self.method_call_dispatcher = {
+            nodes.BuiltinType: lambda method_call, builtin_type: dispatch(
+                self.builtin_type_method_call, builtin_type.value, method_call
+            ),
+        }
+
+        self.node_dispatcher = {
             nodes.ConstantDeclaration: self.translate_constant_declaration,
             nodes.VariableDeclaration: lambda node: cpp_nodes.Declaration(
                 self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
@@ -62,15 +92,18 @@ class Translator:
             nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.StructDeclaration: self.translate_struct_declaration,
             nodes.FieldDeclaration: self.translate_field_declaration,
+            nodes.MethodDeclaration: self.translate_method_declaration,
             nodes.InitDeclaration: self.translate_init_declaration,
             nodes.Assignment: self.translate_assignment,
             nodes.FunctionCall: lambda node: cpp_nodes.Semicolon(self.translate_function_call(node)),
+            nodes.MethodCall: lambda node: cpp_nodes.Semicolon(self.translate_method_call(node)),
             nodes.While: self.translate_while_statement,
             nodes.If: self.translate_if_statement,
             nodes.Return: self.translate_return_statement,
+            nodes.Break: lambda node: cpp_nodes.Break(),
         }
 
-        translate_expression_dispatcher = {
+        self.expression_dispatcher = {
             nodes.IntegerLiteral: lambda value: cpp_nodes.IntegerLiteral(value.value),
             nodes.DecimalLiteral: lambda value: cpp_nodes.DecimalLiteral(value.value),
             nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
@@ -82,7 +115,8 @@ class Translator:
             nodes.CharLiteral: lambda value: cpp_nodes.CharLiteral(value.value),
             nodes.BoolLiteral: lambda value: cpp_nodes.BoolLiteral(value.value.lower()),
             nodes.BinaryExpression: self.translate_binary_expression,
-            nodes.FunctionCall: lambda value: self.translate_function_call(value),
+            nodes.FunctionCall: self.translate_function_call,
+            nodes.MethodCall: self.translate_method_call,
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
             nodes.Cast: self.translate_cast,
             nodes.Field: self.translate_field,
@@ -90,9 +124,9 @@ class Translator:
             type(None): lambda _: None,
         }
         self.translate_expression: t.Callable[[nodes.Expression], t.Optional[cpp_nodes.Expression]] = lambda value: \
-            dispatch(translate_expression_dispatcher, type(value), value)
+            dispatch(self.expression_dispatcher, type(value), value)
 
-        translate_type_dispatcher: t.Dict[type, t.Callable] = {
+        self.type_dispatcher: t.Dict[type, t.Callable] = {
             nodes.BuiltinType: self.translate_builtin_type,
             nodes.Name: lambda type_: cpp_nodes.Id(type_.member),
             nodes.VectorType: self.translate_vector_type,
@@ -101,7 +135,29 @@ class Translator:
             nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
-            dispatch(translate_type_dispatcher, type(type_), type_)
+            dispatch(self.type_dispatcher, type(type_), type_)
+
+    def translate_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
+        assert method_call.instance_type is not None
+        return dispatch(
+            self.method_call_dispatcher, type(method_call.instance_type), method_call, method_call.instance_type
+        )
+
+    def translate_string_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
+        if method_call.method == nodes.StringFields.split.value:
+            self.add_include(cpp_nodes.StdModule.vector)
+            self.add_include(cpp_nodes.StdModule.string)
+            self.add_function(STRING_SPLIT_FUNC, STRING_SPLIT_FUNC_BODY)
+            args = []
+            for arg in method_call.args:
+                translated_arg = self.translate_expression(arg)
+                assert translated_arg is not None
+                args.append(translated_arg)
+            instance = self.translate_expression(method_call.instance_path)
+            assert instance is not None
+            return cpp_nodes.FunctionCall(cpp_nodes.Id(STRING_SPLIT_FUNC), [instance] + args)
+        else:
+            assert 0, f"Cannot translate method '{method_call.method}' call on String type"
 
     def translate_cast(self, value: nodes.Cast) -> cpp_nodes.Expression:
         expr = self.translate_expression(value.value)
@@ -177,6 +233,7 @@ class Translator:
 
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
         self.includes = {}
+        self.functions = {}
         self.top_nodes = []
         self.main_function_body = []
         self.nodes_buffer = []
@@ -194,19 +251,30 @@ class Translator:
         main_function = cpp_nodes.FunctionDeclaration(
             return_type=cpp_nodes.PrimitiveTypes.int, name="main", args=[], body=self.main_function_body + [return0]
         )
-        return t.cast(cpp_nodes.AST, list(self.includes.values())) + self.top_nodes + [main_function]
+        return (
+            t.cast(cpp_nodes.AST, list(self.includes.values())) + t.cast(cpp_nodes.AST, list(self.functions.values()))
+            + self.top_nodes + [main_function]
+        )
 
     def translate_body(self, ast: nodes.AST) -> cpp_nodes.AST:
         result = []
         for node in ast:
             self.current_line = node.line
-            translated = dispatch(self.translate_node_dispatcher, type(node), node)
+            translated = dispatch(self.node_dispatcher, type(node), node)
             result.extend(self.nodes_buffer)
             self.nodes_buffer = []
             result.append(translated)
         return result
 
     def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.FunctionDeclaration:
+        return_type = self.translate_type(node.return_type)
+        args = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.args]
+        self.env.inc_nesting()
+        body = self.translate_body(node.body)
+        self.env.dec_nesting()
+        return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
+
+    def translate_method_declaration(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
         return_type = self.translate_type(node.return_type)
         args = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.args]
         self.env.inc_nesting()
@@ -372,3 +440,18 @@ class Translator:
 
     def add_include(self, module: cpp_nodes.StdModule):
         self.includes[module.value] = cpp_nodes.Include(module)
+
+    def add_function(self, name: str, body: cpp_nodes.Insertion):
+        self.functions[name] = body
+
+    @property
+    def supported_nodes(self):
+        return set(node.__name__ for node in self.node_dispatcher.keys())
+
+    @property
+    def supported_type_nodes(self):
+        return set(node.__name__ for node in self.type_dispatcher.keys())
+
+    @property
+    def supported_expression_nodes(self):
+        return set(node.__name__ for node in self.expression_dispatcher.keys())

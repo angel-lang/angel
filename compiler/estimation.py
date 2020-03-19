@@ -1,27 +1,34 @@
 import typing as t
+from collections import namedtuple
 from decimal import Decimal
 from functools import partial
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .utils import dispatch
+from .constants import builtin_funcs, string_fields
+
+
+EstimatedObjects = namedtuple("EstimatedObjects", ['builtin_funcs', 'string_fields'])
 
 
 class Evaluator:
-    def __init__(self, estimated_builtin_funcs, env: t.Optional[environment.Environment] = None) -> None:
+    def __init__(self, estimated_objs: EstimatedObjects, env: t.Optional[environment.Environment] = None) -> None:
         self.env = env or environment.Environment()
         self.code = errors.Code()
         self.repl_tmp_count = 0
         self.type_checker = type_checking.TypeChecker()
 
-        self.estimated_builtin_funcs = estimated_builtin_funcs
+        self.estimated_objs = estimated_objs
 
         self.expression_dispatcher = {
             nodes.Name: self.estimate_name,
             nodes.SpecialName: self.estimate_special_name,
+            nodes.Field: self.estimate_field,
             nodes.BinaryExpression: self.estimate_binary_expression,
             nodes.Cast: self.estimate_cast,
             nodes.FunctionCall: self.estimate_function_call,
-            nodes.BuiltinFunc: lambda func: self.estimated_builtin_funcs[func.value],
+            nodes.MethodCall: self.estimate_method_call,
+            nodes.BuiltinFunc: lambda func: self.estimated_objs.builtin_funcs[func.value],
 
             nodes.OptionalSomeCall: self.estimate_optional_some_call,
             nodes.OptionalSomeValue: self.estimate_optional_some_value,
@@ -94,6 +101,7 @@ class Evaluator:
             nodes.MethodDeclaration: self.estimate_method_declaration,
             nodes.StructDeclaration: self.estimate_struct_declaration,
             nodes.FunctionCall: self.estimate_expression,
+            nodes.MethodCall: self.estimate_expression,
 
             nodes.Return: self.estimate_return,
             nodes.Break: self.estimate_break,
@@ -280,22 +288,43 @@ class Evaluator:
             # @Completeness: must have branches for all entry types
             assert 0, f"{self.estimate_name} cannot dispatch entry type {type(entry)}"
 
+    def estimate_field(self, field: nodes.Field) -> enodes.Expression:
+        base = self.estimate_expression(field.base)
+        if isinstance(base, enodes.String):
+            return self.estimated_objs.string_fields[field.field]
+        else:
+            assert 0, f"Cannot estimate field from '{base}'"
+
     def estimate_special_name(self, special_name: nodes.SpecialName) -> enodes.Expression:
         return self.estimate_name(nodes.Name(special_name.value))
 
     def estimate_function_call(self, call: nodes.FunctionCall) -> enodes.Expression:
         function = self.estimate_expression(call.function_path)
         assert isinstance(function, enodes.Function)
-        arguments = [self.estimate_expression(argument) for argument in call.args]
+        return self.estimate_body_of_function(function, call.args)
+
+    # @Rename
+    def estimate_body_of_function(
+            self, function: enodes.Function, args: t.List[nodes.Expression],
+            self_arg: t.Optional[nodes.Expression] = None
+    ) -> enodes.Expression:
+        arguments = [self.estimate_expression(argument) for argument in args]
         if isinstance(function.specification, list):
             self.env.inc_nesting()
-            for arg, value, estimated in zip(function.args, call.args, arguments):
+            for arg, value, estimated in zip(function.args, args, arguments):
                 self.env.add_constant(0, arg.name, arg.type, value, estimated)
             result = self.estimate_ast(function.specification)
             assert result is not None
             self.env.dec_nesting()
             return result
+        if self_arg:
+            return function.specification(self.estimate_expression(self_arg), *arguments)
         return function.specification(*arguments)
+
+    def estimate_method_call(self, call: nodes.MethodCall) -> enodes.Expression:
+        method = self.estimate_expression(nodes.Field(call.line, call.instance_path, call.method))
+        assert isinstance(method, enodes.Function)
+        return self.estimate_body_of_function(method, call.args, self_arg=call.instance_path)
 
     def estimate_binary_expression(self, expression: nodes.BinaryExpression) -> enodes.Expression:
         left = self.estimate_expression(expression.left)
@@ -382,13 +411,4 @@ class Evaluator:
         return set(subclass.__name__ for subclass in self.node_dispatcher.keys())
 
 
-Estimator = partial(Evaluator, {
-    nodes.BuiltinFunc.print.value: enodes.Function(
-        [nodes.Argument("value", nodes.BuiltinType.convertible_to_string)], nodes.BuiltinType.void,
-        specification=lambda value: enodes.Void()
-    ),
-    nodes.BuiltinFunc.read.value: enodes.Function(
-        [nodes.Argument("prompt", nodes.BuiltinType.string)], nodes.BuiltinType.string,
-        specification=lambda prompt: enodes.DynamicValue(nodes.BuiltinType.string)
-    )
-})
+Estimator = partial(Evaluator, EstimatedObjects(builtin_funcs=builtin_funcs, string_fields=string_fields))

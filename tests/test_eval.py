@@ -168,6 +168,14 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['0', '1', '2', '3'])
 
+    def test_string_split(self):
+        code = [
+            'let names = "John,Mike,Kale".split(\',\')',
+            'print(names)'
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['["John", "Mike", "Kale"]'])
+
 
 if __name__ == '__main__':
     unittest.main()

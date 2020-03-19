@@ -274,6 +274,14 @@ class Include(Node):
 
 
 @dataclass
+class Insertion(Node):
+    code: str
+
+    def to_code(self) -> str:
+        return self.code
+
+
+@dataclass
 class SubDeclaration(Node):
     type: Type
     name: str
@@ -328,6 +336,13 @@ class FunctionDeclaration(Node):
         args = ",".join(arg.to_code() for arg in self.args)
         body = "\n".join(node.to_code() for node in self.body)
         return f"{self.return_type.to_code()} {self.name}({args}){{{body}}}"
+
+
+@dataclass
+class Break(Node):
+
+    def to_code(self) -> str:
+        return "break;"
 
 
 @dataclass

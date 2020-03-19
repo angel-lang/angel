@@ -4,6 +4,25 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+std::vector<std::string> __split_string(const std::string self,
+                                        const char delimiter) {
+  std::vector<std::string> result;
+  std::string buffer{""};
+  for (auto c : self) {
+    if (c != delimiter) {
+      buffer += c;
+    } else if (c == delimiter && buffer != "") {
+      result.push_back(buffer);
+      buffer = "";
+    }
+  }
+  if (buffer != "") {
+    result.push_back(buffer);
+  }
+  return result;
+}
+
 std::optional<std::int_fast8_t> getN(std::int_fast8_t i) {
   if (i <= 3) {
     return i;
@@ -64,6 +83,7 @@ int main() {
     lol = lol + 1;
     __tmp_3 = getN(lol);
   }
+  std::vector<std::string> names = __split_string("John,Mike,Kale", ',');
   std::string name = "Mike";
   std::int_fast8_t age = 20;
   age = 21;

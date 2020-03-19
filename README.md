@@ -7,16 +7,31 @@ Start: 07.03.2020
 
 Finish: 15.06.2020
 
-# Angel
+# About Angel
 Angel is a programming language that is being developed to be the best.
+It is a statically-typed language (all types are known in compile-time and
+cannot be changed in run-time).
 
-This repository contains Angel to C++ compiler written in Python.
+Main (and the only, for now) implementation of Angel is a compiler from
+Angel to C++ written in Python. You can find it in [`compiler`](compiler) package.
 
-## Dependencies
+## Objectives for Angel
+- Move as many run-time errors to compile-time as possible.
+Even `IndexOutOfRange` error will be at compile-time.
+- Warn programmer about possible errors in run-time.
+- Beautiful syntax.
+- Provide extensive standard library.
+- Generate fast and portable code.
+
+## Design decisions
+- One step of indentation is exactly 4 spaces.
+I would recommend to set up `Tab` key to insert 4 spaces.
+
+# Dependencies
 - `Python 3.8`
 - `clang-format`
 
-## How to run
+# How to run
 `./runnable.py` to run REPL.
 
 `./runnable.py my_file.angel` to compile `my_file.angel`.
@@ -24,25 +39,11 @@ This repository contains Angel to C++ compiler written in Python.
 `./runnable.py my_file.angel | clang-format > my_file.cpp` to get pretty
 C++ code in `my_file.cpp`. 
 
-## Tutorial
-### General Knowledge
-Angel is a statically-typed language (types cannot be changed in runtime).
-
-Some of the objectives for Angel:
-- Move as many run-time errors to compile-time as possible.
-Even `IndexOutOfRange` error will be at compile-time.
-- Warn programmer about possible errors in run-time.
-- Keep syntax beautiful.
-- Provide extensive standard library.
-- Generate fast and portable code.
-
-One step of indentation is exactly 4 spaces.
-I would recommend to set up `Tab` key to insert 4 spaces.
-
-### Hello, world!
+# Tutorial
+## Hello, world!
 `print("Hello, world!")`
 
-### Constants
+## Constants
 Constants are immutable. Once value is assigned to a constant, it
 cannot be changed by accessing the constant.
 
@@ -53,7 +54,7 @@ To define a constant `c` use any of these statements:
 
 You can use any type instead of `I8` and any value of the type you have chosen.
 
-### Variables
+## Variables
 Variables are mutable. Value can be changed by accessing the variable.
 
 To define a variable `v` use any of these statements:
@@ -61,14 +62,14 @@ To define a variable `v` use any of these statements:
 - `var v = 1`: infers type from `1`.
 - `var v: I8`: can be assigned many times (type checking is present).
 
-### Assignment
+## Assignment
 Assignment is a statement that assigns new value to some
 variable (or constant if it doesn't have value yet).
 
 In general it looks like this: `variable = 100`.
 Type checking is performed to ensure that new value has the type of the variable. 
 
-### While
+## While
 You can see the great power of `while` in this example:
 ```
 var i = 0
@@ -80,7 +81,7 @@ This program prints all integers from 0 to 10.
 Expression `i <= 10` will be recomputed at the start of each cycle.
 It is not cached.
 
-### If
+## If
 Who needs `if` statement if you already have `while-break`? I'm just joking.
 ```
 if 1 > 2:
@@ -96,7 +97,7 @@ It is `false` too, so we execute the `else` branch.
 
 Only one of the branches will be executed.
 
-### Functions
+## Functions
 ```
 fun printNumbers(end: I8):
     var i = 0
@@ -107,7 +108,7 @@ fun printNumbers(end: I8):
 printNumbers(5)
 ```
 
-### Structs
+## Structs
 ```
 struct Person:
     first: String
@@ -132,7 +133,7 @@ struct Person:
         self.last = last
 ```
 
-### Reading Input and Writing Output
+## Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")
 print("Your name is")
@@ -147,14 +148,14 @@ Function `print`:
 - `print(value: ConvertibleToString)`: prints `value`.
 
 
-### Built-in Types
-#### Signed finite integer types
+## Built-in Types
+### Signed finite integer types
 - `I8`: `-128 <= I8 <= 127`
 - `I16`: `-32768 <= I16 <= 32767`
 - `I32`: `-2147483648 <= I32 <= 2147483647`
 - `I64`: `-9223372036854775808 <= I64 <= 9223372036854775807`
 
-#### Unsigned finite integer types
+### Unsigned finite integer types
 - `U8`: `0 <= U8 <= 255`
 - `U16`: `0 <= U16 <= 65535`
 - `U32`: `0 <= U32 <= 4294967295`
@@ -163,7 +164,7 @@ Function `print`:
 Literal for finite integer types is just a number in
 type's range: e.g. `100` for `I8`.
 
-#### Finite float types
+### Finite float types
 - `F32`:
 ```
 -3.402823700000000000000000000E+38 <= F32 <= -1.17549400000000000000000000E-38
@@ -183,24 +184,30 @@ F64 == 0
 
 Literal for finite float types is just a decimal number in
 type's range: e.g. `20.034` for `F32`.
+### `Char`
+Literal is exactly one character surrounded by single quotes (`'`), e.g. `'a'`.
 
-#### Other primitive types
-- `Char`: literal is exactly one character surrounded by single quotes (`'`),
-e.g. `'a'`.
-- `Bool`: literal can be `true` or `false`.
+### `Bool`
+Literal can be `true` or `false`.
 
-#### Container types
-- `String`: literal can be any text surrounded by double quotes (`"`),
-e.g. `"I am a string!"`.
-- Vector type `[SubType]`: `SubType` can be any type, e.g. `[I8]`.
-Literal for this type has format of `[SubTypeLiteral, ...]`,
-e.g. `[1, 2, 3, 4]` for `[I8]` type.
-- Dict type `[KeyType: ValueType]`: `KeyType` and `ValueType` can be any types,
-e.g. `[String: I8]`. Literal for this type has format of `[KeyLiteral: ValueLiteral, ...]`,
+### `String`
+Literal can be any text surrounded by double quotes (`"`),
+e.g. `"I am a string!"`
+
+#### `fun String.split(by: Char) -> [String]`
+Splits string represented by `String` by `by` character and returns the list of
+all strings between `by` strings. `by` is not included in the list.
+
+### Vector type `[ElementType]`
+`ElementType` can be any type, e.g. `[I8]`. Literal for vector type has the
+format of `[ElementTypeLiteral, ...]`, e.g. `[1, 2, 3, 4]` for `[I8]` type.
+
+### Dict type `[KeyType: ValueType]`
+`KeyType` and `ValueType` can be any types, e.g. `[String: I8]`.
+Literal for this type has the format of `[KeyLiteral: ValueLiteral, ...]`,
 e.g. `["a": 1, "c": 0, "b": 3]` for `[String: I8]` type.
 
-#### Algebraic types
-##### Optional type `T?`
+### Optional type `T?`
 It is defined as
 ```
 algebraic Optional(T):
@@ -232,5 +239,5 @@ while let realValue = getRandomOptionalValue():
     print(realValue)
 ```
 
-## Coming soon
+# Coming soon
 - User-defined structs

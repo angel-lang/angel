@@ -43,6 +43,7 @@ class Analyzer:
             nodes.FunctionCall: lambda call: dispatch(
                 self.function_dispatcher, type(call.function_path), call.line, call.function_path, call.args
             ),
+            nodes.MethodCall: self.analyze_method_call,
         }
 
     def analyze_ast(self, ast: nodes.AST) -> nodes.AST:
@@ -253,6 +254,11 @@ class Analyzer:
         call = nodes.FunctionCall(line, path, args)
         self.infer_type(call)
         return call
+
+    def analyze_method_call(self, method_call: nodes.MethodCall) -> nodes.MethodCall:
+        instance_type = self.infer_type(method_call.instance_path)
+        self.infer_type(method_call)
+        return method_call
 
     def check_name_reassignment(self, left: nodes.Name) -> None:
         if left.module:

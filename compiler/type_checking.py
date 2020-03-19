@@ -60,12 +60,18 @@ class TypeChecker:
         self.template_types = []
         self.template_type_id = -1
 
+        self.infer_type_from_field_dispatcher = {
+            nodes.BuiltinType: self.infer_type_from_builtin_field,
+        }
+
         self.type_inference_dispatcher = {
             nodes.Name: self.infer_type_from_name,
             nodes.SpecialName: self.infer_type_from_special_name,
             nodes.BuiltinFunc: self.infer_type_from_builtin_func,
             nodes.BinaryExpression: self.infer_type_from_binary_expression,
             nodes.FunctionCall: self.infer_type_from_function_call,
+            nodes.MethodCall: self.infer_type_from_method_call,
+            nodes.Field: self.infer_type_from_field,
             nodes.Cast: lambda value, supertype: self.unify_types(value.to_type, supertype),
 
             nodes.IntegerLiteral: self.infer_type_from_integer_literal,
@@ -87,11 +93,13 @@ class TypeChecker:
             (nodes.DictType, nodes.DictType): self.unify_dict_types,
             (nodes.TemplateType, nodes.TemplateType): self.unify_template_types,
             (nodes.OptionalType, nodes.OptionalType): self.unify_optional_types,
+            (nodes.FunctionType, nodes.FunctionType): self.unify_function_types,
 
             (nodes.BuiltinType, nodes.VectorType): self.unification_failed,
             (nodes.BuiltinType, nodes.DictType): self.unification_failed,
             (nodes.BuiltinType, nodes.OptionalType): self.unification_failed,
             (nodes.BuiltinType, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.BuiltinType, nodes.FunctionType): self.unification_failed,
 
             (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype: (
                 supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
@@ -100,11 +108,13 @@ class TypeChecker:
             (nodes.VectorType, nodes.TemplateType): self.unification_template_supertype_success,
             (nodes.VectorType, nodes.DictType): self.unification_failed,
             (nodes.VectorType, nodes.OptionalType): self.unification_failed,
+            (nodes.VectorType, nodes.FunctionType): self.unification_failed,
 
             (nodes.TemplateType, nodes.BuiltinType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.VectorType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.DictType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.OptionalType): self.unification_template_subtype_success,
+            (nodes.TemplateType, nodes.FunctionType): self.unification_template_subtype_success,
 
             (nodes.DictType, nodes.BuiltinType): lambda subtype, supertype: (
                 supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
@@ -113,6 +123,7 @@ class TypeChecker:
             (nodes.DictType, nodes.VectorType): self.unification_failed,
             (nodes.DictType, nodes.OptionalType): self.unification_failed,
             (nodes.DictType, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.DictType, nodes.FunctionType): self.unification_failed,
 
             (nodes.OptionalType, nodes.BuiltinType): lambda subtype, supertype: (
                 supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
@@ -121,6 +132,13 @@ class TypeChecker:
             (nodes.OptionalType, nodes.VectorType): self.unification_failed,
             (nodes.OptionalType, nodes.DictType): self.unification_failed,
             (nodes.OptionalType, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.OptionalType, nodes.FunctionType): self.unification_failed,
+
+            (nodes.FunctionType, nodes.BuiltinType): self.unification_failed,
+            (nodes.FunctionType, nodes.VectorType): self.unification_failed,
+            (nodes.FunctionType, nodes.DictType): self.unification_failed,
+            (nodes.FunctionType, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.FunctionType, nodes.OptionalType): self.unification_failed,
         }
 
     def infer_type(self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
@@ -162,14 +180,36 @@ class TypeChecker:
         function_type = self.infer_type(call.function_path)
         if not isinstance(function_type, nodes.FunctionType):
             raise errors.AngelNoncallableCall(call.function_path, self.code)
-        for arg, value in zip_longest(function_type.args, call.args):
+        return self.match_with_function_type(function_type, call.args, supertype)
+
+    def match_with_function_type(
+            self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        for arg, value in zip_longest(function_type.args, args):
             if arg is None or value is None:
                 raise errors.AngelWrongArguments(
-                    f'({", ".join(arg.to_code() for arg in function_type.args)})', self.code,
-                    call.args
+                    f'({", ".join(arg.to_code() for arg in function_type.args)})', self.code, args
                 )
             self.infer_type(value, arg.type)
         return self.unify_types(function_type.return_type, supertype)
+
+    def infer_type_from_method_call(self, call: nodes.MethodCall, supertype: t.Optional[nodes.Type]) -> nodes.Type:
+        method = self.infer_type_from_field(nodes.Field(call.line, call.instance_path, call.method), supertype=None)
+        assert isinstance(method, nodes.FunctionType)
+        call.instance_type = self.infer_type(call.instance_path)
+        return self.match_with_function_type(method, call.args, supertype)
+
+    def infer_type_from_field(self, field: nodes.Field, supertype: t.Optional[nodes.Type]) -> nodes.Type:
+        base_type = self.infer_type(field.base)
+        return dispatch(self.infer_type_from_field_dispatcher, type(base_type), base_type, field.field, supertype)
+
+    def infer_type_from_builtin_field(
+            self, base_type: nodes.BuiltinType, field: str, supertype: t.Optional[nodes.Type]
+    ) -> nodes.Type:
+        if base_type.value == nodes.BuiltinType.string.value:
+            return self.unify_types(nodes.StringFields(field).as_type, supertype)
+        else:
+            assert 0, f"Cannot infer type from field on builtin type '{base_type.value}'"
 
     def infer_type_from_integer_literal(
             self, value: nodes.IntegerLiteral, supertype: t.Optional[nodes.Type]) -> nodes.Type:
@@ -316,6 +356,22 @@ class TypeChecker:
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
+    def unify_function_types(self, subtype: nodes.FunctionType, supertype: nodes.FunctionType) -> nodes.FunctionType:
+        arguments = []
+        for sub_argument, super_argument in zip_longest(subtype.args, supertype.args):
+            try:
+                argument = self.unify_types(sub_argument, super_argument)
+            except errors.AngelTypeError:
+                raise self.basic_type_error(subtype, supertype)
+            else:
+                arguments.append(nodes.Argument(sub_argument.name, argument))
+        try:
+            return_type = self.unify_types(subtype.return_type, supertype.return_type)
+        except errors.AngelTypeError:
+            raise self.basic_type_error(subtype, supertype)
+        else:
+            return nodes.FunctionType(arguments, return_type)
+
     def unify_dict_types(self, subtype: nodes.DictType, supertype: nodes.DictType) -> nodes.Type:
         try:
             key_type = self.unify_types(subtype.key_type, supertype.key_type)
@@ -361,9 +417,9 @@ class TypeChecker:
         self.code = code
 
     @property
-    def supported_nodes_by_type_inference(self):
-        return set(node_type.__name__ for node_type in self.type_inference_dispatcher.keys())
-
-    @property
     def supported_nodes_by_type_unification(self):
         return set((type1.__name__, type2.__name__) for type1, type2 in self.unification_dispatcher.keys())
+
+    @property
+    def supported_nodes_by_type_inference(self):
+        return set(node_type.__name__ for node_type in self.type_inference_dispatcher.keys())
