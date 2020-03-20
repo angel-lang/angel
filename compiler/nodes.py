@@ -94,6 +94,13 @@ class Field(Expression):
     line: int
     base: Expression
     field: str
+    base_type: t.Optional[Type] = None
+
+    def __init__(self, line: int, base: Expression, field: str, base_type: t.Optional[Type] = None):
+        self.line = line
+        self.base = base
+        self.field = field
+        self.base_type = base_type
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"{self.base.to_code()}.{self.field}"
@@ -574,13 +581,15 @@ class FunctionType(Type):
 
 class StringFields(enum.Enum):
     split = "split"
+    length = "length"
 
     @property
     def as_type(self) -> Type:
         return {
             StringFields.split.value: FunctionType(
                 [Argument("by", BuiltinType.char)], return_type=VectorType(BuiltinType.string)
-            )
+            ),
+            StringFields.length.value: BuiltinType.u64
         }[self.value]
 
 

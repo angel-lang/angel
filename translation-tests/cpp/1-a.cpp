@@ -85,6 +85,7 @@ int main() {
   }
   std::vector<std::string> names = __split_string("John,Mike,Kale", ',');
   std::string name = "Mike";
+  std::uint_fast64_t length = name.length();
   std::int_fast8_t age = 20;
   age = 21;
   std::cout << name << std::endl;

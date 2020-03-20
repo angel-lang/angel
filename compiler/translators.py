@@ -137,6 +137,11 @@ class Translator:
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(self.type_dispatcher, type(type_), type_)
 
+        self.field_dispatcher = {
+            nodes.Name: self.translate_name_type_field,
+            nodes.BuiltinType: self.translate_builtin_type_field,
+        }
+
     def translate_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         assert method_call.instance_type is not None
         return dispatch(
@@ -165,11 +170,26 @@ class Translator:
         return cpp_nodes.Cast(expr, self.translate_type(value.to_type))
 
     def translate_field(self, field: nodes.Field) -> cpp_nodes.Expression:
+        assert field.base_type is not None
+        return dispatch(self.field_dispatcher, type(field.base_type), field)
+
+    def translate_name_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         base = self.translate_expression(field.base)
         assert base is not None
         if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
             return cpp_nodes.ArrowField(base, field.field)
         return cpp_nodes.DotField(base, field.field)
+
+    def translate_builtin_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
+        assert isinstance(field.base_type, nodes.BuiltinType)
+        if field.base_type.value == nodes.BuiltinType.string.value:
+            if field.field == nodes.StringFields.length.value:
+                base = self.translate_expression(field.base)
+                assert base is not None
+                return cpp_nodes.MethodCall(base, field.field, args=[])
+            assert 0, f"Field 'String.{field.field}' is not supported"
+        else:
+            assert 0, f"Fields for '{field.base_type.to_code()}' are not supported"
 
     def translate_special_name(self, name: nodes.SpecialName) -> cpp_nodes.Expression:
         return {

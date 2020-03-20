@@ -251,6 +251,17 @@ class FunctionCall(Node, Expression):
 
 
 @dataclass
+class MethodCall(Node, Expression):
+    base: Expression
+    method: str
+    args: t.List[Expression]
+
+    def to_code(self) -> str:
+        args = ','.join(arg.to_code() for arg in self.args)
+        return f"{self.base.to_code()}.{self.method}({args})"
+
+
+@dataclass
 class Argument:
     type: Type
     name: str

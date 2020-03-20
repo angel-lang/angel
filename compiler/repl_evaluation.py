@@ -31,11 +31,16 @@ def string_split(s: enodes.String, by: enodes.Char) -> enodes.Vector:
     return enodes.Vector([enodes.String(string) for string in s.value.split(by.value)], nodes.BuiltinType.string)
 
 
+def string_length(s: enodes.String) -> enodes.Int:
+    return enodes.Int(len(s.value), nodes.BuiltinType.u64)
+
+
 string_fields = {
     nodes.StringFields.split.value: enodes.Function(
         [nodes.Argument("by", nodes.BuiltinType.char)], nodes.VectorType(nodes.BuiltinType.string),
         specification=string_split
-    )
+    ),
+    nodes.StringFields.length.value: string_length
 }
 
 REPLEvaluator = partial(Evaluator, EstimatedObjects(builtin_funcs=builtin_funcs, string_fields=string_fields))

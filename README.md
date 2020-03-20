@@ -198,6 +198,9 @@ e.g. `"I am a string!"`
 Splits string represented by `String` by `by` character and returns the list of
 all strings between `by` strings. `by` is not included in the list.
 
+#### `String.length: U64`
+Stores the length of the string.
+
 ### Vector type `[ElementType]`
 `ElementType` can be any type, e.g. `[I8]`. Literal for vector type has the
 format of `[ElementTypeLiteral, ...]`, e.g. `[1, 2, 3, 4]` for `[I8]` type.

@@ -200,8 +200,10 @@ class TypeChecker:
         return self.match_with_function_type(method, call.args, supertype)
 
     def infer_type_from_field(self, field: nodes.Field, supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        base_type = self.infer_type(field.base)
-        return dispatch(self.infer_type_from_field_dispatcher, type(base_type), base_type, field.field, supertype)
+        field.base_type = self.infer_type(field.base)
+        return dispatch(
+            self.infer_type_from_field_dispatcher, type(field.base_type), field.base_type, field.field, supertype
+        )
 
     def infer_type_from_builtin_field(
             self, base_type: nodes.BuiltinType, field: str, supertype: t.Optional[nodes.Type]

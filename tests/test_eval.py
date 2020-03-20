@@ -176,6 +176,14 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['["John", "Mike", "Kale"]'])
 
+    def test_string_length(self):
+        code = [
+            'let name = "John"',
+            'print(name.length)'
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['4'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -291,7 +291,10 @@ class Evaluator:
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:
         base = self.estimate_expression(field.base)
         if isinstance(base, enodes.String):
-            return self.estimated_objs.string_fields[field.field]
+            estimated = self.estimated_objs.string_fields[field.field]
+            if callable(estimated):
+                return estimated(base)
+            return estimated
         else:
             assert 0, f"Cannot estimate field from '{base}'"
 

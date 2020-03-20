@@ -68,6 +68,10 @@ while let n = getN(lol):
 let names = "John,Mike,Kale".split(',')
 
 let name = "Mike"
+
+// String.length
+let length = name.length
+
 var age: I8 = 20
 age = 21
 

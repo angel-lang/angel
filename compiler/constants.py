@@ -20,9 +20,17 @@ def string_split(s: enodes.Expression, by: enodes.Expression) -> enodes.Expressi
         assert 0, f"Cannot estimate String.split for self='{s}' and by='{by}'"
 
 
+def string_length(s: enodes.Expression) -> enodes.Expression:
+    if isinstance(s, enodes.String):
+        return enodes.Int(len(s.value), nodes.BuiltinType.u64)
+    else:
+        assert 0, f"Cannot estimate String.length for self='{s}'"
+
+
 string_fields={
     nodes.StringFields.split.value: enodes.Function(
         [nodes.Argument("by", nodes.BuiltinType.char)], nodes.VectorType(nodes.BuiltinType.string),
         specification=string_split
-    )
+    ),
+    nodes.StringFields.length.value: string_length,
 }
