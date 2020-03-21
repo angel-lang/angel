@@ -278,18 +278,13 @@ Arguments = t.List[Argument]
 
 @dataclass
 class Include(Node):
-    module: StdModule
+    module: str
+    standard: bool = True
 
     def to_code(self) -> str:
-        return f"#include <{self.module.value}>"
-
-
-@dataclass
-class Insertion(Node):
-    code: str
-
-    def to_code(self) -> str:
-        return self.code
+        if self.standard:
+            return f"#include <{self.module}>"
+        return f'#include "{self.module}"'
 
 
 @dataclass

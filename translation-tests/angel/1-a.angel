@@ -65,7 +65,8 @@ while let n = getN(lol):
     lol += 1
 
 // String.split
-let names = "John,Mike,Kale".split(',')
+let names = "John,Mike,Kale"
+let parts = names.split(',')
 
 let name = "Mike"
 

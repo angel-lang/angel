@@ -1,7 +1,8 @@
 import typing as t
 
-from . import nodes, cpp_nodes, environment
+from . import nodes, cpp_nodes, environment, library
 from .utils import dispatch
+
 
 BUILTIN_TYPE_TO_CPP_TYPE = {
     nodes.BuiltinType.i8.value: cpp_nodes.StdName.int_fast8_t,
@@ -25,26 +26,6 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
 
 
 TMP_PREFIX = "__tmp_"
-STRING_SPLIT_FUNC = "__split_string"
-
-STRING_SPLIT_FUNC_BODY = cpp_nodes.Insertion(f"""
-std::vector<std::string> {STRING_SPLIT_FUNC}(const std::string self, const char delimiter) {{
-    std::vector<std::string> result;
-    std::string buffer{{""}};
-    for (auto c : self) {{
-        if (c != delimiter) {{
-           buffer += c; 
-        }} else if (c == delimiter && buffer != "") {{
-            result.push_back(buffer);
-            buffer = "";
-        }}
-    }}
-    if (buffer != "") {{
-        result.push_back(buffer);
-    }}
-    return result;
-}}
-""")
 
 
 class Translator:
@@ -52,7 +33,6 @@ class Translator:
     main_function_body: cpp_nodes.AST
     nodes_buffer: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
-    functions: t.Dict[str, cpp_nodes.Insertion]
 
     def __init__(self) -> None:
         self.env = environment.Environment()
@@ -152,7 +132,7 @@ class Translator:
         if method_call.method == nodes.StringFields.split.value:
             self.add_include(cpp_nodes.StdModule.vector)
             self.add_include(cpp_nodes.StdModule.string)
-            self.add_function(STRING_SPLIT_FUNC, STRING_SPLIT_FUNC_BODY)
+            self.add_library_include(library.Modules.string)
             args = []
             for arg in method_call.args:
                 translated_arg = self.translate_expression(arg)
@@ -160,7 +140,7 @@ class Translator:
                 args.append(translated_arg)
             instance = self.translate_expression(method_call.instance_path)
             assert instance is not None
-            return cpp_nodes.FunctionCall(cpp_nodes.Id(STRING_SPLIT_FUNC), [instance] + args)
+            return cpp_nodes.FunctionCall(cpp_nodes.Id(library.StringFields.split_char.value), [instance] + args)
         else:
             assert 0, f"Cannot translate method '{method_call.method}' call on String type"
 
@@ -253,7 +233,6 @@ class Translator:
 
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
         self.includes = {}
-        self.functions = {}
         self.top_nodes = []
         self.main_function_body = []
         self.nodes_buffer = []
@@ -272,8 +251,7 @@ class Translator:
             return_type=cpp_nodes.PrimitiveTypes.int, name="main", args=[], body=self.main_function_body + [return0]
         )
         return (
-            t.cast(cpp_nodes.AST, list(self.includes.values())) + t.cast(cpp_nodes.AST, list(self.functions.values()))
-            + self.top_nodes + [main_function]
+            t.cast(cpp_nodes.AST, list(self.includes.values())) + self.top_nodes + [main_function]
         )
 
     def translate_body(self, ast: nodes.AST) -> cpp_nodes.AST:
@@ -459,10 +437,10 @@ class Translator:
         return nodes.Name(tmp_name), cpp_nodes.Id(tmp_name)
 
     def add_include(self, module: cpp_nodes.StdModule):
-        self.includes[module.value] = cpp_nodes.Include(module)
+        self.includes[module.value] = cpp_nodes.Include(module.value)
 
-    def add_function(self, name: str, body: cpp_nodes.Insertion):
-        self.functions[name] = body
+    def add_library_include(self, module: library.Modules):
+        self.includes[module.value] = cpp_nodes.Include(module.header, standard=False)
 
     @property
     def supported_nodes(self):

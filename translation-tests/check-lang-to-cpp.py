@@ -49,6 +49,7 @@ def make_c_code_valgrind_test(data):
 
     def _test(self):
         tmp_binary = data["specific"]["compiled_bin_path"]
+        library_dir = data["specific"]["library_dir"]
         tmp_dir = os.path.join(data["specific"]["cache_dir"], COMPILED_BIN_DIR)
         cache_code_dir = os.path.join(data["specific"]["cache_dir"], COMPILED_CODE_DIR)
 
@@ -71,7 +72,7 @@ def make_c_code_valgrind_test(data):
 
         if not skip_compiling:
             binary_cmd = data["tmpls"]["binary"].format(
-                dest=shlex.quote(tmp_binary), src=shlex.quote(c_path),
+                dest=shlex.quote(tmp_binary), src=shlex.quote(c_path), library=shlex.quote(library_dir),
                 checker_run_dir=shlex.quote(data["checker_run_dir"])
             )
             proc = subprocess.run(binary_cmd, **GLOBAL_COMMON_KWARGS, **common_kwargs)
@@ -143,6 +144,7 @@ def make_parser():
     """Build command-line parser."""
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=__doc__)
     parser.add_argument("compiler")
+    parser.add_argument("library_dir")
     parser.add_argument("lang_source_dir")
     parser.add_argument("c_source_dir")
     parser.add_argument("cache_dir")
@@ -161,7 +163,7 @@ def make_parser():
     return parser
 
 
-def get_test_data(lang_source_dir, c_source_dir, cache_dir, input_dir):
+def get_test_data(library_dir, lang_source_dir, c_source_dir, cache_dir, input_dir):
     """Collect test data from lang and C++ source dirs."""
     def _get_number(filename):
         return int(filename.split("-", 1)[0])
@@ -182,6 +184,7 @@ def get_test_data(lang_source_dir, c_source_dir, cache_dir, input_dir):
         data = test_data[number]
         data["c_path"] = path
         data["cache_dir"] = cache_dir
+        data["library_dir"] = library_dir
         data["compiled_bin_path"] = cached_compiled_bin_path
         data["compiled_code_path"] = cached_compiled_code_path
 
@@ -211,6 +214,7 @@ def get_cases():
     checker_run_dir = os.getcwd()
 
     test_data = get_test_data(
+        library_dir=os.path.abspath(args.library_dir),
         lang_source_dir=os.path.abspath(args.lang_source_dir),
         c_source_dir=os.path.abspath(args.c_source_dir),
         cache_dir=os.path.abspath(args.cache_dir),

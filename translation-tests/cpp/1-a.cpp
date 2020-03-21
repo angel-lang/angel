@@ -4,25 +4,7 @@
 #include <optional>
 #include <string>
 #include <vector>
-
-std::vector<std::string> __split_string(const std::string self,
-                                        const char delimiter) {
-  std::vector<std::string> result;
-  std::string buffer{""};
-  for (auto c : self) {
-    if (c != delimiter) {
-      buffer += c;
-    } else if (c == delimiter && buffer != "") {
-      result.push_back(buffer);
-      buffer = "";
-    }
-  }
-  if (buffer != "") {
-    result.push_back(buffer);
-  }
-  return result;
-}
-
+#include "angel_string.h"
 std::optional<std::int_fast8_t> getN(std::int_fast8_t i) {
   if (i <= 3) {
     return i;
@@ -83,7 +65,8 @@ int main() {
     lol = lol + 1;
     __tmp_3 = getN(lol);
   }
-  std::vector<std::string> names = __split_string("John,Mike,Kale", ',');
+  std::string names = "John,Mike,Kale";
+  std::vector<std::string> parts = __string_split_char(names, ',');
   std::string name = "Mike";
   std::uint_fast64_t length = name.length();
   std::int_fast8_t age = 20;

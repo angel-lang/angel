@@ -194,9 +194,9 @@ Literal can be `true` or `false`.
 Literal can be any text surrounded by double quotes (`"`),
 e.g. `"I am a string!"`
 
-#### `fun String.split(by: Char) -> [String]`
-Splits string represented by `String` by `by` character and returns the list of
-all strings between `by` strings. `by` is not included in the list.
+#### `fun String.split(by delimiter: Char) -> [String]`
+Splits `self` string by `delimiter` character and returns the list of
+all strings between `delimiter` strings. `delimiter` is not included in the list.
 
 #### `String.length: U64`
 Stores the length of the string.
