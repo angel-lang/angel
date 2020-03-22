@@ -1,7 +1,8 @@
 import typing as t
+import unittest
 
 from . import nodes, cpp_nodes, environment, library
-from .utils import dispatch
+from .utils import dispatch, TYPES, EXPRS, NODES
 
 
 BUILTIN_TYPE_TO_CPP_TYPE = {
@@ -28,13 +29,14 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
 TMP_PREFIX = "__tmp_"
 
 
-class Translator:
+class Translator(unittest.TestCase):
     top_nodes: cpp_nodes.AST
     main_function_body: cpp_nodes.AST
     nodes_buffer: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
 
     def __init__(self) -> None:
+        super().__init__()
         self.env = environment.Environment()
         self.current_line = 1
         self.tmp_count = 0
@@ -66,9 +68,7 @@ class Translator:
 
         self.node_dispatcher = {
             nodes.ConstantDeclaration: self.translate_constant_declaration,
-            nodes.VariableDeclaration: lambda node: cpp_nodes.Declaration(
-                self.translate_type(node.type), node.name.member, self.translate_expression(node.value)
-            ),
+            nodes.VariableDeclaration: self.translate_variable_declaration,
             nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.StructDeclaration: self.translate_struct_declaration,
             nodes.FieldDeclaration: self.translate_field_declaration,
@@ -101,9 +101,10 @@ class Translator:
             nodes.Cast: self.translate_cast,
             nodes.Field: self.translate_field,
             nodes.SpecialName: self.translate_special_name,
-            type(None): lambda _: None,
+            nodes.BuiltinFunc: self.translate_builtin_func,
+            nodes.ConstantDeclaration: self.translate_constant_declaration,
         }
-        self.translate_expression: t.Callable[[nodes.Expression], t.Optional[cpp_nodes.Expression]] = lambda value: \
+        self.translate_expression: t.Callable[[nodes.Expression], cpp_nodes.Expression] = lambda value: \
             dispatch(self.expression_dispatcher, type(value), value)
 
         self.type_dispatcher: t.Dict[type, t.Callable] = {
@@ -113,6 +114,7 @@ class Translator:
             nodes.OptionalType: self.translate_optional_type,
             nodes.DictType: self.translate_dict_type,
             nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
+            nodes.FunctionType: self.translate_function_type,
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(self.type_dispatcher, type(type_), type_)
@@ -175,6 +177,10 @@ class Translator:
         return {
             nodes.SpecialName.self.value: cpp_nodes.SpecialName.this
         }[name.value]
+
+    def translate_builtin_func(self, func: nodes.BuiltinFunc) -> cpp_nodes.Expression:
+        self.add_library_include(library.Modules.builtins)
+        return library.Builtins.from_builtin_func(func)
 
     def translate_function_as_name_call(
             self, path: nodes.Expression, args: t.List[nodes.Expression]
@@ -292,7 +298,7 @@ class Translator:
         args = []
         for arg in declaration.args:
             if arg.value is not None:
-                value = self.translate_expression(arg.value)
+                value: t.Optional[cpp_nodes.Expression] = self.translate_expression(arg.value)
             else:
                 value = None
             args.append(cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member, value))
@@ -323,6 +329,14 @@ class Translator:
         return cpp_nodes.While(translated_condition, translated_body)
 
     def translate_constant_declaration(self, node: nodes.ConstantDeclaration) -> cpp_nodes.Declaration:
+        assert node.type is not None
+        if node.value is None:
+            value = None
+        else:
+            value = self.translate_expression(node.value)
+        return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value)
+
+    def translate_variable_declaration(self, node: nodes.VariableDeclaration) -> cpp_nodes.Declaration:
         assert node.type is not None
         if node.value is None:
             value = None
@@ -382,23 +396,13 @@ class Translator:
 
     def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(args) == 1
-        self.add_include(cpp_nodes.StdModule.iostream)
-        value = self.translate_expression(args[0])
-        assert value is not None
-        return cpp_nodes.BinaryExpression(
-            cpp_nodes.BinaryExpression(cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, value),
-            cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
-        )
+        self.add_library_include(library.Modules.builtins)
+        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.print.value), [self.translate_expression(args[0])])
 
     def translate_read_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(args) == 1
-        self.add_include(cpp_nodes.StdModule.iostream)
-        tmp, cpp_tmp = self.create_tmp(self.translate_type(nodes.BuiltinType.string))
-        self.nodes_buffer.append(cpp_nodes.Semicolon(self.translate_print_function_call(args)))
-        self.nodes_buffer.append(
-            cpp_nodes.Semicolon(cpp_nodes.BinaryExpression(cpp_nodes.StdName.cin, cpp_nodes.Operator.rshift, cpp_tmp))
-        )
-        return cpp_tmp
+        self.add_library_include(library.Modules.builtins)
+        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.read.value), [self.translate_expression(args[0])])
 
     def translate_vector_type(self, vector_type: nodes.VectorType) -> cpp_nodes.Type:
         self.add_include(cpp_nodes.StdModule.vector)
@@ -416,6 +420,13 @@ class Translator:
         self.add_include(cpp_nodes.StdModule.map)
         return cpp_nodes.GenericType(
             cpp_nodes.StdName.map, [self.translate_type(dict_type.key_type), self.translate_type(dict_type.value_type)]
+        )
+
+    def translate_function_type(self, function_type: nodes.FunctionType) -> cpp_nodes.Type:
+        self.add_include(cpp_nodes.StdModule.functional)
+        return cpp_nodes.FunctionType(
+            self.translate_type(function_type.return_type),
+            [self.translate_type(arg.type) for arg in function_type.args]
         )
 
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
@@ -441,15 +452,10 @@ class Translator:
 
     def add_library_include(self, module: library.Modules):
         self.includes[module.value] = cpp_nodes.Include(module.header, standard=False)
+        for include in module.includes:
+            self.add_include(include)
 
-    @property
-    def supported_nodes(self):
-        return set(node.__name__ for node in self.node_dispatcher.keys())
-
-    @property
-    def supported_type_nodes(self):
-        return set(node.__name__ for node in self.type_dispatcher.keys())
-
-    @property
-    def supported_expression_nodes(self):
-        return set(node.__name__ for node in self.expression_dispatcher.keys())
+    def test(self):
+        self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.type_dispatcher.keys()))
+        self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
+        self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))

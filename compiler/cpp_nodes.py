@@ -33,6 +33,7 @@ class StdModule(enum.Enum):
     vector = "vector"
     map = "map"
     optional = "optional"
+    functional = "functional"
 
 
 class Operator(enum.Enum):
@@ -179,6 +180,15 @@ class GenericType(Type):
     def to_code(self) -> str:
         parameters = ','.join(param.to_code() for param in self.parameters)
         return f"{self.parent.to_code()}<{parameters}>"
+
+
+@dataclass
+class FunctionType(Type):
+    result_type: Type
+    args: t.List[Type]
+
+    def to_code(self) -> str:
+        return f"std::function<{self.result_type.to_code()}({','.join(arg.to_code() for arg in self.args)})>"
 
 
 @dataclass

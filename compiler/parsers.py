@@ -406,7 +406,7 @@ class Parser:
             raise errors.AngelSyntaxError("expected type", self.get_code())
         return nodes.Argument(name, type_)
 
-    def parse_assignment_left(self) -> t.Optional[nodes.Expression]:
+    def parse_assignment_left(self) -> t.Optional[nodes.AssignmentLeft]:
         return self.parse_name()
 
     def parse_assignment_operator(self) -> t.Optional[nodes.Operator]:

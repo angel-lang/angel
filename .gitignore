@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 
-# mypy
+# Utils
 .mypy_cache/
 
 # Compiled Object files

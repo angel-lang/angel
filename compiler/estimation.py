@@ -1,18 +1,20 @@
 import typing as t
+import unittest
 from collections import namedtuple
 from decimal import Decimal
 from functools import partial
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
-from .utils import dispatch
+from .utils import dispatch, NODES, EXPRS, ASSIGNMENTS
 from .constants import builtin_funcs, string_fields
 
 
 EstimatedObjects = namedtuple("EstimatedObjects", ['builtin_funcs', 'string_fields'])
 
 
-class Evaluator:
+class Evaluator(unittest.TestCase):
     def __init__(self, estimated_objs: EstimatedObjects, env: t.Optional[environment.Environment] = None) -> None:
+        super().__init__()
         self.env = env or environment.Environment()
         self.code = errors.Code()
         self.repl_tmp_count = 0
@@ -29,6 +31,7 @@ class Evaluator:
             nodes.FunctionCall: self.estimate_function_call,
             nodes.MethodCall: self.estimate_method_call,
             nodes.BuiltinFunc: lambda func: self.estimated_objs.builtin_funcs[func.value],
+            nodes.ConstantDeclaration: self.estimate_constant_declaration,
 
             nodes.OptionalSomeCall: self.estimate_optional_some_call,
             nodes.OptionalSomeValue: self.estimate_optional_some_value,
@@ -90,6 +93,7 @@ class Evaluator:
 
         self.assignment_dispatcher = {
             nodes.Name: self.estimate_name_assignment,
+            nodes.Field: self.estimate_field_assignment,
         }
 
         self.node_dispatcher = {
@@ -182,6 +186,9 @@ class Evaluator:
             entry.estimated_value = right
         else:
             assert 0, f"REPL cannot reassign {type(entry)}"
+
+    def estimate_field_assignment(self, _: nodes.Field, __: nodes.Expression) -> None:
+        assert 0, f"REPL cannot assign to a field"
 
     def estimate_while_statement(self, statement: nodes.While) -> t.Optional[enodes.Expression]:
         condition, body, assignment = self.desugar_if_let(statement.condition, statement.body)
@@ -405,13 +412,10 @@ class Evaluator:
         self.env = env
         self.code = code or self.code
 
-    @property
-    def supported_expression_nodes(self):
-        return set(subclass.__name__ for subclass in self.expression_dispatcher.keys())
-
-    @property
-    def supported_nodes(self):
-        return set(subclass.__name__ for subclass in self.node_dispatcher.keys())
+    def test(self):
+        self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))
+        self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
+        self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.assignment_dispatcher.keys()))
 
 
 Estimator = partial(Evaluator, EstimatedObjects(builtin_funcs=builtin_funcs, string_fields=string_fields))

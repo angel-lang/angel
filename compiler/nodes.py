@@ -32,6 +32,10 @@ class Expression:
         return ""
 
 
+class AssignmentLeft(Expression):
+    """Kind of expression that can be used for assignment."""
+
+
 @dataclass
 class Node:
     """Base class for statements."""
@@ -49,11 +53,6 @@ class Type:
 
 
 AST = t.List[Node]
-
-
-@dataclass
-class DynValue:
-    type: Type
 
 
 @dataclass
@@ -90,7 +89,7 @@ class TemplateType(Type):
 
 
 @dataclass
-class Field(Expression):
+class Field(AssignmentLeft):
     line: int
     base: Expression
     field: str
@@ -327,7 +326,7 @@ class BinaryExpression(Expression):
 
 
 @dataclass
-class Name(Type, Expression):
+class Name(Type, AssignmentLeft):
     member: str
     module: t.Optional[str] = None
 
@@ -445,7 +444,7 @@ class MethodCall(Node, Expression):
 
 @dataclass
 class Assignment(Node):
-    left: Expression
+    left: AssignmentLeft
     operator: Operator
     right: Expression
 

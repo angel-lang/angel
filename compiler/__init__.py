@@ -9,6 +9,9 @@ from . import (
 )
 
 
+DEBUG = False
+
+
 def compile_file(file_path: str) -> str:
     """Translates Angel code contained in `file_path` into C++ code and returns it."""
     with open(file_path) as file:
@@ -28,10 +31,12 @@ def compile_string(string: str) -> str:
             analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
         )
     except errors.AngelError as e:
-        raise e
-        print(str(e))
-        print()
-        sys.exit(1)
+        if DEBUG:
+            raise e
+        else:
+            print(str(e))
+            print()
+            sys.exit(1)
     else:
         return generators.generate_cpp(cpp_ast)
 
@@ -48,9 +53,12 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
             analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
         )
     except errors.AngelError as e:
-        print(str(e))
-        print()
-        sys.exit(1)
+        if DEBUG:
+            raise e
+        else:
+            print(str(e))
+            print()
+            sys.exit(1)
 
 
 class REPL(cmd.Cmd):

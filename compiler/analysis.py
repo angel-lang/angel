@@ -1,14 +1,16 @@
 import typing as t
+import unittest
 
 from . import (
     nodes, estimation, type_checking, environment, estimation_nodes as enodes, errors, environment_entries as entries
 )
-from .utils import dispatch
+from .utils import dispatch, NODES, ASSIGNMENTS
 
 
-class Analyzer:
+class Analyzer(unittest.TestCase):
 
     def __init__(self, lines: t.List[str], env: t.Optional[environment.Environment] = None):
+        super().__init__()
         self.env = env or environment.Environment()
         self.lines = lines
         self.line = 0
@@ -18,12 +20,8 @@ class Analyzer:
         self.estimator = estimation.Estimator()
 
         self.assignment_dispatcher = {
-            nodes.Name: self.check_name_reassignment
-        }
-
-        self.function_dispatcher = {
-            nodes.Name: self.analyze_name_function_call,
-            nodes.BuiltinFunc: self.analyze_builtin_function_call,
+            nodes.Name: self.check_name_reassignment,
+            nodes.Field: self.check_field_reassignment,
         }
 
         self.node_dispatcher = {
@@ -40,9 +38,7 @@ class Analyzer:
             nodes.While: self.analyze_while_statement,
             nodes.Return: self.analyze_return,
             nodes.Break: self.analyze_break,
-            nodes.FunctionCall: lambda call: dispatch(
-                self.function_dispatcher, type(call.function_path), call.line, call.function_path, call.args
-            ),
+            nodes.FunctionCall: self.analyze_function_call,
             nodes.MethodCall: self.analyze_method_call,
         }
 
@@ -237,26 +233,23 @@ class Analyzer:
     def analyze_break(self, statement: nodes.Break) -> nodes.Break:
         return statement
 
-    def analyze_builtin_function_call(
-            self, line: int, path: nodes.BuiltinFunc, args: t.List[nodes.Expression]
-    ) -> nodes.FunctionCall:
-        self.infer_type(nodes.FunctionCall(line, path, args))
-        value = args[0]
+    def analyze_builtin_function_call(self, function_call: nodes.FunctionCall) -> nodes.FunctionCall:
+        assert isinstance(function_call.function_path, nodes.BuiltinFunc)
+        self.infer_type(function_call)
+        value = function_call.args[0]
         value_type = self.infer_type(value)
         if isinstance(value_type, nodes.BuiltinType) and value_type.value in (
                 nodes.BuiltinType.i8.value, nodes.BuiltinType.u8.value):
             value = nodes.Cast(value, nodes.BuiltinType.i16)
-        return nodes.FunctionCall(line, path, [value])
+        return nodes.FunctionCall(function_call.line, function_call.function_path, [value])
 
-    def analyze_name_function_call(
-            self, line: int, path: nodes.Name, args: t.List[nodes.Expression]
-    ) -> nodes.FunctionCall:
-        call = nodes.FunctionCall(line, path, args)
-        self.infer_type(call)
-        return call
+    def analyze_function_call(self, function_call: nodes.FunctionCall) -> nodes.FunctionCall:
+        if isinstance(function_call.function_path, nodes.BuiltinFunc):
+            return self.analyze_builtin_function_call(function_call)
+        self.infer_type(function_call)
+        return function_call
 
     def analyze_method_call(self, method_call: nodes.MethodCall) -> nodes.MethodCall:
-        instance_type = self.infer_type(method_call.instance_path)
         self.infer_type(method_call)
         return method_call
 
@@ -273,7 +266,11 @@ class Analyzer:
         elif isinstance(entry, entries.VariableEntry):
             pass
         else:
-            assert 0, f"Cannot reassign {type(entry)}"
+            raise errors.AngelConstantReassignment(left, self.get_code(), self.get_code(entry.line))
+
+    def check_field_reassignment(self, left: nodes.Field) -> None:
+        # @WIP
+        pass
 
     def infer_type(self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
         self.type_checker.update_context(self.env, self.get_code())
@@ -292,6 +289,6 @@ class Analyzer:
             return errors.Code(self.lines[self.line - 1], self.line)
         return errors.Code(self.lines[line - 1], line)
 
-    @property
-    def supported_nodes(self):
-        return set(subclass.__name__ for subclass in self.node_dispatcher.keys())
+    def test(self):
+        self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))
+        self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.assignment_dispatcher.keys()))

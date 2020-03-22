@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "angel_builtins.h"
 #include "angel_string.h"
 std::optional<std::int_fast8_t> getN(std::int_fast8_t i) {
   if (i <= 3) {
@@ -46,22 +47,22 @@ int main() {
   std::optional<void*> someOptional = std::nullopt;
   std::optional<std::string> optionalName = "John";
   if (optionalName == std::nullopt) {
-    std::cout << "No" << std::endl;
+    __print("No");
   } else {
-    std::cout << "YES" << std::endl;
+    __print("YES");
   }
   auto __tmp_2 = optionalName;
   if (__tmp_2 != std::nullopt) {
     std::string realName = *__tmp_2;
-    std::cout << realName << std::endl;
+    __print(realName);
   } else {
-    std::cout << "No name" << std::endl;
+    __print("No name");
   }
   std::int_fast8_t lol = 0;
   auto __tmp_3 = getN(lol);
   while (__tmp_3 != std::nullopt) {
     std::int_fast8_t n = *__tmp_3;
-    std::cout << n << std::endl;
+    __print(n);
     lol = lol + 1;
     __tmp_3 = getN(lol);
   }
@@ -71,18 +72,18 @@ int main() {
   std::uint_fast64_t length = name.length();
   std::int_fast8_t age = 20;
   age = 21;
-  std::cout << name << std::endl;
-  std::cout << (std::int_fast16_t)(age) << std::endl;
+  __print(name);
+  __print((std::int_fast16_t)(age));
   if (true) {
-    std::cout << true << std::endl;
+    __print(true);
   } else if (age == 21) {
-    std::cout << true << std::endl;
+    __print(true);
   } else {
-    std::cout << false << std::endl;
+    __print(false);
   }
   while (age < 30) {
     if (age == 25) {
-      std::cout << "HA-HA" << std::endl;
+      __print("HA-HA");
     }
     age = age + 1;
   }
