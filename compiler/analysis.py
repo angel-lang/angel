@@ -95,8 +95,10 @@ class Analyzer(unittest.TestCase):
         # list(...) for mypy
         private_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.private_fields)))
         public_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.public_fields)))
-        init_declarations = t.cast(t.List[nodes.InitDeclaration], self.analyze_ast(list(declaration.init_declarations)))
-        init_declarations = self.generate_default_init(private_fields, public_fields, init_declarations)
+        init_declarations = self.generate_default_init(
+            private_fields, public_fields, list(declaration.init_declarations)
+        )
+        init_declarations = t.cast(t.List[nodes.InitDeclaration], self.analyze_ast(init_declarations))
         private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
         public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
         self.env.dec_nesting(declaration.name)

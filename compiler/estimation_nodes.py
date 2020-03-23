@@ -2,7 +2,7 @@
 import enum
 import typing as t
 from decimal import Decimal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import nodes
 
@@ -119,6 +119,23 @@ class Function(Expression):
 
     def to_code(self) -> str:
         return f"Function(({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()})"
+
+
+@dataclass
+class Struct(Expression):
+    name: nodes.Name
+
+    def to_code(self) -> str:
+        return f"Struct({self.name.to_code()})"
+
+
+@dataclass
+class Instance(Expression):
+    type: nodes.Type
+    fields: t.Dict[str, Expression] = field(default_factory=dict)
+
+    def to_code(self) -> str:
+        return f"{self.type.to_code()}({','.join(f'{name}: {value.to_code()}' for name, value in self.fields.items())})"
 
 
 @dataclass

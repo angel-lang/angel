@@ -12,6 +12,19 @@ std::optional<std::int_fast8_t> getN(std::int_fast8_t i) {
   }
   return std::nullopt;
 }
+class Email {
+ public:
+  std::string userName;
+  std::string domain;
+  Email(std::string userName, std::string domain) {
+    this->userName = userName;
+    this->domain = domain;
+  }
+  Email() {
+    this->userName = "test";
+    this->domain = "mail.com";
+  }
+};
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;
@@ -87,5 +100,11 @@ int main() {
     }
     age = age + 1;
   }
+  Email basicEmail = Email();
+  __print(basicEmail.userName);
+  __print(basicEmail.domain);
+  Email advancedEmail = Email("john", "mail.com");
+  __print(advancedEmail.userName);
+  __print(advancedEmail.domain);
   return 0;
 }

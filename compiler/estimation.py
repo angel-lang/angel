@@ -3,6 +3,7 @@ import unittest
 from collections import namedtuple
 from decimal import Decimal
 from functools import partial
+from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .utils import dispatch, NODES, EXPRS, ASSIGNMENTS
@@ -187,8 +188,21 @@ class Evaluator(unittest.TestCase):
         else:
             assert 0, f"REPL cannot reassign {type(entry)}"
 
-    def estimate_field_assignment(self, _: nodes.Field, __: nodes.Expression) -> None:
-        assert 0, f"REPL cannot assign to a field"
+    def estimate_field_assignment(self, field: nodes.Field, value: nodes.Expression) -> None:
+        estimated_value = self.estimate_expression(value)
+        if isinstance(field.base, nodes.Name):
+            assert not field.base.module
+            base_entry = self.env[field.base.member]
+            assert isinstance(base_entry, entries.VariableEntry)
+            assert isinstance(base_entry.estimated_value, enodes.Instance)
+            base_entry.estimated_value.fields[field.field] = estimated_value
+        elif isinstance(field.base, nodes.SpecialName):
+            base_entry = self.env[field.base.value]
+            assert isinstance(base_entry, entries.VariableEntry)
+            assert isinstance(base_entry.estimated_value, enodes.Instance)
+            base_entry.estimated_value.fields[field.field] = estimated_value
+        else:
+            assert 0, f"Cannot estimate field assignment with base '{field.base}'"
 
     def estimate_while_statement(self, statement: nodes.While) -> t.Optional[enodes.Expression]:
         condition, body, assignment = self.desugar_if_let(statement.condition, statement.body)
@@ -291,6 +305,8 @@ class Evaluator(unittest.TestCase):
             return entry.estimated_value
         elif isinstance(entry, entries.FunctionEntry):
             return enodes.Function(entry.args, entry.return_type, specification=entry.body)
+        elif isinstance(entry, entries.StructEntry):
+            return enodes.Struct(entry.name)
         else:
             # @Completeness: must have branches for all entry types
             assert 0, f"{self.estimate_name} cannot dispatch entry type {type(entry)}"
@@ -302,6 +318,8 @@ class Evaluator(unittest.TestCase):
             if callable(estimated):
                 return estimated(base)
             return estimated
+        elif isinstance(base, enodes.Instance):
+            return base.fields[field.field]
         else:
             assert 0, f"Cannot estimate field from '{base}'"
 
@@ -310,11 +328,56 @@ class Evaluator(unittest.TestCase):
 
     def estimate_function_call(self, call: nodes.FunctionCall) -> enodes.Expression:
         function = self.estimate_expression(call.function_path)
+        if isinstance(function, enodes.Struct):
+            if function.name.module:
+                assert 0, "Module system is not supported"
+            struct_entry = self.env[function.name.member]
+            assert isinstance(struct_entry, entries.StructEntry)
+            return self.match_init_declaration(function, list(struct_entry.init_declarations.values()), call.args)
         assert isinstance(function, enodes.Function)
-        return self.estimate_body_of_function(function, call.args)
+        return self.match_function_body(function, call.args)
 
-    # @Rename
-    def estimate_body_of_function(
+    def match_init_declaration(
+            self, struct: enodes.Struct, init_declarations: t.List[entries.InitEntry], args: t.List[nodes.Expression]
+    ) -> enodes.Expression:
+        arguments = [self.estimate_expression(argument) for argument in args]
+        matched = True
+        expected_major = []
+        for init_entry in init_declarations:
+            expected_minor = []
+            for arg, value in zip_longest(init_entry.args, args):
+                if arg is None or value is None:
+                    matched = False
+                    break
+                try:
+                    expected_minor.append(self.infer_type(value, arg.type))
+                except errors.AngelTypeError:
+                    matched = False
+                    break
+            if not matched:
+                matched = True
+                expected_major.append(expected_minor)
+                continue
+            self.env.inc_nesting()
+            self.env.add_variable(
+                0, nodes.Name(nodes.SpecialName.self.value), struct.name, value=None,
+                estimated_value=enodes.Instance(struct.name)
+            )
+            for arg, value, estimated in zip(init_entry.args, args, arguments):
+                self.env.add_constant(0, arg.name, arg.type, value, estimated)
+            result = self.estimate_ast(init_entry.body)
+            self_entry = self.env[nodes.SpecialName.self.value]
+            assert isinstance(self_entry, entries.VariableEntry)
+            self_value = self_entry.estimated_value
+            assert self_value
+            self.env.dec_nesting()
+            return self_value
+        expected = " or ".join(
+            ("(" + ", ".join(type_.to_code() for type_ in type_list) + ")" for type_list in expected_major)
+        )
+        raise errors.AngelWrongArguments(expected, self.code, args)
+
+    def match_function_body(
             self, function: enodes.Function, args: t.List[nodes.Expression],
             self_arg: t.Optional[nodes.Expression] = None
     ) -> enodes.Expression:
@@ -334,7 +397,7 @@ class Evaluator(unittest.TestCase):
     def estimate_method_call(self, call: nodes.MethodCall) -> enodes.Expression:
         method = self.estimate_expression(nodes.Field(call.line, call.instance_path, call.method))
         assert isinstance(method, enodes.Function)
-        return self.estimate_body_of_function(method, call.args, self_arg=call.instance_path)
+        return self.match_function_body(method, call.args, self_arg=call.instance_path)
 
     def estimate_binary_expression(self, expression: nodes.BinaryExpression) -> enodes.Expression:
         left = self.estimate_expression(expression.left)

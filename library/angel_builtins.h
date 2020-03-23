@@ -1,6 +1,9 @@
 #ifndef ANGEL_ANGEL_BUILTINS_H
 #define ANGEL_ANGEL_BUILTINS_H
 
+#include <string>
+#include <iostream>
+
 std::string __read(std::string prompt);
 
 template <typename T>

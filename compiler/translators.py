@@ -43,19 +43,10 @@ class Translator(unittest.TestCase):
         self.struct_name = ""
 
         # Translation
-        translate_builtin_function_dispatcher = {
+        self.translate_builtin_function_dispatcher = {
             nodes.BuiltinFunc.print.value: self.translate_print_function_call,
             nodes.BuiltinFunc.read.value: self.translate_read_function_call,
         }
-
-        translate_function_call_dispatcher_by_function_path = {
-            nodes.BuiltinFunc: lambda path, args: dispatch(translate_builtin_function_dispatcher, path.value, args),
-            nodes.Name: self.translate_function_as_name_call,
-        }
-        self.translate_function_call = lambda node: dispatch(
-            translate_function_call_dispatcher_by_function_path, type(node.function_path),
-            node.function_path, node.args
-        )
 
         self.builtin_type_method_call = {
             nodes.BuiltinType.string.value: self.translate_string_type_method_call
@@ -64,6 +55,24 @@ class Translator(unittest.TestCase):
             nodes.BuiltinType: lambda method_call, builtin_type: dispatch(
                 self.builtin_type_method_call, builtin_type.value, method_call
             ),
+            nodes.VectorType: lambda _: NotImplementedError,
+            nodes.DictType: lambda _: NotImplementedError,
+            nodes.OptionalType: lambda _: NotImplementedError,
+            nodes.FunctionType: lambda _: NotImplementedError,
+            nodes.TemplateType: lambda _: NotImplementedError,
+            nodes.Name: lambda _: NotImplementedError,
+            nodes.StructType: lambda _: NotImplementedError,
+        }
+
+        self.field_dispatcher = {
+            nodes.Name: self.translate_name_type_field,
+            nodes.BuiltinType: self.translate_builtin_type_field,
+            nodes.VectorType: lambda _: NotImplementedError,
+            nodes.DictType: lambda _: NotImplementedError,
+            nodes.OptionalType: lambda _: NotImplementedError,
+            nodes.FunctionType: lambda _: NotImplementedError,
+            nodes.TemplateType: lambda _: NotImplementedError,
+            nodes.StructType: lambda _: NotImplementedError,
         }
 
         self.node_dispatcher = {
@@ -115,14 +124,10 @@ class Translator(unittest.TestCase):
             nodes.DictType: self.translate_dict_type,
             nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
             nodes.FunctionType: self.translate_function_type,
+            nodes.StructType: lambda type_: cpp_nodes.Id(type_.name.member),
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(self.type_dispatcher, type(type_), type_)
-
-        self.field_dispatcher = {
-            nodes.Name: self.translate_name_type_field,
-            nodes.BuiltinType: self.translate_builtin_type_field,
-        }
 
     def translate_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         assert method_call.instance_type is not None
@@ -180,19 +185,17 @@ class Translator(unittest.TestCase):
 
     def translate_builtin_func(self, func: nodes.BuiltinFunc) -> cpp_nodes.Expression:
         self.add_library_include(library.Modules.builtins)
-        return library.Builtins.from_builtin_func(func)
+        return cpp_nodes.Id(library.Builtins.from_builtin_func(func).value)
 
-    def translate_function_as_name_call(
-            self, path: nodes.Expression, args: t.List[nodes.Expression]
-    ) -> cpp_nodes.Expression:
-        translated_path = self.translate_expression(path)
-        assert translated_path is not None
-        translated_args = []
-        for arg in args:
-            translated_arg = self.translate_expression(arg)
-            assert translated_arg is not None
-            translated_args.append(translated_arg)
-        return cpp_nodes.FunctionCall(translated_path, translated_args)
+    def translate_function_call(self, function_call: nodes.FunctionCall) -> cpp_nodes.Expression:
+        if isinstance(function_call.function_path, nodes.BuiltinFunc):
+            return dispatch(
+                self.translate_builtin_function_dispatcher, function_call.function_path.value, function_call.args
+            )
+        return cpp_nodes.FunctionCall(
+            self.translate_expression(function_call.function_path),
+            [self.translate_expression(arg) for arg in function_call.args]
+        )
 
     def translate_vector_literal(self, literal: nodes.VectorLiteral) -> cpp_nodes.Expression:
         elements = []
@@ -459,3 +462,9 @@ class Translator(unittest.TestCase):
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.type_dispatcher.keys()))
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))
+
+        builtin_funcs = set(func.value for func in nodes.BuiltinFunc)
+        self.assertEqual(builtin_funcs, set(self.translate_builtin_function_dispatcher.keys()))
+
+        self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.field_dispatcher.keys()))
+        self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.method_call_dispatcher.keys()))

@@ -61,7 +61,7 @@ class AngelFieldError(AngelError):
     def __str__(self) -> str:
         return "\n".join((
             (f"Field Error: '{self.instance.to_code()}' of type '{self.instance_type.to_code()}' "
-             "does not have '{self.field_name}' field"),
+             f"does not have '{self.field_name}' field"),
             "",
             str(self.code),
         ))

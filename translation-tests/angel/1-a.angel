@@ -90,3 +90,26 @@ while age < 30:
     if age == 25:
         print("HA-HA")
     age += 1
+
+
+// Structs
+struct Email:
+    userName: String
+    domain: String
+
+    init(userName: String, domain: String):
+        self.userName = userName
+        self.domain = domain
+
+    init():
+        self.userName = "test"
+        self.domain = "mail.com"
+
+let basicEmail = Email()
+print(basicEmail.userName)
+print(basicEmail.domain)
+
+let advancedEmail = Email("john", "mail.com")
+print(advancedEmail.userName)
+print(advancedEmail.domain)
+

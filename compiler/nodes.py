@@ -578,6 +578,14 @@ class FunctionType(Type):
         return f"({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()}"
 
 
+@dataclass
+class StructType(Type):
+    name: Name
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"StructType({self.name.to_code()})"
+
+
 class StringFields(enum.Enum):
     split = "split"
     length = "length"

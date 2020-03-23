@@ -184,6 +184,31 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['4'])
 
+    def test_email_struct(self):
+        code = [
+            'struct Email:',
+            '    userName: String',
+            '    domain: String',
+
+            '    init(userName: String, domain: String):',
+            '        self.userName = userName',
+            '        self.domain = domain',
+
+            '    init():',
+            '        self.userName = "test"',
+            '        self.domain = "mail.com"',
+
+            'let basicEmail = Email()',
+            'print(basicEmail.userName)',
+            'print(basicEmail.domain)',
+
+            'let advancedEmail = Email("john", "mail.com")',
+            'print(advancedEmail.userName)',
+            'print(advancedEmail.domain)',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['test', 'mail.com', 'john', 'mail.com'])
+
 
 if __name__ == '__main__':
     unittest.main()

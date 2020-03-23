@@ -133,6 +133,29 @@ struct Person:
         self.last = last
 ```
 
+Structures can have several `init`s. They must have different signatures.
+
+```
+struct Email:
+    userName: String
+    domain: String
+
+    init(userName: String, domain: String):
+        self.userName = userName
+        self.domain = domain
+
+    init():
+        self.userName = "test"
+        self.domain = "mail.com"
+```
+
+You can access fields by `.`.
+
+```
+let myEmail = Email("noob", "some-mail.com")
+let domain = myEmail.domain
+```
+
 ## Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")
@@ -243,4 +266,4 @@ while let realValue = getRandomOptionalValue():
 ```
 
 # Coming soon
-- User-defined structs
+- User-defined methods

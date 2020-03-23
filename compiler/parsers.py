@@ -76,6 +76,7 @@ class Parser:
         self.while_statement_body_parsers = base_body_parsers
         self.if_statement_body_parsers = base_body_parsers
         self.function_declaration_statement_body_parsers = base_body_parsers
+        self.init_declaration_statement_body_parsers = base_body_parsers
 
     def parse(self, string: str) -> nodes.AST:
         self.code = string
@@ -231,6 +232,21 @@ class Parser:
                 raise errors.AngelSyntaxError("expected expression or 'let'", self.get_code())
             return condition
 
+    def parse_init_declaration(self) -> t.Optional[nodes.InitDeclaration]:
+        line = self.position.line
+        if not self.parse_raw("init"):
+            return None
+        args: t.Optional[nodes.Arguments] = self.parse_container(
+            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_argument)
+        if args is None:
+            args = []
+        if not self.parse_raw(":"):
+            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        body = self.parse_body(self.additional_statement_parsers + self.init_declaration_statement_body_parsers)
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return nodes.InitDeclaration(line, args, body)
+
     def parse_function_declaration(self) -> t.Optional[nodes.FunctionDeclaration]:
         line = self.position.line
         if not self.parse_raw("fun"):
@@ -310,9 +326,11 @@ class Parser:
             raise errors.AngelSyntaxError("expected name", self.get_code())
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        self.additional_statement_parsers.append(self.parse_init_declaration)
         self.additional_statement_parsers.append(self.parse_function_declaration)
         self.additional_statement_parsers.append(self.parse_field_declaration)
         body = self.parse_body(self.additional_statement_parsers + self.function_declaration_statement_body_parsers)
+        self.additional_statement_parsers.pop()
         self.additional_statement_parsers.pop()
         self.additional_statement_parsers.pop()
         if not body:
@@ -407,7 +425,19 @@ class Parser:
         return nodes.Argument(name, type_)
 
     def parse_assignment_left(self) -> t.Optional[nodes.AssignmentLeft]:
-        return self.parse_name()
+        state = self.backup_state()
+        atom: t.Optional[nodes.AssignmentLeft] = self.parse_name()
+        if atom is None:
+            return None
+        trailer = self.parse_trailer()
+        while trailer is not None:
+            if isinstance(trailer, FieldTrailer):
+                atom = nodes.Field(trailer.line, atom, trailer.field)
+            else:
+                self.restore_state(state)
+                return None
+            trailer = self.parse_trailer()
+        return atom
 
     def parse_assignment_operator(self) -> t.Optional[nodes.Operator]:
         for operator in nodes.Operator.assignment_operators():
