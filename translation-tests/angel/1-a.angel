@@ -79,12 +79,12 @@ age = 21
 print(name)
 print(age)
 
-if true:
-    print(true)
+if True:
+    print(True)
 elif age == 21:
-    print(true)
+    print(True)
 else:
-    print(false)
+    print(False)
 
 while age < 30:
     if age == 25:

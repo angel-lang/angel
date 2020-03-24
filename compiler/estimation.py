@@ -365,7 +365,7 @@ class Evaluator(unittest.TestCase):
             )
             for arg, value, estimated in zip(init_entry.args, args, arguments):
                 self.env.add_constant(0, arg.name, arg.type, value, estimated)
-            result = self.estimate_ast(init_entry.body)
+            self.estimate_ast(init_entry.body)
             self_entry = self.env[nodes.SpecialName.self.value]
             assert isinstance(self_entry, entries.VariableEntry)
             self_value = self_entry.estimated_value

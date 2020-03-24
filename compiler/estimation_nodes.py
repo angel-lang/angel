@@ -82,9 +82,7 @@ class Bool(Expression):
     value: bool
 
     def to_code(self) -> str:
-        if self.value:
-            return "true"
-        return "false"
+        return str(self.value)
 
 
 class OptionalConstructor(Expression, enum.Enum):

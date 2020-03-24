@@ -51,21 +51,21 @@ class TestEval(unittest.TestCase):
 
     def test_false_literal(self):
         result, output = self.eval([
-            'print(false)',
+            'print(False)',
         ])
-        self.assertEqual(output, ["false"])
+        self.assertEqual(output, ["False"])
 
     def test_true_literal(self):
         result, output = self.eval([
-            'print(true)',
+            'print(True)',
         ])
-        self.assertEqual(output, ["true"])
+        self.assertEqual(output, ["True"])
 
     def test_bool_expression_literal(self):
         result, output = self.eval([
             'print(2 == 2)',
         ])
-        self.assertEqual(output, ["true"])
+        self.assertEqual(output, ["True"])
 
     def test_name(self):
         env = self.get_env(['let a = "lol"'])
@@ -132,7 +132,7 @@ class TestEval(unittest.TestCase):
     def test_optional_eq(self):
         code = ['print(Optional.None == Optional.None)']
         result, output = self.eval(code)
-        self.assertEqual(output, ['true'])
+        self.assertEqual(output, ['True'])
 
     def test_if_let_1(self):
         code = [

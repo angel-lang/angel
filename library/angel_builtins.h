@@ -8,7 +8,15 @@ std::string __read(std::string prompt);
 
 template <typename T>
 void __print(T value) {
-    std::cout << value << std::endl;
+    if (typeid(T) == typeid(bool)) {
+        if (value) {
+            std::cout << "True" << std::endl;
+        } else {
+            std::cout << "False" << std::endl;
+        }
+    } else {
+        std::cout << value << std::endl;
+    }
 }
 
 #endif //ANGEL_ANGEL_BUILTINS_H

@@ -347,8 +347,8 @@ class Cast(Expression):
 
 @dataclass
 class BoolLiteral(Expression, enum.Enum):
-    true = "true"
-    false = "false"
+    true = "True"
+    false = "False"
 
     def to_code(self, indentation_level: int = 0) -> str:
         return self.value
