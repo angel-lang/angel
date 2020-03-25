@@ -52,15 +52,15 @@ class Translator(unittest.TestCase):
             nodes.BuiltinType.string.value: self.translate_string_type_method_call
         }
         self.method_call_dispatcher = {
-            nodes.BuiltinType: lambda method_call, builtin_type: dispatch(
-                self.builtin_type_method_call, builtin_type.value, method_call
+            nodes.BuiltinType: lambda method_call: dispatch(
+                self.builtin_type_method_call, method_call.instance_type.value, method_call
             ),
+            nodes.Name: self.translate_method_call_name,
             nodes.VectorType: lambda _: NotImplementedError,
             nodes.DictType: lambda _: NotImplementedError,
             nodes.OptionalType: lambda _: NotImplementedError,
             nodes.FunctionType: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
-            nodes.Name: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
         }
 
@@ -131,8 +131,12 @@ class Translator(unittest.TestCase):
 
     def translate_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         assert method_call.instance_type is not None
-        return dispatch(
-            self.method_call_dispatcher, type(method_call.instance_type), method_call, method_call.instance_type
+        return dispatch(self.method_call_dispatcher, type(method_call.instance_type), method_call)
+
+    def translate_method_call_name(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
+        return cpp_nodes.MethodCall(
+            self.translate_expression(method_call.instance_path), method_call.method,
+            [self.translate_expression(arg) for arg in method_call.args]
         )
 
     def translate_string_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:

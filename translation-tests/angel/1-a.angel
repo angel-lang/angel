@@ -105,6 +105,17 @@ struct Email:
         self.userName = "test"
         self.domain = "mail.com"
 
+
+struct User:
+    firstName: String
+    lastName: String
+    email: Email
+    isAdmin: Bool = False
+
+    fun makeAdmin():
+        self.isAdmin = True
+
+
 let basicEmail = Email()
 print(basicEmail.userName)
 print(basicEmail.domain)
@@ -112,4 +123,10 @@ print(basicEmail.domain)
 let advancedEmail = Email("john", "mail.com")
 print(advancedEmail.userName)
 print(advancedEmail.domain)
+
+var user = User("John", "Smith", advancedEmail)
+print(user.email.userName)
+print(user.isAdmin)
+user.makeAdmin()
+print(user.isAdmin)
 

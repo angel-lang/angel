@@ -319,14 +319,20 @@ class Evaluator(unittest.TestCase):
                 return estimated(base)
             return estimated
         elif isinstance(base, enodes.Instance):
-            return base.fields[field.field]
+            found = base.fields.get(field.field)
+            if found is not None:
+                return found
+            struct_entry = self.env[base.type.member]
+            assert isinstance(struct_entry, entries.StructEntry)
+            method_entry = struct_entry.methods[field.field]
+            return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
         else:
             assert 0, f"Cannot estimate field from '{base}'"
 
     def estimate_special_name(self, special_name: nodes.SpecialName) -> enodes.Expression:
         return self.estimate_name(nodes.Name(special_name.value))
 
-    def estimate_function_call(self, call: nodes.FunctionCall) -> enodes.Expression:
+    def estimate_function_call(self, call: nodes.FunctionCall) -> t.Optional[enodes.Expression]:
         function = self.estimate_expression(call.function_path)
         if isinstance(function, enodes.Struct):
             if function.name.module:
@@ -344,26 +350,31 @@ class Evaluator(unittest.TestCase):
         matched = True
         expected_major = []
         for init_entry in init_declarations:
-            expected_minor = []
             for arg, value in zip_longest(init_entry.args, args):
+                if value is None:
+                    value = arg.value
                 if arg is None or value is None:
                     matched = False
                     break
                 try:
-                    expected_minor.append(self.infer_type(value, arg.type))
+                    self.infer_type(value, arg.type)
                 except errors.AngelTypeError:
                     matched = False
                     break
             if not matched:
                 matched = True
-                expected_major.append(expected_minor)
+                expected_major.append([arg.type for arg in init_entry.args])
                 continue
             self.env.inc_nesting()
             self.env.add_variable(
                 0, nodes.Name(nodes.SpecialName.self.value), struct.name, value=None,
                 estimated_value=enodes.Instance(struct.name)
             )
-            for arg, value, estimated in zip(init_entry.args, args, arguments):
+            for arg, value, estimated in zip_longest(init_entry.args, args, arguments):
+                if value is None:
+                    value = arg.value
+                    estimated = self.estimate_expression(value)
+                assert estimated is not None and value is not None
                 self.env.add_constant(0, arg.name, arg.type, value, estimated)
             self.estimate_ast(init_entry.body)
             self_entry = self.env[nodes.SpecialName.self.value]
@@ -379,25 +390,30 @@ class Evaluator(unittest.TestCase):
 
     def match_function_body(
             self, function: enodes.Function, args: t.List[nodes.Expression],
-            self_arg: t.Optional[nodes.Expression] = None
-    ) -> enodes.Expression:
+            self_arg: t.Optional[nodes.Expression] = None,
+            self_type: t.Optional[nodes.Type] = None,
+    ) -> t.Optional[enodes.Expression]:
         arguments = [self.estimate_expression(argument) for argument in args]
         if isinstance(function.specification, list):
             self.env.inc_nesting()
+            if self_arg and self_type:
+                self.env.add_variable(
+                    0, nodes.Name(nodes.SpecialName.self.value), self_type, value=self_arg,
+                    estimated_value=self.estimate_expression(self_arg)
+                )
             for arg, value, estimated in zip(function.args, args, arguments):
                 self.env.add_constant(0, arg.name, arg.type, value, estimated)
             result = self.estimate_ast(function.specification)
-            assert result is not None
             self.env.dec_nesting()
             return result
         if self_arg:
             return function.specification(self.estimate_expression(self_arg), *arguments)
         return function.specification(*arguments)
 
-    def estimate_method_call(self, call: nodes.MethodCall) -> enodes.Expression:
+    def estimate_method_call(self, call: nodes.MethodCall) -> t.Optional[enodes.Expression]:
         method = self.estimate_expression(nodes.Field(call.line, call.instance_path, call.method))
         assert isinstance(method, enodes.Function)
-        return self.match_function_body(method, call.args, self_arg=call.instance_path)
+        return self.match_function_body(method, call.args, self_arg=call.instance_path, self_type=call.instance_type)
 
     def estimate_binary_expression(self, expression: nodes.BinaryExpression) -> enodes.Expression:
         left = self.estimate_expression(expression.left)

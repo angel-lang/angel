@@ -4,18 +4,23 @@
 #include <string>
 #include <iostream>
 
-std::string __read(std::string prompt);
+std::string __read(std::string prompt) {
+    std::string result;
+    std::cout << prompt;
+    std::cin >> result;
+    return result;
+}
 
 template <typename T>
 void __print(T value) {
-    if (typeid(T) == typeid(bool)) {
-        if (value) {
-            std::cout << "True" << std::endl;
-        } else {
-            std::cout << "False" << std::endl;
-        }
+    std::cout << value << std::endl;
+}
+
+void __print(bool value) {
+    if (value) {
+        std::cout << "True" << std::endl;
     } else {
-        std::cout << value << std::endl;
+        std::cout << "False" << std::endl;
     }
 }
 

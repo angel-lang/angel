@@ -129,7 +129,7 @@ class Struct(Expression):
 
 @dataclass
 class Instance(Expression):
-    type: nodes.Type
+    type: nodes.Name
     fields: t.Dict[str, Expression] = field(default_factory=dict)
 
     def to_code(self) -> str:

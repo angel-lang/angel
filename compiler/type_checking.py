@@ -241,19 +241,20 @@ class TypeChecker(unittest.TestCase):
         matched = True
         expected_major = []
         for init_entry in init_declarations:
-            expected_minor = []
             for arg, value in zip_longest(init_entry.args, args):
+                if value is None:
+                    value = arg.value
                 if arg is None or value is None:
                     matched = False
                     break
                 try:
-                    expected_minor.append(self.infer_type(value, arg.type))
+                    self.infer_type(value, arg.type)
                 except errors.AngelTypeError:
                     matched = False
                     break
             if not matched:
                 matched = True
-                expected_major.append(expected_minor)
+                expected_major.append([arg.type for arg in init_entry.args])
                 continue
             return self.unify_types(struct_type.name, supertype)
         expected = " or ".join(

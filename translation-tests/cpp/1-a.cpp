@@ -25,6 +25,23 @@ class Email {
     this->domain = "mail.com";
   }
 };
+class User {
+ public:
+  std::string firstName;
+  std::string lastName;
+  Email email;
+  bool isAdmin;
+  User(std::string firstName,
+       std::string lastName,
+       Email email,
+       bool isAdmin = false) {
+    this->firstName = firstName;
+    this->lastName = lastName;
+    this->email = email;
+    this->isAdmin = isAdmin;
+  }
+  void makeAdmin() { this->isAdmin = true; }
+};
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;
@@ -106,5 +123,10 @@ int main() {
   Email advancedEmail = Email("john", "mail.com");
   __print(advancedEmail.userName);
   __print(advancedEmail.domain);
+  User user = User("John", "Smith", advancedEmail);
+  __print(user.email.userName);
+  __print(user.isAdmin);
+  user.makeAdmin();
+  __print(user.isAdmin);
   return 0;
 }

@@ -198,16 +198,22 @@ class TestEval(unittest.TestCase):
             '        self.userName = "test"',
             '        self.domain = "mail.com"',
 
+            '    fun changeDomain(domain: String):',
+            '        self.domain = domain',
+
             'let basicEmail = Email()',
             'print(basicEmail.userName)',
             'print(basicEmail.domain)',
 
-            'let advancedEmail = Email("john", "mail.com")',
+            'var advancedEmail = Email("john", "mail.com")',
             'print(advancedEmail.userName)',
+            'print(advancedEmail.domain)',
+
+            'advancedEmail.changeDomain("domain.org")',
             'print(advancedEmail.domain)',
         ]
         result, output = self.eval(code)
-        self.assertEqual(output, ['test', 'mail.com', 'john', 'mail.com'])
+        self.assertEqual(output, ['test', 'mail.com', 'john', 'mail.com', 'domain.org'])
 
 
 if __name__ == '__main__':

@@ -92,8 +92,8 @@ else:
     print("OK")
 ```
 This program prints `OK`, because first-grade math is working in Angel.
-First `1 > 2` will be computed. It is `false`, so we compute `0 > 2`.
-It is `false` too, so we execute the `else` branch.
+First `1 > 2` will be computed. It is `False`, so we compute `0 > 2`.
+It is `False` too, so we execute the `else` branch.
 
 Only one of the branches will be executed.
 
@@ -147,6 +147,9 @@ struct Email:
     init():
         self.userName = "test"
         self.domain = "mail.com"
+
+    fun changeDomain(domain: String):
+        self.domain = domain
 ```
 
 You can access fields by `.`.
@@ -154,6 +157,12 @@ You can access fields by `.`.
 ```
 let myEmail = Email("noob", "some-mail.com")
 let domain = myEmail.domain
+```
+
+You can call methods:
+```
+var email = Email()
+email.changeDomain("new-domain.com")
 ```
 
 ## Reading Input and Writing Output
@@ -211,7 +220,7 @@ type's range: e.g. `20.034` for `F32`.
 Literal is exactly one character surrounded by single quotes (`'`), e.g. `'a'`.
 
 ### `Bool`
-Literal can be `true` or `false`.
+Literal can be `True` or `False`.
 
 ### `String`
 Literal can be any text surrounded by double quotes (`"`),
@@ -266,4 +275,4 @@ while let realValue = getRandomOptionalValue():
 ```
 
 # Coming soon
-- User-defined methods
+something special :)
