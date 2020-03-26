@@ -324,6 +324,10 @@ class Parser:
         name = self.parse_name()
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
+        parameters = self.parse_container(
+            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_name)
+        if parameters is None:
+            parameters = []
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
         self.additional_statement_parsers.append(self.parse_init_declaration)
@@ -335,14 +339,16 @@ class Parser:
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return self.make_struct_declaration(line, name, body)
+        return self.make_struct_declaration(line, name, parameters, body)
 
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
         parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
 
-    def make_struct_declaration(self, line: int, name: nodes.Name, body: nodes.AST) -> nodes.StructDeclaration:
+    def make_struct_declaration(
+            self, line: int, name: nodes.Name, parameters: nodes.Parameters, body: nodes.AST
+    ) -> nodes.StructDeclaration:
         private_fields, public_fields, init_declarations, private_methods, public_methods = [], [], [], [], []
         for node in body:
             if isinstance(node, nodes.FieldDeclaration):
@@ -363,7 +369,7 @@ class Parser:
             else:
                 raise errors.AngelSyntaxError("expected method, field or init declaration", self.get_code(node.line))
         return nodes.StructDeclaration(
-            line, name, private_fields, public_fields, init_declarations, private_methods, public_methods
+            line, name, parameters, private_fields, public_fields, init_declarations, private_methods, public_methods
         )
 
     def parse_body(self, statement_parsers) -> nodes.AST:

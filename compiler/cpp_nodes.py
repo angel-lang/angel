@@ -429,3 +429,13 @@ class ClassDeclaration(Node):
         if self.public:
             public = "public:" + ''.join(node.to_code() for node in self.public)
         return f"class {self.name}{inheritance}{{{private}{public}}};"
+
+
+@dataclass
+class Template(Node):
+    types: t.List[Type]
+    node: Node
+
+    def to_code(self) -> str:
+        types = ','.join('typename ' + type_.to_code() for type_ in self.types)
+        return f"template<{types}>{self.node.to_code()}"

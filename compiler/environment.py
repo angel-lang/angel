@@ -74,6 +74,12 @@ class Environment:
             line, name, fields={}, init_declarations={}, methods={}
         )
 
+    def add_parameters(self, line: int, parameters: nodes.Parameters) -> None:
+        for parameter in parameters:
+            self.space[self.nesting_level][parameter.member] = entries.StructEntry(
+                line, parameter, fields={}, init_declarations={}, methods={}
+            )
+
     def update_function_body(self, name: nodes.Name, body: nodes.AST) -> None:
         self.space[self.nesting_level][name.member].body = body
 

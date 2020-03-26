@@ -215,6 +215,21 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['test', 'mail.com', 'john', 'mail.com', 'domain.org'])
 
+    def test_stack_struct(self):
+        code = [
+            'struct Stack(A):',
+            '    data: [A]',
+
+            '    init(data: [A]):',
+            '        self.data = data',
+
+            '    fun push(element: A) -> A:',
+            '        self.data.append(element)',
+            '        return element',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, [])
+
 
 if __name__ == '__main__':
     unittest.main()

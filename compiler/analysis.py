@@ -92,6 +92,7 @@ class Analyzer(unittest.TestCase):
     def analyze_struct_declaration(self, declaration: nodes.StructDeclaration) -> nodes.StructDeclaration:
         self.env.add_struct(declaration.line, declaration.name)
         self.env.inc_nesting(declaration.name)
+        self.env.add_parameters(declaration.line, declaration.parameters)
         # list(...) for mypy
         private_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.private_fields)))
         public_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.public_fields)))
@@ -103,8 +104,8 @@ class Analyzer(unittest.TestCase):
         public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
         self.env.dec_nesting(declaration.name)
         return nodes.StructDeclaration(
-            declaration.line, declaration.name, private_fields, public_fields, init_declarations, private_methods,
-            public_methods
+            declaration.line, declaration.name, declaration.parameters, private_fields, public_fields,
+            init_declarations, private_methods, public_methods
         )
 
     def generate_default_init(self, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]):

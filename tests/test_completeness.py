@@ -1,6 +1,6 @@
 import unittest
 
-from compiler import type_checking, estimation, repl_evaluation, analysis, translators
+from compiler import type_checking, estimation, repl_evaluation, analysis, translators, utils
 
 
 class TestCompleteness(unittest.TestCase):
@@ -17,6 +17,10 @@ class TestCompleteness(unittest.TestCase):
         self.estimator.test()
         self.repl_evaluator.test()
         self.translator.test()
+        self.test_utils()
+
+    def test_utils(self):
+        self.assertEqual(utils.TYPES, set(subclass.__name__ for subclass in utils.apply_mapping_dispatcher.keys()))
 
 
 if __name__ == '__main__':

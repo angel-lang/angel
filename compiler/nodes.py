@@ -567,6 +567,7 @@ class Argument:
 
 
 Arguments = t.List[Argument]
+Parameters = t.List[Name]
 
 
 @dataclass
@@ -596,8 +597,20 @@ class StringFields(enum.Enum):
             StringFields.split.value: FunctionType(
                 [Argument("by", BuiltinType.char)], return_type=VectorType(BuiltinType.string)
             ),
-            StringFields.length.value: BuiltinType.u64
+            StringFields.length.value: BuiltinType.u64,
         }[self.value]
+
+
+class VectorFields(enum.Enum):
+    append = "append"
+    length = "length"
+
+    def as_type(self, element_type: Type) -> Type:
+        from .utils import apply_mapping
+        return apply_mapping({
+            VectorFields.append.value: FunctionType([Argument('element', Name('A'))], return_type=Name('A')),
+            VectorFields.length.value: BuiltinType.u64,
+        }[self.value], mapping={'A': element_type})
 
 
 @dataclass
@@ -660,6 +673,7 @@ class InitDeclaration(Node):
 @dataclass
 class StructDeclaration(Node):
     name: Name
+    parameters: Parameters
     private_fields: t.List[FieldDeclaration]
     public_fields: t.List[FieldDeclaration]
     init_declarations: t.List[InitDeclaration]
@@ -667,6 +681,10 @@ class StructDeclaration(Node):
     public_methods: t.List[MethodDeclaration]
 
     def to_code(self, indentation_level: int = 0) -> str:
+        if self.parameters:
+            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+        else:
+            parameters = ''
         private_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_fields)
         public_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_fields)
         init_declarations = '\n'.join(node.to_code(indentation_level + 1) for node in self.init_declarations)
@@ -675,4 +693,4 @@ class StructDeclaration(Node):
         body = (
             private_fields + public_fields + "\n" + init_declarations + "\n" + private_methods + "\n" + public_methods
         )
-        return INDENTATION * indentation_level + f"struct {self.name.to_code()}:\n{body}"
+        return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}:\n{body}"

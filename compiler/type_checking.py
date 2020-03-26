@@ -339,7 +339,7 @@ class TypeChecker(unittest.TestCase):
     def infer_field_of_vector_type(
             self, base_type: nodes.VectorType, field: nodes.Field, supertype: t.Optional[nodes.Type]
     ) -> nodes.Type:
-        raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+        return self.unify_types(nodes.VectorFields(field.field).as_type(base_type.subtype), supertype)
 
     def infer_field_of_optional_type(
             self, base_type: nodes.OptionalType, field: nodes.Field, supertype: t.Optional[nodes.Type]
@@ -508,6 +508,8 @@ class TypeChecker(unittest.TestCase):
             return nodes.FunctionType(arguments, return_type)
 
     def unify_name_types(self, subtype: nodes.Name, supertype: nodes.Name) -> nodes.Type:
+        self.check_declared(subtype)
+        self.check_declared(supertype)
         if subtype.module == supertype.module and subtype.member == supertype.member:
             return supertype
         raise self.basic_type_error(subtype, supertype)
@@ -558,6 +560,13 @@ class TypeChecker(unittest.TestCase):
     def update_context(self, env: environment.Environment, code: errors.Code):
         self.env = env
         self.code = code
+
+    def check_declared(self, name: nodes.Name):
+        if name.module:
+            assert 0, "Module system is not supported"
+        entry = self.env[name.member]
+        if entry is None:
+            raise errors.AngelNameError(name, self.code)
 
     def test(self):
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.type_inference_dispatcher.keys()))

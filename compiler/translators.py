@@ -56,7 +56,7 @@ class Translator(unittest.TestCase):
                 self.builtin_type_method_call, method_call.instance_type.value, method_call
             ),
             nodes.Name: self.translate_method_call_name,
-            nodes.VectorType: lambda _: NotImplementedError,
+            nodes.VectorType: self.translate_vector_type_method_call,
             nodes.DictType: lambda _: NotImplementedError,
             nodes.OptionalType: lambda _: NotImplementedError,
             nodes.FunctionType: lambda _: NotImplementedError,
@@ -138,6 +138,14 @@ class Translator(unittest.TestCase):
             self.translate_expression(method_call.instance_path), method_call.method,
             [self.translate_expression(arg) for arg in method_call.args]
         )
+
+    def translate_vector_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
+        if method_call.method == nodes.VectorFields.append.value:
+            self.add_include(cpp_nodes.StdModule.vector)
+            args = [self.translate_expression(arg) for arg in method_call.args]
+            return cpp_nodes.MethodCall(self.translate_expression(method_call.instance_path), "push_back", args)
+        else:
+            assert 0, f"Cannot translate method '{method_call.method}' call on Vector type"
 
     def translate_string_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         if method_call.method == nodes.StringFields.split.value:
@@ -252,7 +260,7 @@ class Translator(unittest.TestCase):
         self.tmp_count = 0
 
         for node in self.translate_body(ast):
-            if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.ClassDeclaration)):
+            if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.ClassDeclaration, cpp_nodes.Template)):
                 self.top_nodes.append(node)
             else:
                 self.main_function_body.extend(self.nodes_buffer)
@@ -293,13 +301,18 @@ class Translator(unittest.TestCase):
         self.env.dec_nesting()
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
 
-    def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.ClassDeclaration:
+    def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.Node:
         # list(...) for mypy
         private = self.translate_body(list(node.private_fields)) + self.translate_body(list(node.private_methods))
         self.struct_name = node.name.member
         public = self.translate_body(list(node.public_fields)) + self.translate_body(list(node.init_declarations)) +\
             self.translate_body(list(node.public_methods))
-        return cpp_nodes.ClassDeclaration(node.name.member, [], private, public)
+        struct_declaration = cpp_nodes.ClassDeclaration(node.name.member, [], private, public)
+        if node.parameters:
+            return cpp_nodes.Template(
+                [self.translate_type(parameter) for parameter in node.parameters], struct_declaration
+            )
+        return struct_declaration
 
     def translate_init_declaration(self, declaration: nodes.InitDeclaration) -> cpp_nodes.InitDeclaration:
         args = []
