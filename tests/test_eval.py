@@ -226,6 +226,9 @@ class TestEval(unittest.TestCase):
             '    fun push(element: A) -> A:',
             '        self.data.append(element)',
             '        return element',
+
+            '    fun depth -> U64:',
+            '        return self.data.length',
         ]
         result, output = self.eval(code)
         self.assertEqual(output, [])

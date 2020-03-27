@@ -67,7 +67,7 @@ class Translator(unittest.TestCase):
         self.field_dispatcher = {
             nodes.Name: self.translate_name_type_field,
             nodes.BuiltinType: self.translate_builtin_type_field,
-            nodes.VectorType: lambda _: NotImplementedError,
+            nodes.VectorType: self.translate_vector_type_field,
             nodes.DictType: lambda _: NotImplementedError,
             nodes.OptionalType: lambda _: NotImplementedError,
             nodes.FunctionType: lambda _: NotImplementedError,
@@ -178,6 +178,14 @@ class Translator(unittest.TestCase):
         if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
             return cpp_nodes.ArrowField(base, field.field)
         return cpp_nodes.DotField(base, field.field)
+
+    def translate_vector_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
+        assert isinstance(field.base_type, nodes.VectorType)
+        if field.field == nodes.VectorFields.length.value:
+            self.add_include(cpp_nodes.StdModule.vector)
+            return cpp_nodes.MethodCall(self.translate_expression(field.base), "length", [])
+        else:
+            assert 0, f"Cannot translate '{field.field}' field on Vector type"
 
     def translate_builtin_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert isinstance(field.base_type, nodes.BuiltinType)

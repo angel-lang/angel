@@ -42,6 +42,17 @@ class User {
   }
   void makeAdmin() { this->isAdmin = true; }
 };
+template <typename A>
+class Stack {
+ public:
+  std::vector<A> data;
+  Stack(std::vector<A> data) { this->data = data; }
+  A push(A element) {
+    this->data.push_back(element);
+    return element;
+  }
+  std::uint_fast64_t depth() { return this->data.length(); }
+};
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;

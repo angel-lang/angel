@@ -130,3 +130,16 @@ print(user.isAdmin)
 user.makeAdmin()
 print(user.isAdmin)
 
+
+struct Stack(A):
+    data: [A]
+
+    init(data: [A]):
+        self.data = data
+
+    fun push(element: A) -> A:
+        self.data.append(element)
+        return element
+
+    fun depth -> U64:
+        return self.data.length

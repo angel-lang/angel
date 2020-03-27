@@ -165,6 +165,12 @@ var email = Email()
 email.changeDomain("new-domain.com")
 ```
 
+Structures can be generic.
+```
+struct Stack(A):
+    data: [A]
+```
+
 ## Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")
@@ -236,6 +242,12 @@ Stores the length of the string.
 ### Vector type `[ElementType]`
 `ElementType` can be any type, e.g. `[I8]`. Literal for vector type has the
 format of `[ElementTypeLiteral, ...]`, e.g. `[1, 2, 3, 4]` for `[I8]` type.
+
+#### `fun [A].append(element: A)`
+Adds `element` to the end of the vector.
+
+#### `[A].length: U64`
+Stores the length of the vector.
 
 ### Dict type `[KeyType: ValueType]`
 `KeyType` and `ValueType` can be any types, e.g. `[String: I8]`.
