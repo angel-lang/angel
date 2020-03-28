@@ -184,6 +184,22 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['4'])
 
+    def test_vector_length(self):
+        code = [
+            'let names = ["John"]',
+            'print(names.length)'
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['1'])
+
+    def test_string_length(self):
+        code = [
+            'let letters = ["a": 1, "b": 2]',
+            'print(letters.length)'
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['2'])
+
     def test_email_struct(self):
         code = [
             'struct Email:',

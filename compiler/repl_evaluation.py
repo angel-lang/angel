@@ -35,6 +35,14 @@ def string_length(s: enodes.String) -> enodes.Int:
     return enodes.Int(len(s.value), nodes.BuiltinType.u64)
 
 
+def vector_length(v: enodes.Vector) -> enodes.Int:
+    return enodes.Int(len(v.elements), nodes.BuiltinType.u64)
+
+
+def dict_length(d: enodes.Dict) -> enodes.Int:
+    return enodes.Int(len(d.keys), nodes.BuiltinType.u64)
+
+
 string_fields = {
     nodes.StringFields.split.value: enodes.Function(
         [nodes.Argument("by", nodes.BuiltinType.char)], nodes.VectorType(nodes.BuiltinType.string),
@@ -43,4 +51,17 @@ string_fields = {
     nodes.StringFields.length.value: string_length
 }
 
-REPLEvaluator = partial(Evaluator, EstimatedObjects(builtin_funcs=builtin_funcs, string_fields=string_fields))
+vector_fields = {
+    nodes.VectorFields.length.value: vector_length
+}
+
+dict_fields = {
+    nodes.DictFields.length.value: dict_length
+}
+
+REPLEvaluator = partial(
+    Evaluator,
+    EstimatedObjects(
+        builtin_funcs=builtin_funcs, string_fields=string_fields, vector_fields=vector_fields, dict_fields=dict_fields
+    )
+)

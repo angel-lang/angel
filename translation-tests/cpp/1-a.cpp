@@ -139,5 +139,10 @@ int main() {
   __print(user.isAdmin);
   user.makeAdmin();
   __print(user.isAdmin);
+  std::map<std::string, std::int_fast8_t> __tmp_4;
+  __tmp_4["a"] = 1;
+  __tmp_4["b"] = 2;
+  std::map<std::string, std::int_fast8_t> d = __tmp_4;
+  __print(d.size());
   return 0;
 }

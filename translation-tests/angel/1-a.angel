@@ -143,3 +143,6 @@ struct Stack(A):
 
     fun depth -> U64:
         return self.data.length
+
+let d = ["a": 1, "b": 2]
+print(d.length)

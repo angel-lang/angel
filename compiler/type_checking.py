@@ -334,7 +334,9 @@ class TypeChecker(unittest.TestCase):
     def infer_field_of_dict_type(
             self, base_type: nodes.DictType, field: nodes.Field, supertype: t.Optional[nodes.Type]
     ) -> nodes.Type:
-        raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+        return self.unify_types(
+            nodes.DictFields(field.field).as_type(base_type.key_type, base_type.value_type), supertype
+        )
 
     def infer_field_of_vector_type(
             self, base_type: nodes.VectorType, field: nodes.Field, supertype: t.Optional[nodes.Type]

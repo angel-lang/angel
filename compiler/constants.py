@@ -27,10 +27,32 @@ def string_length(s: enodes.Expression) -> enodes.Expression:
         assert 0, f"Cannot estimate String.length for self='{s}'"
 
 
+def vector_length(v: enodes.Expression) -> enodes.Expression:
+    if isinstance(v, enodes.Vector):
+        return enodes.Int(len(v.elements), nodes.BuiltinType.u64)
+    else:
+        assert 0, f"Cannot estimate Vector.length for self='{v}'"
+
+
+def dict_length(d: enodes.Expression) -> enodes.Expression:
+    if isinstance(d, enodes.Dict):
+        return enodes.Int(len(d.keys), nodes.BuiltinType.u64)
+    else:
+        assert 0, f"Cannot estimate Dict.length for self='{d}'"
+
+
 string_fields={
     nodes.StringFields.split.value: enodes.Function(
         [nodes.Argument("by", nodes.BuiltinType.char)], nodes.VectorType(nodes.BuiltinType.string),
         specification=string_split
     ),
     nodes.StringFields.length.value: string_length,
+}
+
+vector_fields = {
+    nodes.VectorFields.length.value: vector_length,
+}
+
+dict_fields = {
+    nodes.DictFields.length.value: dict_length,
 }

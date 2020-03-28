@@ -7,10 +7,10 @@ from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .utils import dispatch, NODES, EXPRS, ASSIGNMENTS
-from .constants import builtin_funcs, string_fields
+from .constants import builtin_funcs, string_fields, vector_fields, dict_fields
 
 
-EstimatedObjects = namedtuple("EstimatedObjects", ['builtin_funcs', 'string_fields'])
+EstimatedObjects = namedtuple("EstimatedObjects", ['builtin_funcs', 'string_fields', 'vector_fields', 'dict_fields'])
 
 
 class Evaluator(unittest.TestCase):
@@ -313,8 +313,19 @@ class Evaluator(unittest.TestCase):
 
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:
         base = self.estimate_expression(field.base)
+        # @Cleanup: common functionality for String, Vector and Dict
         if isinstance(base, enodes.String):
             estimated = self.estimated_objs.string_fields[field.field]
+            if callable(estimated):
+                return estimated(base)
+            return estimated
+        elif isinstance(base, enodes.Vector):
+            estimated = self.estimated_objs.vector_fields[field.field]
+            if callable(estimated):
+                return estimated(base)
+            return estimated
+        elif isinstance(base, enodes.Dict):
+            estimated = self.estimated_objs.dict_fields[field.field]
             if callable(estimated):
                 return estimated(base)
             return estimated
@@ -497,4 +508,9 @@ class Evaluator(unittest.TestCase):
         self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.assignment_dispatcher.keys()))
 
 
-Estimator = partial(Evaluator, EstimatedObjects(builtin_funcs=builtin_funcs, string_fields=string_fields))
+Estimator = partial(
+    Evaluator,
+    EstimatedObjects(
+        builtin_funcs=builtin_funcs, string_fields=string_fields, vector_fields=vector_fields, dict_fields=dict_fields
+    )
+)

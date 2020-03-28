@@ -613,6 +613,15 @@ class VectorFields(enum.Enum):
         }[self.value], mapping={'A': element_type})
 
 
+class DictFields(enum.Enum):
+    length = "length"
+
+    def as_type(self, key_type: Type, value_type: Type) -> Type:
+        return {
+             DictFields.length.value: BuiltinType.u64,
+         }[self.value]
+
+
 @dataclass
 class FunctionDeclaration(Node):
     name: Name
