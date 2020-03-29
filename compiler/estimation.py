@@ -496,7 +496,8 @@ class Evaluator(unittest.TestCase):
 
     def infer_type(self, expression: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
         self.type_checker.update_context(self.env, self.code)
-        return self.type_checker.infer_type(expression, supertype)
+        result = self.type_checker.infer_type(expression, supertype)
+        return result.type
 
     def update_context(self, env: environment.Environment, code: errors.Code = None):
         self.env = env

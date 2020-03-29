@@ -1,10 +1,20 @@
 import typing as t
 import unittest
+from collections import namedtuple
 from decimal import Decimal
 from itertools import zip_longest
 
 from . import nodes, errors, environment, environment_entries as entries
-from .utils import dispatch, TYPES, EXPRS
+from .utils import dispatch, TYPES, EXPRS, apply_mapping
+
+
+Mapping = t.Dict[str, nodes.Type]
+InferenceResult = namedtuple('InferenceResult', ['type', 'mapping'])
+UnificationResult = namedtuple('UnificationResult', ['type', 'mapping'])
+
+
+def to_inference_result(unification_result: UnificationResult) -> InferenceResult:
+    return InferenceResult(unification_result.type, unification_result.mapping)
 
 
 def get_possible_unsigned_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
@@ -62,8 +72,16 @@ class TypeChecker(unittest.TestCase):
         self.template_types = []
         self.template_type_id = -1
 
+        self.infer_type_from_field_of_builtin_type_dispatcher = {
+            nodes.BuiltinType.string.value: lambda field, mapping, supertype: to_inference_result(
+                self.unify_types(nodes.StringFields(field.field).as_type, supertype, mapping)
+            )
+        }
+
         self.infer_type_from_field_dispatcher = {
-            nodes.BuiltinType: self.infer_field_of_builtin_type,
+            nodes.BuiltinType: lambda base_type, field, mapping, supertype: dispatch(
+                self.infer_type_from_field_of_builtin_type_dispatcher, base_type.value, field, mapping, supertype
+            ),
             nodes.FunctionType: self.infer_field_of_function_type,
             nodes.Name: self.infer_field_of_name_type,
             nodes.TemplateType: self.infer_field_of_template_type,
@@ -81,16 +99,26 @@ class TypeChecker(unittest.TestCase):
             nodes.FunctionCall: self.infer_type_from_function_call,
             nodes.MethodCall: self.infer_type_from_method_call,
             nodes.Field: self.infer_type_from_field,
-            nodes.Cast: lambda value, supertype: self.unify_types(value.to_type, supertype),
-            nodes.ConstantDeclaration: lambda value, supertype: self.infer_type(value.value, supertype),
+            nodes.Cast: lambda value, supertype, mapping: to_inference_result(
+                self.unify_types(value.to_type, supertype, mapping)
+            ),
+            nodes.ConstantDeclaration: lambda value, supertype, mapping: self.infer_type(
+                value.value, supertype, mapping
+            ),
 
             nodes.IntegerLiteral: self.infer_type_from_integer_literal,
             nodes.DecimalLiteral: self.infer_type_from_decimal_literal,
-            nodes.StringLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.string, supertype),
+            nodes.StringLiteral: lambda _, supertype, mapping: to_inference_result(
+                self.unify_types(nodes.BuiltinType.string, supertype, mapping)
+            ),
             nodes.VectorLiteral: self.infer_type_from_vector_literal,
             nodes.DictLiteral: self.infer_type_from_dict_literal,
-            nodes.CharLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.char, supertype),
-            nodes.BoolLiteral: lambda _, supertype: self.unify_types(nodes.BuiltinType.bool, supertype),
+            nodes.CharLiteral: lambda _, supertype, mapping: to_inference_result(
+                self.unify_types(nodes.BuiltinType.char, supertype, mapping)
+            ),
+            nodes.BoolLiteral: lambda _, supertype, mapping: to_inference_result(
+                self.unify_types(nodes.BuiltinType.bool, supertype, mapping)
+            ),
 
             nodes.OptionalTypeConstructor: self.infer_type_from_optional_type_constructor,
             nodes.OptionalSomeCall: self.infer_type_from_optional_some_call,
@@ -181,33 +209,39 @@ class TypeChecker(unittest.TestCase):
             (nodes.StructType, nodes.Name): self.unification_failed,
         }
 
-    def infer_type(self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
-        return dispatch(self.type_inference_dispatcher, type(value), value, supertype)
+    def infer_type(
+            self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None, mapping: t.Optional[Mapping] = None
+    ) -> InferenceResult:
+        return dispatch(self.type_inference_dispatcher, type(value), value, supertype, mapping or {})
 
-    def infer_type_from_name(self, name: nodes.Name, supertype: t.Optional[nodes.Type]) -> nodes.Type:
+    def infer_type_from_name(
+            self, name: nodes.Name, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
         if name.module:
             assert 0, "Module system is not supported"
         entry = self.env[name.member]
         if entry is None:
             raise errors.AngelNameError(name, self.code)
         elif isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
-            return self.unify_types(entry.type, supertype)
+            return to_inference_result(self.unify_types(entry.type, supertype, mapping))
         elif isinstance(entry, entries.FunctionEntry):
-            return self.unify_types(nodes.FunctionType(entry.args, entry.return_type), supertype)
+            return to_inference_result(
+                self.unify_types(nodes.FunctionType(entry.args, entry.return_type), supertype, mapping)
+            )
         elif isinstance(entry, entries.StructEntry):
-            return self.unify_types(nodes.StructType(entry.name), supertype)
+            return to_inference_result(self.unify_types(nodes.StructType(entry.name), supertype, mapping))
         else:
             assert 0, f"Type inference from name can't handle {type(entry)}"
 
     def infer_type_from_special_name(
-            self, special_name: nodes.SpecialName, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        return self.infer_type_from_name(nodes.Name(special_name.value), supertype)
+            self, special_name: nodes.SpecialName, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        return self.infer_type_from_name(nodes.Name(special_name.value), supertype, mapping)
 
     def infer_type_from_builtin_func(
-            self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        return self.unify_types({
+            self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        return to_inference_result(self.unify_types({
             nodes.BuiltinFunc.print.value: nodes.FunctionType(
                 args=[nodes.Argument('value', nodes.BuiltinType.convertible_to_string)],
                 return_type=nodes.BuiltinType.void
@@ -216,10 +250,13 @@ class TypeChecker(unittest.TestCase):
                 args=[nodes.Argument('prompt', nodes.BuiltinType.string)],
                 return_type=nodes.BuiltinType.string
             ),
-        }[builtin_func.value], supertype)
+        }[builtin_func.value], supertype, mapping))
 
-    def infer_type_from_function_call(self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        function_type = self.infer_type(call.function_path)
+    def infer_type_from_function_call(
+            self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        function_result = self.infer_type(call.function_path)
+        function_type = function_result.type
         if isinstance(function_type, nodes.StructType):
             if function_type.name.module:
                 assert 0, "Module system is not supported"
@@ -228,16 +265,16 @@ class TypeChecker(unittest.TestCase):
                 raise errors.AngelNameError(function_type.name, self.code)
             assert isinstance(struct_entry, entries.StructEntry)
             return self.match_init_declaration(
-                function_type, list(struct_entry.init_declarations.values()), call.args, supertype
+                function_type, list(struct_entry.init_declarations.values()), call.args, supertype, mapping
             )
         elif isinstance(function_type, nodes.FunctionType):
-            return self.match_with_function_type(function_type, call.args, supertype)
+            return self.match_with_function_type(function_type, call.args, supertype, mapping)
         raise errors.AngelNoncallableCall(call.function_path, self.code)
 
     def match_init_declaration(
             self, struct_type: nodes.StructType, init_declarations: t.List[entries.InitEntry],
-            args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
         matched = True
         expected_major = []
         for init_entry in init_declarations:
@@ -256,57 +293,58 @@ class TypeChecker(unittest.TestCase):
                 matched = True
                 expected_major.append([arg.type for arg in init_entry.args])
                 continue
-            return self.unify_types(struct_type.name, supertype)
+            return to_inference_result(self.unify_types(struct_type.name, supertype, mapping))
         expected = " or ".join(
             ("(" + ", ".join(type_.to_code() for type_ in type_list) + ")" for type_list in expected_major)
         )
         raise errors.AngelWrongArguments(expected, self.code, args)
 
     def match_with_function_type(
-            self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
+            mapping: Mapping
+    ) -> InferenceResult:
         for arg, value in zip_longest(function_type.args, args):
             if arg is None or value is None:
                 raise errors.AngelWrongArguments(
                     f'({", ".join(arg.to_code() for arg in function_type.args)})', self.code, args
                 )
             self.infer_type(value, arg.type)
-        return self.unify_types(function_type.return_type, supertype)
+        return to_inference_result(self.unify_types(function_type.return_type, supertype, mapping))
 
-    def infer_type_from_method_call(self, call: nodes.MethodCall, supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        method = self.infer_type_from_field(nodes.Field(call.line, call.instance_path, call.method), supertype=None)
-        assert isinstance(method, nodes.FunctionType)
-        call.instance_type = self.infer_type(call.instance_path)
-        return self.match_with_function_type(method, call.args, supertype)
+    def infer_type_from_method_call(
+            self, call: nodes.MethodCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        method_result = self.infer_type_from_field(
+            nodes.Field(call.line, call.instance_path, call.method), supertype=None, mapping=mapping
+        )
+        assert isinstance(method_result.type, nodes.FunctionType)
+        instance_result = self.infer_type(call.instance_path, mapping=mapping)
+        call.instance_type = instance_result.type
+        return self.match_with_function_type(method_result.type, call.args, supertype, mapping)
 
-    def infer_type_from_field(self, field: nodes.Field, supertype: t.Optional[nodes.Type]) -> nodes.Type:
-        field.base_type = self.infer_type(field.base)
+    def infer_type_from_field(
+            self, field: nodes.Field, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        base_result = self.infer_type(field.base)
+        field.base_type = base_result.type
         return dispatch(
-            self.infer_type_from_field_dispatcher, type(field.base_type), field.base_type, field, supertype
+            self.infer_type_from_field_dispatcher, type(field.base_type), field.base_type, field, mapping, supertype
         )
 
-    def infer_field_of_builtin_type(
-            self, base_type: nodes.BuiltinType, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        if base_type.value == nodes.BuiltinType.string.value:
-            return self.unify_types(nodes.StringFields(field.field).as_type, supertype)
-        else:
-            assert 0, f"Cannot infer type from field on builtin type '{base_type.value}'"
-
     def infer_field_of_function_type(
-            self, base_type: nodes.FunctionType, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, base_type: nodes.FunctionType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
         raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
 
     def infer_field_of_struct_type(
-            self, base_type: nodes.StructType, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, base_type: nodes.StructType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
         # Only instance fields are supported.
         raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
 
     def infer_field_of_name_type(
-            self, base_type: nodes.Name, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, base_type: nodes.Name, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
         if base_type.module:
             assert 0, f"Module system is not supported"
         entry = self.env[base_type.member]
@@ -318,41 +356,50 @@ class TypeChecker(unittest.TestCase):
                 method_entry = entry.methods.get(field.field)
                 if method_entry is None:
                     raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
-                return self.unify_types(nodes.FunctionType(method_entry.args, method_entry.return_type), supertype)
+                return to_inference_result(
+                    self.unify_types(
+                        nodes.FunctionType(method_entry.args, method_entry.return_type), supertype, mapping
+                    )
+                )
             elif isinstance(field_entry, (entries.ConstantEntry, entries.VariableEntry)):
-                return self.unify_types(field_entry.type, supertype)
+                return to_inference_result(self.unify_types(field_entry.type, supertype, mapping))
             else:
                 assert 0, f"Cannot infer type from field with entry {field_entry}"
         else:
             raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
 
     def infer_field_of_template_type(
-            self, base_type: nodes.TemplateType, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, base_type: nodes.TemplateType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
         raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
 
     def infer_field_of_dict_type(
-            self, base_type: nodes.DictType, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        return self.unify_types(
-            nodes.DictFields(field.field).as_type(base_type.key_type, base_type.value_type), supertype
+            self, base_type: nodes.DictType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        return to_inference_result(
+            self.unify_types(
+                nodes.DictFields(field.field).as_type(base_type.key_type, base_type.value_type), supertype, mapping
+            )
         )
 
     def infer_field_of_vector_type(
-            self, base_type: nodes.VectorType, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        return self.unify_types(nodes.VectorFields(field.field).as_type(base_type.subtype), supertype)
+            self, base_type: nodes.VectorType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        return to_inference_result(
+            self.unify_types(nodes.VectorFields(field.field).as_type(base_type.subtype), supertype, mapping)
+        )
 
     def infer_field_of_optional_type(
-            self, base_type: nodes.OptionalType, field: nodes.Field, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, base_type: nodes.OptionalType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
         raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
 
     def infer_type_from_integer_literal(
-            self, value: nodes.IntegerLiteral, supertype: t.Optional[nodes.Type]) -> nodes.Type:
+            self, value: nodes.IntegerLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
         possible_types = get_possible_int_types_based_on_value(int(value.value))
         try:
-            result = self.unify_list_types(possible_types, supertype)
+            result = self.unify_list_types(possible_types, supertype, mapping)
         except errors.AngelTypeError:
             if supertype is None:
                 if int(value.value) > 0:
@@ -365,14 +412,14 @@ class TypeChecker(unittest.TestCase):
                 message = f"'{supertype.to_code()}' is not a possible type for {value.value}"
             raise errors.AngelTypeError(message, self.code, possible_types)
         else:
-            return result
+            return to_inference_result(result)
 
     def infer_type_from_decimal_literal(
-            self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
         possible_types = get_possible_float_types_base_on_value(value.value)
         try:
-            result = self.unify_list_types(possible_types, supertype)
+            result = self.unify_list_types(possible_types, supertype, mapping)
         except errors.AngelTypeError:
             if supertype is None:
                 if int(value.value) > 0:
@@ -385,77 +432,86 @@ class TypeChecker(unittest.TestCase):
                 message = f"'{supertype.to_code()}' is not a possible type for {value.value}"
             raise errors.AngelTypeError(message, self.code, possible_types)
         else:
-            return result
+            return to_inference_result(result)
 
     def infer_type_from_vector_literal(
-            self, value: nodes.VectorLiteral, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        element_type: nodes.Type = self.create_template_type()
+            self, value: nodes.VectorLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        element_result: UnificationResult = UnificationResult(self.create_template_type(), {})
         for element in value.elements:
-            current_element_type = self.infer_type(element)
+            current_element_result = self.infer_type(element, mapping=mapping)
             try:
-                element_type = self.unify_types(element_type, current_element_type)
+                element_result = self.unify_types(element_result.type, current_element_result.type, mapping)
             except errors.AngelTypeError:
-                element_type = self.unify_types(current_element_type, element_type)
-        return self.unify_types(nodes.VectorType(element_type), supertype)
+                element_result = self.unify_types(current_element_result.type, element_result.type, mapping)
+        return to_inference_result(self.unify_types(nodes.VectorType(element_result.type), supertype, mapping))
 
     def infer_type_from_dict_literal(
-            self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        key_type: nodes.Type = self.create_template_type()
-        value_type: nodes.Type = self.create_template_type()
+            self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        key_result: UnificationResult = UnificationResult(self.create_template_type(), {})
+        value_result: UnificationResult = UnificationResult(self.create_template_type(), {})
         for key, val in zip(value.keys, value.values):
-            current_key_type = self.infer_type(key)
+            current_key_result = self.infer_type(key, mapping=mapping)
             try:
-                key_type = self.unify_types(key_type, current_key_type)
+                key_result = self.unify_types(key_result.type, current_key_result.type, mapping=mapping)
             except errors.AngelTypeError:
-                key_type = self.unify_types(current_key_type, key_type)
+                key_result = self.unify_types(current_key_result.type, key_result.type, mapping=mapping)
 
-            current_value_type = self.infer_type(val)
+            current_value_result = self.infer_type(val, mapping=mapping)
             try:
-                value_type = self.unify_types(value_type, current_value_type)
+                value_result = self.unify_types(value_result.type, current_value_result.type, mapping=mapping)
             except errors.AngelTypeError:
-                value_type = self.unify_types(current_value_type, value_type)
-        value.annotation = nodes.DictType(key_type, value_type)
-        return self.unify_types(nodes.DictType(key_type, value_type), supertype)
+                value_result = self.unify_types(current_value_result.type, value_result.type, mapping=mapping)
+        value.annotation = nodes.DictType(key_result.type, value_result.type)
+        return to_inference_result(
+            self.unify_types(nodes.DictType(key_result.type, value_result.type), supertype, mapping)
+        )
 
     def infer_type_from_binary_expression(
-            self, value: nodes.BinaryExpression, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        result_type = self.infer_type(value.right, self.infer_type(value.left))
+            self, value: nodes.BinaryExpression, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        left_result = self.infer_type(value.left, mapping=mapping)
+        result = self.infer_type(value.right, left_result.type, mapping=mapping)
         if value.operator.value in nodes.Operator.comparison_operators_names():
-            return self.unify_types(nodes.BuiltinType.bool, supertype)
-        return self.unify_types(result_type, supertype)
+            return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+        return to_inference_result(self.unify_types(result.type, supertype, mapping))
 
     def infer_type_from_read_function_call(
-            self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        return self.unify_types(nodes.BuiltinType.string, supertype)
+            self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        return to_inference_result(self.unify_types(nodes.BuiltinType.string, supertype, mapping))
 
     def infer_type_from_optional_type_constructor(
-            self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
+            self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
         inner_type = self.create_template_type()
-        return self.unify_types(nodes.OptionalType(inner_type), supertype)
+        return to_inference_result(self.unify_types(nodes.OptionalType(inner_type), supertype, mapping))
 
     def infer_type_from_optional_some_call(
-            self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        inner_type = self.infer_type(value.value)
-        return self.unify_types(nodes.OptionalType(inner_type), supertype)
+            self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        inner_result = self.infer_type(value.value)
+        return to_inference_result(self.unify_types(nodes.OptionalType(inner_result.type), supertype, mapping))
 
     def infer_type_from_optional_some_value(
-            self, value: nodes.OptionalSomeValue, _: t.Optional[nodes.Type]
-    ) -> nodes.Type:
-        optional_type = self.infer_type(value.value)
-        assert isinstance(optional_type, nodes.OptionalType)
+            self, value: nodes.OptionalSomeValue, _: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        optional_result = self.infer_type(value.value, mapping=mapping)
+        assert isinstance(optional_result.type, nodes.OptionalType)
         # OptionalSomeValue is generated by compiler, so we assume that it is correct.
-        return optional_type.inner_type
+        return InferenceResult(optional_result.type.inner_type, mapping)
 
-    def unify_types(self, subtype: nodes.Type, supertype: t.Optional[nodes.Type]) -> nodes.Type:
+    def unify_types(
+            self, subtype: nodes.Type, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> UnificationResult:
         if supertype is None:
-            return subtype
-        return dispatch(self.unification_dispatcher, (type(subtype), type(supertype)), subtype, supertype)
+            return UnificationResult(apply_mapping(subtype, mapping), mapping)
+        subtype = apply_mapping(subtype, mapping)
+        supertype = apply_mapping(supertype, mapping)
+        return UnificationResult(
+            dispatch(self.unification_dispatcher, (type(subtype), type(supertype)), subtype, supertype), mapping={}
+        )
 
     def unify_builtin_types(self, subtype: nodes.BuiltinType, supertype: nodes.BuiltinType) -> nodes.Type:
         if supertype.value in subtype.get_builtin_supertypes():
@@ -481,15 +537,15 @@ class TypeChecker(unittest.TestCase):
 
     def unify_vector_types(self, subtype: nodes.VectorType, supertype: nodes.VectorType) -> nodes.Type:
         try:
-            element_type = self.unify_types(subtype.subtype, supertype.subtype)
-            return nodes.VectorType(element_type)
+            element_result = self.unify_types(subtype.subtype, supertype.subtype, mapping={})
+            return nodes.VectorType(element_result.type)
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
     def unify_optional_types(self, subtype: nodes.OptionalType, supertype: nodes.OptionalType) -> nodes.Type:
         try:
-            inner_type = self.unify_types(subtype.inner_type, supertype.inner_type)
-            return nodes.OptionalType(inner_type)
+            inner_result = self.unify_types(subtype.inner_type, supertype.inner_type, mapping={})
+            return nodes.OptionalType(inner_result.type)
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
@@ -497,17 +553,17 @@ class TypeChecker(unittest.TestCase):
         arguments = []
         for sub_argument, super_argument in zip_longest(subtype.args, supertype.args):
             try:
-                argument = self.unify_types(sub_argument, super_argument)
+                argument_result = self.unify_types(sub_argument, super_argument, mapping={})
             except errors.AngelTypeError:
                 raise self.basic_type_error(subtype, supertype)
             else:
-                arguments.append(nodes.Argument(sub_argument.name, argument))
+                arguments.append(nodes.Argument(sub_argument.name, argument_result.type))
         try:
-            return_type = self.unify_types(subtype.return_type, supertype.return_type)
+            return_result = self.unify_types(subtype.return_type, supertype.return_type, mapping={})
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
         else:
-            return nodes.FunctionType(arguments, return_type)
+            return nodes.FunctionType(arguments, return_result.type)
 
     def unify_name_types(self, subtype: nodes.Name, supertype: nodes.Name) -> nodes.Type:
         self.check_declared(subtype)
@@ -517,13 +573,13 @@ class TypeChecker(unittest.TestCase):
         raise self.basic_type_error(subtype, supertype)
 
     def unify_struct_types(self, subtype: nodes.StructType, supertype: nodes.StructType) -> nodes.Type:
-        return self.unify_types(subtype.name, supertype.name)
+        return self.unify_types(subtype.name, supertype.name, mapping={}).type
 
     def unify_dict_types(self, subtype: nodes.DictType, supertype: nodes.DictType) -> nodes.Type:
         try:
-            key_type = self.unify_types(subtype.key_type, supertype.key_type)
-            value_type = self.unify_types(subtype.value_type, supertype.value_type)
-            return nodes.DictType(key_type, value_type)
+            key_result = self.unify_types(subtype.key_type, supertype.key_type, mapping={})
+            value_result = self.unify_types(subtype.value_type, supertype.value_type, mapping={})
+            return nodes.DictType(key_result.type, value_result.type)
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
@@ -536,11 +592,13 @@ class TypeChecker(unittest.TestCase):
         self.template_types[supertype.id] = real_type
         return real_type or subtype
 
-    def unify_list_types(self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type]) -> nodes.Type:
+    def unify_list_types(
+            self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> UnificationResult:
         fail = None
         for subtype in subtypes:
             try:
-                result = self.unify_types(subtype, supertype)
+                result = self.unify_types(subtype, supertype, mapping=mapping)
             except errors.AngelTypeError as e:
                 fail = e
             else:

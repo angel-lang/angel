@@ -277,11 +277,13 @@ class Analyzer(unittest.TestCase):
 
     def infer_type(self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
         self.type_checker.update_context(self.env, self.get_code())
-        return self.type_checker.infer_type(value, supertype)
+        result = self.type_checker.infer_type(value, supertype)
+        return result.type
 
     def check_type(self, type_: nodes.Type) -> nodes.Type:
         self.type_checker.update_context(self.env, self.get_code())
-        return self.type_checker.unify_types(type_, type_)
+        result = self.type_checker.unify_types(type_, type_, mapping={})
+        return result.type
 
     def estimate_value(self, value: nodes.Expression) -> enodes.Expression:
         self.estimator.update_context(self.env)
