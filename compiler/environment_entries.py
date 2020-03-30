@@ -44,6 +44,7 @@ class InitEntry(Entry):
 @dataclass
 class StructEntry(Entry):
     name: nodes.Name
+    params: nodes.Parameters
     fields: t.Dict[str, Entry]
     init_declarations: t.Dict[str, InitEntry]
     methods: t.Dict[str, FunctionEntry]

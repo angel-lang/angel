@@ -2,7 +2,7 @@ import typing as t
 import abc
 import enum
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 class Node:
@@ -254,9 +254,13 @@ class Semicolon(Node):
 class FunctionCall(Node, Expression):
     function_path: Expression
     args: t.List[Expression]
+    params: t.List[Type] = field(default_factory=list)
 
     def to_code(self) -> str:
         args = ",".join(arg.to_code() for arg in self.args)
+        if self.params:
+            params = ",".join(param.to_code() for param in self.params)
+            return f"{self.function_path.to_code()}<{params}>({args})"
         return f"{self.function_path.to_code()}({args})"
 
 

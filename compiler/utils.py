@@ -36,7 +36,12 @@ apply_mapping_dispatcher = {
     ),
     nodes.BuiltinType: lambda builtin, mapping: builtin,
     nodes.TemplateType: lambda template, mapping: template,
-    nodes.StructType: lambda struct, mapping: struct,
+    nodes.StructType: lambda struct, mapping: nodes.StructType(
+        struct.name, [apply_mapping(param, mapping) for param in struct.params]
+    ),
+    nodes.GenericType: lambda generic, mapping: nodes.GenericType(
+        generic.name, [apply_mapping(param, mapping) for param in generic.params]
+    ),
     nodes.DictType: lambda dict_type, mapping: nodes.DictType(
         apply_mapping(dict_type.key_type, mapping), apply_mapping(dict_type.value_type, mapping)
     ),

@@ -69,9 +69,9 @@ class Environment:
         assert isinstance(entry, entries.StructEntry)
         entry.init_declarations[','.join(arg.to_code() for arg in args)] = entries.InitEntry(line, args, body=[])
 
-    def add_struct(self, line: int, name: nodes.Name) -> None:
+    def add_struct(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
         self.space[self.nesting_level][name.member] = entries.StructEntry(
-            line, name, fields={}, init_declarations={}, methods={}
+            line, name, params, fields={}, init_declarations={}, methods={}
         )
 
     def add_parameters(self, line: int, parameters: nodes.Parameters) -> None:

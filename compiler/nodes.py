@@ -415,6 +415,7 @@ class DictLiteral(Expression):
 class FunctionCall(Node, Expression):
     function_path: Expression
     args: t.List[Expression]
+    instance_call_params: t.Optional[t.List[Type]] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
         code = f"{self.function_path.to_code()}({', '.join(arg.to_code() for arg in self.args)})"
@@ -582,9 +583,19 @@ class FunctionType(Type):
 @dataclass
 class StructType(Type):
     name: Name
+    params: t.List[Type]
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"StructType({self.name.to_code()})"
+        return f"StructType({self.name.to_code()}, params={[param.to_code() for param in self.params]})"
+
+
+@dataclass
+class GenericType(Type):
+    name: Name
+    params: t.List[Type]
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.name.to_code()}({', '.join(param.to_code() for param in self.params)})"
 
 
 class StringFields(enum.Enum):
@@ -616,7 +627,7 @@ class VectorFields(enum.Enum):
 class DictFields(enum.Enum):
     length = "length"
 
-    def as_type(self, key_type: Type, value_type: Type) -> Type:
+    def as_type(self, _: Type, __: Type) -> Type:
         return {
              DictFields.length.value: BuiltinType.u64,
          }[self.value]

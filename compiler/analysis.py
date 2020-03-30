@@ -90,7 +90,7 @@ class Analyzer(unittest.TestCase):
         return nodes.FunctionDeclaration(declaration.line, declaration.name, args, return_type, body)
 
     def analyze_struct_declaration(self, declaration: nodes.StructDeclaration) -> nodes.StructDeclaration:
-        self.env.add_struct(declaration.line, declaration.name)
+        self.env.add_struct(declaration.line, declaration.name, declaration.parameters)
         self.env.inc_nesting(declaration.name)
         self.env.add_parameters(declaration.line, declaration.parameters)
         # list(...) for mypy

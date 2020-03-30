@@ -17,6 +17,12 @@ def to_inference_result(unification_result: UnificationResult) -> InferenceResul
     return InferenceResult(unification_result.type, unification_result.mapping)
 
 
+def build_instance_type(struct_type: nodes.StructType) -> nodes.Type:
+    if struct_type.params:
+        return nodes.GenericType(struct_type.name, struct_type.params)
+    return struct_type.name
+
+
 def get_possible_unsigned_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
     if value < 0:
         return []
@@ -89,6 +95,7 @@ class TypeChecker(unittest.TestCase):
             nodes.VectorType: self.infer_field_of_vector_type,
             nodes.OptionalType: self.infer_field_of_optional_type,
             nodes.StructType: self.infer_field_of_struct_type,
+            nodes.GenericType: self.infer_field_of_generic_type,
         }
 
         self.type_inference_dispatcher = {
@@ -134,63 +141,74 @@ class TypeChecker(unittest.TestCase):
             (nodes.FunctionType, nodes.FunctionType): self.unify_function_types,
             (nodes.Name, nodes.Name): self.unify_name_types,
             (nodes.StructType, nodes.StructType): self.unify_struct_types,
+            (nodes.GenericType, nodes.GenericType): self.unify_generic_types,
 
             (nodes.BuiltinType, nodes.VectorType): self.unification_failed,
             (nodes.BuiltinType, nodes.DictType): self.unification_failed,
             (nodes.BuiltinType, nodes.OptionalType): self.unification_failed,
             (nodes.BuiltinType, nodes.TemplateType): self.unification_template_supertype_success,
             (nodes.BuiltinType, nodes.FunctionType): self.unification_failed,
-            (nodes.BuiltinType, nodes.Name): self.unification_failed,
+            (nodes.BuiltinType, nodes.Name): self.unify_type_with_name,
             (nodes.BuiltinType, nodes.StructType): self.unification_failed,
+            (nodes.BuiltinType, nodes.GenericType): self.unification_failed,
 
-            (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype: (
-                supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
-                else self.unification_failed(subtype, supertype)
+            (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
+                UnificationResult(supertype, mapping)
+                if supertype.value == nodes.BuiltinType.convertible_to_string.value
+                else self.unification_failed(subtype, supertype, mapping)
             ),
             (nodes.VectorType, nodes.TemplateType): self.unification_template_supertype_success,
             (nodes.VectorType, nodes.DictType): self.unification_failed,
             (nodes.VectorType, nodes.OptionalType): self.unification_failed,
             (nodes.VectorType, nodes.FunctionType): self.unification_failed,
-            (nodes.VectorType, nodes.Name): self.unification_failed,
+            (nodes.VectorType, nodes.Name): self.unify_type_with_name,
             (nodes.VectorType, nodes.StructType): self.unification_failed,
+            (nodes.VectorType, nodes.GenericType): self.unification_failed,
 
             (nodes.TemplateType, nodes.BuiltinType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.VectorType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.DictType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.OptionalType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.FunctionType): self.unification_template_subtype_success,
+            # Maybe, we need to add Name: TemplateType to the mapping?
             (nodes.TemplateType, nodes.Name): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.StructType): self.unification_template_subtype_success,
+            (nodes.TemplateType, nodes.GenericType): self.unification_template_subtype_success,
 
-            (nodes.DictType, nodes.BuiltinType): lambda subtype, supertype: (
-                supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
-                else self.unification_failed(subtype, supertype)
+            (nodes.DictType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
+                UnificationResult(supertype, mapping)
+                if supertype.value == nodes.BuiltinType.convertible_to_string.value
+                else self.unification_failed(subtype, supertype, mapping)
             ),
             (nodes.DictType, nodes.VectorType): self.unification_failed,
             (nodes.DictType, nodes.OptionalType): self.unification_failed,
             (nodes.DictType, nodes.TemplateType): self.unification_template_supertype_success,
             (nodes.DictType, nodes.FunctionType): self.unification_failed,
-            (nodes.DictType, nodes.Name): self.unification_failed,
+            (nodes.DictType, nodes.Name): self.unify_type_with_name,
             (nodes.DictType, nodes.StructType): self.unification_failed,
+            (nodes.DictType, nodes.GenericType): self.unification_failed,
 
-            (nodes.OptionalType, nodes.BuiltinType): lambda subtype, supertype: (
-                supertype if supertype.value == nodes.BuiltinType.convertible_to_string.value
-                else self.unification_failed(subtype, supertype)
+            (nodes.OptionalType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
+                UnificationResult(supertype, mapping)
+                if supertype.value == nodes.BuiltinType.convertible_to_string.value
+                else self.unification_failed(subtype, supertype, mapping)
             ),
             (nodes.OptionalType, nodes.VectorType): self.unification_failed,
             (nodes.OptionalType, nodes.DictType): self.unification_failed,
             (nodes.OptionalType, nodes.TemplateType): self.unification_template_supertype_success,
             (nodes.OptionalType, nodes.FunctionType): self.unification_failed,
-            (nodes.OptionalType, nodes.Name): self.unification_failed,
+            (nodes.OptionalType, nodes.Name): self.unify_type_with_name,
             (nodes.OptionalType, nodes.StructType): self.unification_failed,
+            (nodes.OptionalType, nodes.GenericType): self.unification_failed,
 
             (nodes.FunctionType, nodes.BuiltinType): self.unification_failed,
             (nodes.FunctionType, nodes.VectorType): self.unification_failed,
             (nodes.FunctionType, nodes.DictType): self.unification_failed,
             (nodes.FunctionType, nodes.TemplateType): self.unification_template_supertype_success,
             (nodes.FunctionType, nodes.OptionalType): self.unification_failed,
-            (nodes.FunctionType, nodes.Name): self.unification_failed,
+            (nodes.FunctionType, nodes.Name): self.unify_type_with_name,
             (nodes.FunctionType, nodes.StructType): self.unification_failed,
+            (nodes.FunctionType, nodes.GenericType): self.unification_failed,
 
             (nodes.Name, nodes.BuiltinType): self.unification_failed,
             (nodes.Name, nodes.VectorType): self.unification_failed,
@@ -199,6 +217,7 @@ class TypeChecker(unittest.TestCase):
             (nodes.Name, nodes.OptionalType): self.unification_failed,
             (nodes.Name, nodes.FunctionType): self.unification_failed,
             (nodes.Name, nodes.StructType): self.unification_failed,
+            (nodes.Name, nodes.GenericType): self.unification_failed,
 
             (nodes.StructType, nodes.BuiltinType): self.unification_failed,
             (nodes.StructType, nodes.VectorType): self.unification_failed,
@@ -206,7 +225,39 @@ class TypeChecker(unittest.TestCase):
             (nodes.StructType, nodes.TemplateType): self.unification_template_supertype_success,
             (nodes.StructType, nodes.OptionalType): self.unification_failed,
             (nodes.StructType, nodes.FunctionType): self.unification_failed,
-            (nodes.StructType, nodes.Name): self.unification_failed,
+            (nodes.StructType, nodes.GenericType): self.unification_failed,
+            (nodes.StructType, nodes.Name): self.unify_type_with_name,
+
+            (nodes.GenericType, nodes.BuiltinType): self.unification_failed,
+            (nodes.GenericType, nodes.VectorType): self.unification_failed,
+            (nodes.GenericType, nodes.DictType): self.unification_failed,
+            (nodes.GenericType, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.GenericType, nodes.OptionalType): self.unification_failed,
+            (nodes.GenericType, nodes.FunctionType): self.unification_failed,
+            (nodes.GenericType, nodes.StructType): self.unification_failed,
+            (nodes.GenericType, nodes.Name): self.unify_type_with_name,
+        }
+
+        self.replace_template_types_dispatcher = {
+            nodes.TemplateType: self.replace_template_types_template_type,
+            nodes.Name: lambda name_type: name_type,
+            nodes.BuiltinType: lambda builtin_type: builtin_type,
+            nodes.FunctionType: lambda func_type: nodes.FunctionType(
+                [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.args],
+                self.replace_template_types(func_type.return_type)
+            ),
+            nodes.DictType: lambda dict_type: nodes.DictType(self.replace_template_types(dict_type.key_type),
+                                                             self.replace_template_types(dict_type.value_type)),
+            nodes.VectorType: lambda vector_type: nodes.VectorType(self.replace_template_types(vector_type.subtype)),
+            nodes.OptionalType: lambda optional_type: nodes.OptionalType(
+                self.replace_template_types(optional_type.inner_type)
+            ),
+            nodes.StructType: lambda struct_type: nodes.StructType(
+                struct_type.name, [self.replace_template_types(param) for param in struct_type.params]
+            ),
+            nodes.GenericType: lambda generic_type: nodes.GenericType(
+                generic_type.name, [self.replace_template_types(param) for param in generic_type.params]
+            ),
         }
 
     def infer_type(
@@ -229,7 +280,8 @@ class TypeChecker(unittest.TestCase):
                 self.unify_types(nodes.FunctionType(entry.args, entry.return_type), supertype, mapping)
             )
         elif isinstance(entry, entries.StructEntry):
-            return to_inference_result(self.unify_types(nodes.StructType(entry.name), supertype, mapping))
+            params: t.List[nodes.Type] = [self.create_template_type() for _ in entry.params]
+            return to_inference_result(self.unify_types(nodes.StructType(entry.name, params), supertype, mapping))
         else:
             assert 0, f"Type inference from name can't handle {type(entry)}"
 
@@ -264,9 +316,12 @@ class TypeChecker(unittest.TestCase):
             if struct_entry is None:
                 raise errors.AngelNameError(function_type.name, self.code)
             assert isinstance(struct_entry, entries.StructEntry)
-            return self.match_init_declaration(
+            result = self.match_init_declaration(
                 function_type, list(struct_entry.init_declarations.values()), call.args, supertype, mapping
             )
+            if isinstance(result.type, nodes.GenericType):
+                call.instance_call_params = result.type.params
+            return result
         elif isinstance(function_type, nodes.FunctionType):
             return self.match_with_function_type(function_type, call.args, supertype, mapping)
         raise errors.AngelNoncallableCall(call.function_path, self.code)
@@ -277,15 +332,21 @@ class TypeChecker(unittest.TestCase):
     ) -> InferenceResult:
         matched = True
         expected_major = []
+        struct_mapping = self.basic_struct_mapping(struct_type)
         for init_entry in init_declarations:
             for arg, value in zip_longest(init_entry.args, args):
-                if value is None:
-                    value = arg.value
-                if arg is None or value is None:
+                if arg is None:
                     matched = False
                     break
+                arg_type = apply_mapping(arg.type, struct_mapping)
+                if value is None:
+                    value = arg.value
+                    if value is None:
+                        matched = False
+                        break
                 try:
-                    self.infer_type(value, arg.type)
+                    result = self.infer_type(value, arg_type, mapping)
+                    mapping = result.mapping
                 except errors.AngelTypeError:
                     matched = False
                     break
@@ -293,7 +354,9 @@ class TypeChecker(unittest.TestCase):
                 matched = True
                 expected_major.append([arg.type for arg in init_entry.args])
                 continue
-            return to_inference_result(self.unify_types(struct_type.name, supertype, mapping))
+            return to_inference_result(
+                self.unify_types(apply_mapping(build_instance_type(struct_type), mapping), supertype, mapping)
+            )
         expected = " or ".join(
             ("(" + ", ".join(type_.to_code() for type_ in type_list) + ")" for type_list in expected_major)
         )
@@ -310,6 +373,25 @@ class TypeChecker(unittest.TestCase):
                 )
             self.infer_type(value, arg.type)
         return to_inference_result(self.unify_types(function_type.return_type, supertype, mapping))
+
+    def basic_struct_mapping(self, struct_type: nodes.StructType) -> Mapping:
+        """Maps struct parameter names to passed parameters.
+
+        Example:
+        struct A(B, C)
+
+        let a: A(I8, I64)
+
+        result will be {'B': I8, 'C': I64}
+        """
+        if not struct_type.params:
+            return {}
+        entry = self.entry(struct_type.name)
+        assert isinstance(entry, entries.StructEntry)
+        mapping = {}
+        for param, type_ in zip(entry.params, struct_type.params):
+            mapping[param.member] = type_
+        return mapping
 
     def infer_type_from_method_call(
             self, call: nodes.MethodCall, supertype: t.Optional[nodes.Type], mapping: Mapping
@@ -341,6 +423,12 @@ class TypeChecker(unittest.TestCase):
     ) -> InferenceResult:
         # Only instance fields are supported.
         raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+
+    def infer_field_of_generic_type(
+            self, base_type: nodes.GenericType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        # Don't support generic types for now
+        return self.infer_field_of_name_type(base_type.name, field, mapping, supertype)
 
     def infer_field_of_name_type(
             self, base_type: nodes.Name, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
@@ -505,92 +593,156 @@ class TypeChecker(unittest.TestCase):
     def unify_types(
             self, subtype: nodes.Type, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> UnificationResult:
-        if supertype is None:
-            return UnificationResult(apply_mapping(subtype, mapping), mapping)
         subtype = apply_mapping(subtype, mapping)
+        if supertype is None:
+            return UnificationResult(self.replace_template_types(subtype), mapping)
         supertype = apply_mapping(supertype, mapping)
-        return UnificationResult(
-            dispatch(self.unification_dispatcher, (type(subtype), type(supertype)), subtype, supertype), mapping={}
-        )
+        result = dispatch(self.unification_dispatcher, (type(subtype), type(supertype)), subtype, supertype, mapping)
+        return UnificationResult(self.replace_template_types(result.type), result.mapping)
 
-    def unify_builtin_types(self, subtype: nodes.BuiltinType, supertype: nodes.BuiltinType) -> nodes.Type:
+    def unify_builtin_types(
+            self, subtype: nodes.BuiltinType, supertype: nodes.BuiltinType, mapping: Mapping
+    ) -> UnificationResult:
         if supertype.value in subtype.get_builtin_supertypes():
-            return supertype
+            return UnificationResult(supertype, mapping)
         raise self.basic_type_error(subtype, supertype)
 
     def unify_builtin_type_with_template_type(
-            self, subtype: nodes.BuiltinType, supertype: nodes.TemplateType
-    ) -> nodes.Type:
+            self, subtype: nodes.BuiltinType, supertype: nodes.TemplateType, mapping: Mapping
+    ) -> UnificationResult:
         assert self.template_types[supertype.id] is None
         self.template_types[supertype.id] = subtype
-        return subtype
+        return UnificationResult(subtype, mapping)
 
-    def unification_template_supertype_success(self, subtype: nodes.Type, supertype: nodes.TemplateType) -> nodes.Type:
+    def unification_template_supertype_success(
+            self, subtype: nodes.Type, supertype: nodes.TemplateType, mapping: Mapping
+    ) -> UnificationResult:
         assert self.template_types[supertype.id] is None
         self.template_types[supertype.id] = subtype
-        return subtype
+        return UnificationResult(subtype, mapping)
 
-    def unification_template_subtype_success(self, subtype: nodes.TemplateType, supertype: nodes.Type) -> nodes.Type:
+    def unification_template_subtype_success(
+            self, subtype: nodes.TemplateType, supertype: nodes.Type, mapping: Mapping
+    ) -> UnificationResult:
         assert self.template_types[subtype.id] is None
         self.template_types[subtype.id] = supertype
-        return supertype
+        return UnificationResult(supertype, mapping)
 
-    def unify_vector_types(self, subtype: nodes.VectorType, supertype: nodes.VectorType) -> nodes.Type:
+    def unify_vector_types(
+            self, subtype: nodes.VectorType, supertype: nodes.VectorType, mapping: Mapping
+    ) -> UnificationResult:
         try:
-            element_result = self.unify_types(subtype.subtype, supertype.subtype, mapping={})
-            return nodes.VectorType(element_result.type)
+            element_result = self.unify_types(subtype.subtype, supertype.subtype, mapping)
+            return UnificationResult(nodes.VectorType(element_result.type), element_result.mapping)
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
-    def unify_optional_types(self, subtype: nodes.OptionalType, supertype: nodes.OptionalType) -> nodes.Type:
+    def unify_type_with_name(self, subtype: nodes.Type, supertype: nodes.Name, mapping: Mapping) -> UnificationResult:
+        entry = self.entry(supertype)
+        if isinstance(entry, entries.ParameterEntry):
+            found = mapping.get(supertype.member)
+            if found:
+                return self.unify_types(subtype, found, mapping)
+            mapping[supertype.member] = subtype
+            return UnificationResult(subtype, mapping)
+        return self.unification_failed(subtype, supertype, mapping)
+
+    def unify_optional_types(
+            self, subtype: nodes.OptionalType, supertype: nodes.OptionalType, mapping: Mapping
+    ) -> UnificationResult:
         try:
-            inner_result = self.unify_types(subtype.inner_type, supertype.inner_type, mapping={})
-            return nodes.OptionalType(inner_result.type)
+            inner_result = self.unify_types(subtype.inner_type, supertype.inner_type, mapping=mapping)
+            return UnificationResult(nodes.OptionalType(inner_result.type), inner_result.mapping)
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
-    def unify_function_types(self, subtype: nodes.FunctionType, supertype: nodes.FunctionType) -> nodes.FunctionType:
+    def unify_function_types(
+            self, subtype: nodes.FunctionType, supertype: nodes.FunctionType, mapping: Mapping
+    ) -> UnificationResult:
         arguments = []
         for sub_argument, super_argument in zip_longest(subtype.args, supertype.args):
             try:
-                argument_result = self.unify_types(sub_argument, super_argument, mapping={})
+                argument_result = self.unify_types(sub_argument, super_argument, mapping)
             except errors.AngelTypeError:
                 raise self.basic_type_error(subtype, supertype)
             else:
+                mapping = argument_result.mapping
                 arguments.append(nodes.Argument(sub_argument.name, argument_result.type))
         try:
-            return_result = self.unify_types(subtype.return_type, supertype.return_type, mapping={})
+            return_result = self.unify_types(subtype.return_type, supertype.return_type, mapping)
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
         else:
-            return nodes.FunctionType(arguments, return_result.type)
+            return UnificationResult(nodes.FunctionType(arguments, return_result.type), return_result.mapping)
 
-    def unify_name_types(self, subtype: nodes.Name, supertype: nodes.Name) -> nodes.Type:
-        self.check_declared(subtype)
-        self.check_declared(supertype)
+    def unify_name_types(self, subtype: nodes.Name, supertype: nodes.Name, mapping: Mapping) -> UnificationResult:
+        subtype_entry = self.entry(subtype)
+        supertype_entry = self.entry(supertype)
+
+        if isinstance(supertype_entry, entries.ParameterEntry) and (
+                not isinstance(subtype_entry, entries.ParameterEntry)):
+            found = mapping.get(supertype.member)
+            if found:
+                return self.unify_types(subtype, found, mapping)
+            mapping[supertype.member] = subtype
+            return UnificationResult(subtype, mapping)
+
         if subtype.module == supertype.module and subtype.member == supertype.member:
-            return supertype
+            return UnificationResult(supertype, mapping)
         raise self.basic_type_error(subtype, supertype)
 
-    def unify_struct_types(self, subtype: nodes.StructType, supertype: nodes.StructType) -> nodes.Type:
-        return self.unify_types(subtype.name, supertype.name, mapping={}).type
+    def unify_struct_types(
+            self, subtype: nodes.StructType, supertype: nodes.StructType, mapping: Mapping
+    ) -> UnificationResult:
+        base_result = self.unify_types(subtype.name, supertype.name, mapping)
+        mapping = base_result.mapping
+        parameters = []
+        for param1, param2 in zip(subtype.params, supertype.params):
+            try:
+                param_result = self.unify_types(param1, param2, mapping)
+            except errors.AngelTypeError:
+                raise self.basic_type_error(subtype, supertype)
+            else:
+                mapping = param_result.mapping
+                parameters.append(param_result.type)
+        return UnificationResult(nodes.StructType(base_result.type, parameters), mapping)
 
-    def unify_dict_types(self, subtype: nodes.DictType, supertype: nodes.DictType) -> nodes.Type:
+    def unify_generic_types(
+            self, subtype: nodes.GenericType, supertype: nodes.GenericType, mapping: Mapping
+    ) -> UnificationResult:
+        base_result = self.unify_types(subtype.name, supertype.name, mapping)
+        mapping = base_result.mapping
+        parameters = []
+        for param1, param2 in zip(subtype.params, supertype.params):
+            try:
+                param_result = self.unify_types(param1, param2, mapping)
+            except errors.AngelTypeError:
+                raise self.basic_type_error(subtype, supertype)
+            else:
+                mapping = param_result.mapping
+                parameters.append(param_result.type)
+        return UnificationResult(nodes.GenericType(base_result.type, parameters), mapping)
+
+    def unify_dict_types(
+            self, subtype: nodes.DictType, supertype: nodes.DictType, mapping: Mapping
+    ) -> UnificationResult:
         try:
-            key_result = self.unify_types(subtype.key_type, supertype.key_type, mapping={})
-            value_result = self.unify_types(subtype.value_type, supertype.value_type, mapping={})
-            return nodes.DictType(key_result.type, value_result.type)
+            key_result = self.unify_types(subtype.key_type, supertype.key_type, mapping=mapping)
+            value_result = self.unify_types(subtype.value_type, supertype.value_type, mapping=key_result.mapping)
+            return UnificationResult(nodes.DictType(key_result.type, value_result.type), value_result.mapping)
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
-    def unification_failed(self, subtype: nodes.Type, supertype: nodes.Type) -> nodes.Type:
+    def unification_failed(self, subtype: nodes.Type, supertype: nodes.Type, mapping: Mapping) -> UnificationResult:
         raise self.basic_type_error(subtype, supertype)
 
-    def unify_template_types(self, subtype: nodes.TemplateType, supertype: nodes.TemplateType) -> nodes.Type:
+    def unify_template_types(
+            self, subtype: nodes.TemplateType, supertype: nodes.TemplateType, mapping: Mapping
+    ) -> UnificationResult:
         real_type = self.template_types[subtype.id] or self.template_types[supertype.id]
         self.template_types[subtype.id] = real_type
         self.template_types[supertype.id] = real_type
-        return real_type or subtype
+        return UnificationResult(real_type or subtype, mapping)
 
     def unify_list_types(
             self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type], mapping: Mapping
@@ -621,12 +773,19 @@ class TypeChecker(unittest.TestCase):
         self.env = env
         self.code = code
 
-    def check_declared(self, name: nodes.Name):
+    def entry(self, name: nodes.Name) -> entries.Entry:
         if name.module:
             assert 0, "Module system is not supported"
         entry = self.env[name.member]
         if entry is None:
-            raise errors.AngelNameError(name, self.code)
+            return entries.ParameterEntry(0, name)
+        return entry
+
+    def replace_template_types(self, from_type: nodes.Type) -> nodes.Type:
+        return dispatch(self.replace_template_types_dispatcher, type(from_type), from_type)
+
+    def replace_template_types_template_type(self, template_type: nodes.TemplateType) -> nodes.Type:
+        return self.template_types[template_type.id] or template_type
 
     def test(self):
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.type_inference_dispatcher.keys()))
@@ -638,3 +797,4 @@ class TypeChecker(unittest.TestCase):
             type_pairs, set((type1.__name__, type2.__name__) for type1, type2 in self.unification_dispatcher.keys())
         )
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.infer_type_from_field_dispatcher.keys()))
+        self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.replace_template_types_dispatcher.keys()))

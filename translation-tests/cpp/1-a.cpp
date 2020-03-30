@@ -144,5 +144,6 @@ int main() {
   __tmp_4["b"] = 2;
   std::map<std::string, std::int_fast8_t> d = __tmp_4;
   __print(d.size());
+  Stack<std::int_fast8_t> stack = Stack<std::int_fast8_t>({1, 2, 3});
   return 0;
 }

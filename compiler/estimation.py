@@ -160,7 +160,7 @@ class Evaluator(unittest.TestCase):
 
     def estimate_struct_declaration(self, declaration: nodes.StructDeclaration) -> None:
         # list(...) for mypy
-        self.env.add_struct(declaration.line, declaration.name)
+        self.env.add_struct(declaration.line, declaration.name, declaration.parameters)
         self.env.inc_nesting(declaration.name)
         self.estimate_ast(list(declaration.private_fields))
         self.estimate_ast(list(declaration.public_fields))

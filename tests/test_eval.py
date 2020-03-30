@@ -192,7 +192,7 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['1'])
 
-    def test_string_length(self):
+    def test_dict_length(self):
         code = [
             'let letters = ["a": 1, "b": 2]',
             'print(letters.length)'
@@ -245,6 +245,8 @@ class TestEval(unittest.TestCase):
 
             '    fun depth -> U64:',
             '        return self.data.length',
+
+            'let stack = Stack([1, 2, 3])'
         ]
         result, output = self.eval(code)
         self.assertEqual(output, [])

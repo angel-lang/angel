@@ -56,6 +56,7 @@ class Translator(unittest.TestCase):
                 self.builtin_type_method_call, method_call.instance_type.value, method_call
             ),
             nodes.Name: self.translate_method_call_name,
+            nodes.GenericType: self.translate_method_call_name,
             nodes.VectorType: self.translate_vector_type_method_call,
             nodes.DictType: lambda _: NotImplementedError,
             nodes.OptionalType: lambda _: NotImplementedError,
@@ -73,6 +74,7 @@ class Translator(unittest.TestCase):
             nodes.FunctionType: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
+            nodes.GenericType: self.translate_generic_type_field,
         }
 
         self.node_dispatcher = {
@@ -124,7 +126,8 @@ class Translator(unittest.TestCase):
             nodes.DictType: self.translate_dict_type,
             nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
             nodes.FunctionType: self.translate_function_type,
-            nodes.StructType: lambda type_: cpp_nodes.Id(type_.name.member),
+            nodes.StructType: self.translate_struct_type,
+            nodes.GenericType: self.translate_generic_type,
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(self.type_dispatcher, type(type_), type_)
@@ -179,6 +182,13 @@ class Translator(unittest.TestCase):
             return cpp_nodes.ArrowField(base, field.field)
         return cpp_nodes.DotField(base, field.field)
 
+    def translate_generic_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
+        base = self.translate_expression(field.base)
+        assert base is not None
+        if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
+            return cpp_nodes.ArrowField(base, field.field)
+        return cpp_nodes.DotField(base, field.field)
+
     def translate_vector_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert isinstance(field.base_type, nodes.VectorType)
         if field.field == nodes.VectorFields.length.value:
@@ -220,9 +230,12 @@ class Translator(unittest.TestCase):
             return dispatch(
                 self.translate_builtin_function_dispatcher, function_call.function_path.value, function_call.args
             )
+        init_params: t.List[cpp_nodes.Type] = []
+        if function_call.instance_call_params:
+            init_params = [self.translate_type(param) for param in function_call.instance_call_params]
         return cpp_nodes.FunctionCall(
             self.translate_expression(function_call.function_path),
-            [self.translate_expression(arg) for arg in function_call.args]
+            [self.translate_expression(arg) for arg in function_call.args], init_params
         )
 
     def translate_vector_literal(self, literal: nodes.VectorLiteral) -> cpp_nodes.Expression:
@@ -464,6 +477,18 @@ class Translator(unittest.TestCase):
             self.translate_type(function_type.return_type),
             [self.translate_type(arg.type) for arg in function_type.args]
         )
+
+    def translate_struct_type(self, struct_type: nodes.StructType) -> cpp_nodes.Type:
+        base = self.translate_type(struct_type.name)
+        if struct_type.params:
+            return cpp_nodes.GenericType(base, [self.translate_type(param) for param in struct_type.params])
+        return base
+
+    def translate_generic_type(self, generic_type: nodes.GenericType) -> cpp_nodes.Type:
+        base = self.translate_type(generic_type.name)
+        if generic_type.params:
+            return cpp_nodes.GenericType(base, [self.translate_type(param) for param in generic_type.params])
+        return base
 
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
         if builtin_type.value in nodes.BuiltinType.finite_int_types():
