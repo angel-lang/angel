@@ -169,6 +169,12 @@ Structures can be generic.
 ```
 struct Stack(A):
     data: [A]
+
+    fun push(element: A) -> A:
+        self.data.append(element)
+        return element
+
+let stack = Stack([1, 2, 3])
 ```
 
 ## Reading Input and Writing Output
