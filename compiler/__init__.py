@@ -47,7 +47,7 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     parser = parsers.Parser()
     clarifier = clarification.Clarifier()
     analyzer = analysis.Analyzer(lines, env=env)
-    repl_evaluator = repl_evaluation.REPLEvaluator()
+    repl_evaluator = repl_evaluation.REPLEvaluator(env=env)
     try:
         return repl_evaluator.estimate_ast(
             analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))

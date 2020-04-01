@@ -49,6 +49,7 @@ class Evaluator(unittest.TestCase):
 
         add_dispatcher = {
             (enodes.Int, enodes.Int): self.estimate_add_ints,
+            (enodes.String, enodes.String): self.estimate_add_strings,
         }
 
         sub_dispatcher = {
@@ -270,6 +271,9 @@ class Evaluator(unittest.TestCase):
         new_type = self.infer_type(nodes.IntegerLiteral(str(value)))
         assert isinstance(new_type, nodes.BuiltinType)
         return enodes.Int(value, new_type)
+
+    def estimate_add_strings(self, x: enodes.String, y: enodes.String) -> enodes.String:
+        return enodes.String(x.value + y.value)
 
     def estimate_sub_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
         value = x.value - y.value
