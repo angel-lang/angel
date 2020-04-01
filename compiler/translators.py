@@ -77,6 +77,18 @@ class Translator(unittest.TestCase):
             nodes.GenericType: self.translate_generic_type_field,
         }
 
+        self.subscript_dispatcher = {
+            nodes.Name: lambda _: NotImplementedError,
+            nodes.BuiltinType: self.translate_builtin_type_subscript,
+            nodes.VectorType: lambda _: NotImplementedError,
+            nodes.DictType: lambda _: NotImplementedError,
+            nodes.OptionalType: lambda _: NotImplementedError,
+            nodes.FunctionType: lambda _: NotImplementedError,
+            nodes.TemplateType: lambda _: NotImplementedError,
+            nodes.StructType: lambda _: NotImplementedError,
+            nodes.GenericType: lambda _: NotImplementedError,
+        }
+
         self.node_dispatcher = {
             nodes.ConstantDeclaration: self.translate_constant_declaration,
             nodes.VariableDeclaration: self.translate_variable_declaration,
@@ -111,6 +123,7 @@ class Translator(unittest.TestCase):
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
             nodes.Cast: self.translate_cast,
             nodes.Field: self.translate_field,
+            nodes.Subscript: self.translate_subscript,
             nodes.SpecialName: self.translate_special_name,
             nodes.BuiltinFunc: self.translate_builtin_func,
             nodes.ConstantDeclaration: self.translate_constant_declaration,
@@ -175,6 +188,10 @@ class Translator(unittest.TestCase):
         assert field.base_type is not None
         return dispatch(self.field_dispatcher, type(field.base_type), field)
 
+    def translate_subscript(self, subscript: nodes.Subscript) -> cpp_nodes.Expression:
+        assert subscript.base_type is not None
+        return dispatch(self.subscript_dispatcher, type(subscript.base_type), subscript)
+
     def translate_name_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         base = self.translate_expression(field.base)
         assert base is not None
@@ -215,6 +232,15 @@ class Translator(unittest.TestCase):
             assert 0, f"Field 'String.{field.field}' is not supported"
         else:
             assert 0, f"Fields for '{field.base_type.to_code()}' are not supported"
+
+    def translate_builtin_type_subscript(self, subscript: nodes.Subscript) -> cpp_nodes.Expression:
+        assert isinstance(subscript.base_type, nodes.BuiltinType)
+        if subscript.base_type.value == nodes.BuiltinType.string.value:
+            return cpp_nodes.Subscript(
+                self.translate_expression(subscript.base), self.translate_expression(subscript.index)
+            )
+        else:
+            assert 0, f"Subscript of '{subscript.base_type.to_code()}' is not supported"
 
     def translate_special_name(self, name: nodes.SpecialName) -> cpp_nodes.Expression:
         return {
@@ -525,4 +551,5 @@ class Translator(unittest.TestCase):
         self.assertEqual(builtin_funcs, set(self.translate_builtin_function_dispatcher.keys()))
 
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.field_dispatcher.keys()))
+        self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.subscript_dispatcher.keys()))
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.method_call_dispatcher.keys()))

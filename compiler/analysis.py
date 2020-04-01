@@ -22,6 +22,7 @@ class Analyzer(unittest.TestCase):
         self.assignment_dispatcher = {
             nodes.Name: self.check_name_reassignment,
             nodes.Field: self.check_field_reassignment,
+            nodes.Subscript: self.check_subscript_reassignment,
         }
 
         self.node_dispatcher = {
@@ -272,6 +273,10 @@ class Analyzer(unittest.TestCase):
             raise errors.AngelConstantReassignment(left, self.get_code(), self.get_code(entry.line))
 
     def check_field_reassignment(self, left: nodes.Field) -> None:
+        # @WIP
+        pass
+
+    def check_subscript_reassignment(self, left: nodes.Subscript) -> None:
         # @WIP
         pass
 

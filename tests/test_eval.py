@@ -56,6 +56,13 @@ class TestEval(unittest.TestCase):
         ])
         self.assertEqual(output, ["Hello, John"])
 
+    def test_string_subscript(self):
+        result, output = self.eval([
+            'let name = "John"',
+            'print(name[0])'
+        ])
+        self.assertEqual(output, ["J"])
+
     def test_false_literal(self):
         result, output = self.eval([
             'print(False)',

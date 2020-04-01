@@ -95,14 +95,19 @@ class Field(AssignmentLeft):
     field: str
     base_type: t.Optional[Type] = None
 
-    def __init__(self, line: int, base: Expression, field: str, base_type: t.Optional[Type] = None):
-        self.line = line
-        self.base = base
-        self.field = field
-        self.base_type = base_type
-
     def to_code(self, indentation_level: int = 0) -> str:
         return f"{self.base.to_code()}.{self.field}"
+
+
+@dataclass
+class Subscript(AssignmentLeft):
+    line: int
+    base: Expression
+    index: Expression
+    base_type: t.Optional[Type] = None
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.base.to_code()}[{self.index.to_code()}]"
 
 
 @dataclass

@@ -50,6 +50,11 @@ class FieldTrailer(Trailer):
     field: str
 
 
+@dataclass
+class SubscriptTrailer(Trailer):
+    index: nodes.Expression
+
+
 class OptionalTypeTrailer(Trailer):
     pass
 
@@ -439,6 +444,8 @@ class Parser:
         while trailer is not None:
             if isinstance(trailer, FieldTrailer):
                 atom = nodes.Field(trailer.line, atom, trailer.field)
+            elif isinstance(trailer, SubscriptTrailer):
+                atom = nodes.Subscript(trailer.line, atom, trailer.index)
             else:
                 self.restore_state(state)
                 return None
@@ -571,6 +578,8 @@ class Parser:
                 atom = nodes.FunctionCall(trailer.line, atom, trailer.args)
             elif isinstance(trailer, FieldTrailer):
                 atom = nodes.Field(trailer.line, atom, trailer.field)
+            elif isinstance(trailer, SubscriptTrailer):
+                atom = nodes.Subscript(trailer.line, atom, trailer.index)
             else:
                 raise errors.AngelNotImplemented
             trailer = self.parse_trailer()
@@ -597,6 +606,13 @@ class Parser:
                 if not field:
                     raise errors.AngelSyntaxError("expected identifier", self.get_code())
                 return FieldTrailer(line, field)
+            elif self.parse_raw("["):
+                index = self.parse_expression()
+                if not index:
+                    raise errors.AngelSyntaxError("expected expression", self.get_code())
+                if not self.parse_raw("]"):
+                    raise errors.AngelSyntaxError("expected ']'", self.get_code())
+                return SubscriptTrailer(line, index)
             return None
         return TupleTrailer(line, args)
 

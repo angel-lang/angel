@@ -27,6 +27,7 @@ class Evaluator(unittest.TestCase):
             nodes.Name: self.estimate_name,
             nodes.SpecialName: self.estimate_special_name,
             nodes.Field: self.estimate_field,
+            nodes.Subscript: self.estimate_subscript,
             nodes.BinaryExpression: self.estimate_binary_expression,
             nodes.Cast: self.estimate_cast,
             nodes.FunctionCall: self.estimate_function_call,
@@ -96,6 +97,7 @@ class Evaluator(unittest.TestCase):
         self.assignment_dispatcher = {
             nodes.Name: self.estimate_name_assignment,
             nodes.Field: self.estimate_field_assignment,
+            nodes.Subscript: self.estimate_subscript_assignment,
         }
 
         self.node_dispatcher = {
@@ -191,6 +193,7 @@ class Evaluator(unittest.TestCase):
 
     def estimate_field_assignment(self, field: nodes.Field, value: nodes.Expression) -> None:
         estimated_value = self.estimate_expression(value)
+        # @Cleanup: Move to dispatcher
         if isinstance(field.base, nodes.Name):
             assert not field.base.module
             base_entry = self.env[field.base.member]
@@ -204,6 +207,24 @@ class Evaluator(unittest.TestCase):
             base_entry.estimated_value.fields[field.field] = estimated_value
         else:
             assert 0, f"Cannot estimate field assignment with base '{field.base}'"
+
+    def estimate_subscript_assignment(self, subscript: nodes.Subscript, value: nodes.Expression) -> None:
+        estimated_value = self.estimate_expression(value)
+        estimated_index = self.estimate_expression(subscript.index)
+        assert isinstance(estimated_index, enodes.Int)
+        assert isinstance(estimated_value, enodes.Char)
+        # @Cleanup: Move to dispatcher
+        if isinstance(subscript.base, nodes.Name):
+            assert not subscript.base.module
+            base_entry = self.env[subscript.base.member]
+            # @Cleanup: separate this functionality to a function and use it in estimation of subscript
+            assert isinstance(base_entry, entries.VariableEntry)
+            assert isinstance(base_entry.estimated_value, enodes.String)
+            new_value = list(base_entry.estimated_value.value)
+            new_value[estimated_index.value] = estimated_value.value
+            base_entry.estimated_value.value = "".join(new_value)
+        else:
+            assert 0, f"Cannot estimate subscript with base '{subscript.base}'"
 
     def estimate_while_statement(self, statement: nodes.While) -> t.Optional[enodes.Expression]:
         condition, body, assignment = self.desugar_if_let(statement.condition, statement.body)
@@ -317,6 +338,7 @@ class Evaluator(unittest.TestCase):
 
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:
         base = self.estimate_expression(field.base)
+        # @Cleanup: Move to dispatcher
         # @Cleanup: common functionality for String, Vector and Dict
         if isinstance(base, enodes.String):
             estimated = self.estimated_objs.string_fields[field.field]
@@ -343,6 +365,16 @@ class Evaluator(unittest.TestCase):
             return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
         else:
             assert 0, f"Cannot estimate field from '{base}'"
+
+    def estimate_subscript(self, subscript: nodes.Subscript) -> enodes.Expression:
+        base = self.estimate_expression(subscript.base)
+        # @Cleanup: Move to dispatcher
+        if isinstance(base, enodes.String):
+            index = self.estimate_expression(subscript.index)
+            assert isinstance(index, enodes.Int)
+            return enodes.Char(base.value[index.value])
+        else:
+            assert 0, f"Cannot estimate subscript from '{base}'"
 
     def estimate_special_name(self, special_name: nodes.SpecialName) -> enodes.Expression:
         return self.estimate_name(nodes.Name(special_name.value))

@@ -68,6 +68,22 @@ class AngelFieldError(AngelError):
 
 
 @dataclass
+class AngelSubscriptError(AngelError):
+    instance: nodes.Expression
+    instance_type: nodes.Type
+    index: nodes.Expression
+    code: Code
+
+    def __str__(self) -> str:
+        return "\n".join((
+            (f"Subscript Error: '{self.instance.to_code()}' of type '{self.instance_type.to_code()}' "
+             f"cannot be subscripted by '{self.index.to_code()}'"),
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelTypeError(AngelError):
     message: str
     code: Code
