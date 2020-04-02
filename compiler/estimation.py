@@ -373,6 +373,10 @@ class Evaluator(unittest.TestCase):
             index = self.estimate_expression(subscript.index)
             assert isinstance(index, enodes.Int)
             return enodes.Char(base.value[index.value])
+        elif isinstance(base, enodes.Vector):
+            index = self.estimate_expression(subscript.index)
+            assert isinstance(index, enodes.Int)
+            return base.elements[index.value]
         else:
             assert 0, f"Cannot estimate subscript from '{base}'"
 

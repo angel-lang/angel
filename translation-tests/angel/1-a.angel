@@ -70,8 +70,14 @@ let parts = names.split(',')
 
 let name = "Mike"
 
+// String subscript
+print(name[1])
+
 // String.length
 let length = name.length
+
+// Vector subscript
+print(parts[2])
 
 var age: I8 = 20
 age = 21

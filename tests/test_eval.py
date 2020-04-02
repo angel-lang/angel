@@ -138,6 +138,13 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['[1, 2, 3]'])
 
+    def test_vector_subscript(self):
+        result, output = self.eval([
+            'let names = ["John"]',
+            'print(names[0])'
+        ])
+        self.assertEqual(output, ["John"])
+
     def test_dict(self):
         code = ['print(["a": 1, "c": 0, "b": 3])']
         result, output = self.eval(code)

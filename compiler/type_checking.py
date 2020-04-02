@@ -534,7 +534,8 @@ class TypeChecker(unittest.TestCase):
             self, base_type: nodes.VectorType, subscript: nodes.Subscript, mapping: Mapping,
             supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
-        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+        self.infer_type(subscript.index, nodes.BuiltinType.u64)
+        return to_inference_result(self.unify_types(base_type.subtype, supertype, mapping))
 
     def infer_subscript_of_dict_type(
             self, base_type: nodes.DictType, subscript: nodes.Subscript, mapping: Mapping,

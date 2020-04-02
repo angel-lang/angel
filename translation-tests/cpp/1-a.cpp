@@ -110,7 +110,9 @@ int main() {
   std::string names = "John,Mike,Kale";
   std::vector<std::string> parts = __string_split_char(names, ',');
   std::string name = "Mike";
+  __print(name[1]);
   std::uint_fast64_t length = name.length();
+  __print(parts[2]);
   std::int_fast8_t age = 20;
   age = 21;
   __print(name);

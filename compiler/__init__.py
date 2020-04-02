@@ -5,7 +5,7 @@ import typing as t
 import subprocess
 
 from . import (
-    parsers, translators, generators, environment, errors, clarification, estimation, repl_evaluation, analysis
+    parsers, translators, generators, environment, errors, clarification, repl_evaluation, analysis
 )
 
 
