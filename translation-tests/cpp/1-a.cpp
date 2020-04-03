@@ -85,6 +85,7 @@ int main() {
   std::map<std::string, std::int_fast8_t> __tmp_1;
   __tmp_1["a"] = 1;
   std::map<std::string, std::int_fast8_t> dictWithType = __tmp_1;
+  __print((std::int_fast16_t)(dictWithoutType["a"]));
   std::optional<void*> someOptional = std::nullopt;
   std::optional<std::string> optionalName = "John";
   if (optionalName == std::nullopt) {

@@ -80,8 +80,8 @@ class Translator(unittest.TestCase):
         self.subscript_dispatcher = {
             nodes.Name: lambda _: NotImplementedError,
             nodes.BuiltinType: self.translate_builtin_type_subscript,
-            nodes.VectorType: self.translate_vector_type_subscript,
-            nodes.DictType: lambda _: NotImplementedError,
+            nodes.VectorType: self.translate_collection_type_subscript,
+            nodes.DictType: self.translate_collection_type_subscript,
             nodes.OptionalType: lambda _: NotImplementedError,
             nodes.FunctionType: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
@@ -242,7 +242,7 @@ class Translator(unittest.TestCase):
         else:
             assert 0, f"Subscript of '{subscript.base_type.to_code()}' is not supported"
 
-    def translate_vector_type_subscript(self, subscript: nodes.Subscript) -> cpp_nodes.Expression:
+    def translate_collection_type_subscript(self, subscript: nodes.Subscript) -> cpp_nodes.Expression:
         return cpp_nodes.Subscript(
             self.translate_expression(subscript.base), self.translate_expression(subscript.index)
         )

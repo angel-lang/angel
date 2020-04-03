@@ -145,6 +145,13 @@ class TestEval(unittest.TestCase):
         ])
         self.assertEqual(output, ["John"])
 
+    def test_dict_subscript(self):
+        result, output = self.eval([
+            'let names = ["John": 1, "Mike": 34]',
+            'print(names["Mike"])'
+        ])
+        self.assertEqual(output, ["34"])
+
     def test_dict(self):
         code = ['print(["a": 1, "c": 0, "b": 3])']
         result, output = self.eval(code)
