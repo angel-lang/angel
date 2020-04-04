@@ -210,7 +210,7 @@ class Translator(unittest.TestCase):
         assert isinstance(field.base_type, nodes.VectorType)
         if field.field == nodes.VectorFields.length.value:
             self.add_include(cpp_nodes.StdModule.vector)
-            return cpp_nodes.MethodCall(self.translate_expression(field.base), "length", [])
+            return cpp_nodes.MethodCall(self.translate_expression(field.base), "size", [])
         else:
             assert 0, f"Cannot translate '{field.field}' field on Vector type"
 

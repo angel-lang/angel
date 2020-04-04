@@ -158,3 +158,6 @@ struct Stack(A):
 
 let stack = Stack([1, 2, 3])
 let element = stack.data[2]
+let same = stack.push(4)
+print(stack.data.length)
+print(stack.depth())

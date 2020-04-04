@@ -276,9 +276,13 @@ class TestEval(unittest.TestCase):
 
             'let stack = Stack([1, 2, 3])',
             'print(stack.data[1])',
+            'let same = stack.push(4)',
+            'print(same)',
+            'print(stack.data.length)',
+            'print(stack.depth())',
         ]
         result, output = self.eval(code)
-        self.assertEqual(output, ["2"])
+        self.assertEqual(output, ["2", "4", "4", "4"])
 
 
 if __name__ == '__main__':

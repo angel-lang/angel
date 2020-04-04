@@ -51,7 +51,7 @@ class Stack {
     this->data.push_back(element);
     return element;
   }
-  std::uint_fast64_t depth() { return this->data.length(); }
+  std::uint_fast64_t depth() { return this->data.size(); }
 };
 int main() {
   std::int_fast8_t constantWithEverything = 1;
@@ -145,5 +145,8 @@ int main() {
   __print(user.isAdmin);
   Stack<std::int_fast8_t> stack = Stack<std::int_fast8_t>({1, 2, 3});
   std::int_fast8_t element = stack.data[2];
+  std::int_fast8_t same = stack.push(4);
+  __print(stack.data.size());
+  __print(stack.depth());
   return 0;
 }
