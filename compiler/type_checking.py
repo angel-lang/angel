@@ -394,7 +394,7 @@ class TypeChecker(unittest.TestCase):
             self.infer_type(value, arg.type)
         return to_inference_result(self.unify_types(function_type.return_type, supertype, mapping))
 
-    def basic_struct_mapping(self, struct_type: nodes.StructType) -> Mapping:
+    def basic_struct_mapping(self, struct_type: t.Union[nodes.GenericType, nodes.StructType]) -> Mapping:
         """Map struct parameter names to passed parameters.
 
         Example:
@@ -457,8 +457,9 @@ class TypeChecker(unittest.TestCase):
     def infer_field_of_generic_type(
             self, base_type: nodes.GenericType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
-        # Don't support generic types for now
-        return self.infer_field_of_name_type(base_type.name, field, mapping, supertype)
+        struct_mapping = self.basic_struct_mapping(base_type)
+        struct_mapping.update(mapping)
+        return self.infer_field_of_name_type(base_type.name, field, struct_mapping, supertype)
 
     def infer_field_of_name_type(
             self, base_type: nodes.Name, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]

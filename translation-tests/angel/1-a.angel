@@ -42,6 +42,9 @@ let dictWithType: [String: I8] = ["a": 1]
 // Dict subscript
 print(dictWithoutType["a"])
 
+// Dict length
+print(dictWithoutType.length)
+
 // Optional type
 let someOptional = Optional.None
 let optionalName: String? = Optional.Some("John")
@@ -153,7 +156,5 @@ struct Stack(A):
     fun depth -> U64:
         return self.data.length
 
-let d = ["a": 1, "b": 2]
-print(d.length)
-
 let stack = Stack([1, 2, 3])
+let element = stack.data[2]

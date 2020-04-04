@@ -86,6 +86,7 @@ int main() {
   __tmp_1["a"] = 1;
   std::map<std::string, std::int_fast8_t> dictWithType = __tmp_1;
   __print((std::int_fast16_t)(dictWithoutType["a"]));
+  __print(dictWithoutType.size());
   std::optional<void*> someOptional = std::nullopt;
   std::optional<std::string> optionalName = "John";
   if (optionalName == std::nullopt) {
@@ -142,11 +143,7 @@ int main() {
   __print(user.isAdmin);
   user.makeAdmin();
   __print(user.isAdmin);
-  std::map<std::string, std::int_fast8_t> __tmp_4;
-  __tmp_4["a"] = 1;
-  __tmp_4["b"] = 2;
-  std::map<std::string, std::int_fast8_t> d = __tmp_4;
-  __print(d.size());
   Stack<std::int_fast8_t> stack = Stack<std::int_fast8_t>({1, 2, 3});
+  std::int_fast8_t element = stack.data[2];
   return 0;
 }
