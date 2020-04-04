@@ -13,14 +13,14 @@ DEBUG = False
 
 
 def compile_file(file_path: str) -> str:
-    """Translates Angel code contained in `file_path` into C++ code and returns it."""
+    """Translate Angel code contained in `file_path` into C++ code and returns it."""
     with open(file_path) as file:
         contents = file.read()
     return compile_string(contents)
 
 
 def compile_string(string: str) -> str:
-    """Translates Angel code represented by `string` into C++ code and returns it."""
+    """Translate Angel code represented by `string` into C++ code and returns it."""
     lines = string.split("\n")
     parser = parsers.Parser()
     clarifier = clarification.Clarifier()
@@ -42,7 +42,7 @@ def compile_string(string: str) -> str:
 
 
 def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
-    """Evaluates Angel code represented by `string` and returns the result."""
+    """Evaluate Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
     parser = parsers.Parser()
     clarifier = clarification.Clarifier()
@@ -131,7 +131,7 @@ class REPL(cmd.Cmd):
 
 
 def repl():
-    """Starts Angel REPL."""
+    """Start Angel REPL."""
     try:
         REPL().cmdloop()
     except KeyboardInterrupt:

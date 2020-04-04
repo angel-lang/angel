@@ -395,7 +395,7 @@ class TypeChecker(unittest.TestCase):
         return to_inference_result(self.unify_types(function_type.return_type, supertype, mapping))
 
     def basic_struct_mapping(self, struct_type: nodes.StructType) -> Mapping:
-        """Maps struct parameter names to passed parameters.
+        """Map struct parameter names to passed parameters.
 
         Example:
         struct A(B, C)

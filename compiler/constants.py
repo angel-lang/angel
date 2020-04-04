@@ -1,7 +1,7 @@
 from . import nodes, estimation_nodes as enodes
 
 
-builtin_funcs={
+builtin_funcs = {
     nodes.BuiltinFunc.print.value: enodes.Function(
         [nodes.Argument("value", nodes.BuiltinType.convertible_to_string)], nodes.BuiltinType.void,
         specification=lambda value: enodes.Void()
@@ -41,7 +41,7 @@ def dict_length(d: enodes.Expression) -> enodes.Expression:
         assert 0, f"Cannot estimate Dict.length for self='{d}'"
 
 
-string_fields={
+string_fields = {
     nodes.StringFields.split.value: enodes.Function(
         [nodes.Argument("by", nodes.BuiltinType.char)], nodes.VectorType(nodes.BuiltinType.string),
         specification=string_split

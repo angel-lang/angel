@@ -39,6 +39,7 @@ class AssignmentLeft(Expression):
 @dataclass
 class Node:
     """Base class for statements."""
+
     line: int
 
     def to_code(self, indentation_level: int = 0) -> str:
@@ -634,8 +635,8 @@ class DictFields(enum.Enum):
 
     def as_type(self, _: Type, __: Type) -> Type:
         return {
-             DictFields.length.value: BuiltinType.u64,
-         }[self.value]
+            DictFields.length.value: BuiltinType.u64,
+        }[self.value]
 
 
 @dataclass
