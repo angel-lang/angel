@@ -284,6 +284,19 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ["2", "4", "4", "4"])
 
+    def test_color_algebraic(self):
+        code = [
+            'algebraic Color:',
+            '    struct Red:',
+            '        data: I8',
+            '    struct Blue:',
+            '        data: I8',
+            '    struct Green:',
+            '        data: I8',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -39,8 +39,14 @@ apply_mapping_dispatcher = {
     nodes.StructType: lambda struct, mapping: nodes.StructType(
         struct.name, [apply_mapping(param, mapping) for param in struct.params]
     ),
+    nodes.AlgebraicType: lambda algebraic, mapping: nodes.AlgebraicType(
+        algebraic.name, [apply_mapping(param, mapping) for param in algebraic.params], algebraic.constructor_types
+    ),
     nodes.GenericType: lambda generic, mapping: nodes.GenericType(
         generic.name, [apply_mapping(param, mapping) for param in generic.params]
+    ),
+    nodes.AlgebraicConstructor: lambda algebraic, mapping: nodes.AlgebraicConstructor(
+        t.cast(nodes.Name, apply_mapping(algebraic.algebraic, mapping)), apply_mapping(algebraic.constructor, mapping)
     ),
     nodes.DictType: lambda dict_type, mapping: nodes.DictType(
         apply_mapping(dict_type.key_type, mapping), apply_mapping(dict_type.value_type, mapping)

@@ -161,3 +161,27 @@ let element = stack.data[2]
 let same = stack.push(4)
 print(stack.data.length)
 print(stack.depth())
+
+
+// Algebraics
+algebraic Color:
+    struct Red:
+        data: I8
+
+        init(data: I8):
+            self.data = data
+
+    struct Blue:
+        data: I8
+
+        init(data: I8):
+            self.data = data
+
+    struct Green:
+        data: I8
+
+        init(data: I8):
+            self.data = data
+
+let color1 = Color.Red(120)
+let color2: Color = Color.Blue(0)

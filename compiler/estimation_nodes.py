@@ -128,6 +128,23 @@ class Struct(Expression):
 
 
 @dataclass
+class Algebraic(Expression):
+    name: nodes.Name
+
+    def to_code(self) -> str:
+        return f"Algebraic({self.name.to_code()})"
+
+
+@dataclass
+class AlgebraicConstructor(Expression):
+    name: nodes.Name
+    constructor: nodes.Name
+
+    def to_code(self) -> str:
+        return f"AlgebraicConstructor({self.name.to_code()}, constructor={self.constructor.to_code()})"
+
+
+@dataclass
 class Instance(Expression):
     type: nodes.Name
     fields: t.Dict[str, Expression] = field(default_factory=dict)

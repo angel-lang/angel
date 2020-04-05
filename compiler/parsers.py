@@ -74,14 +74,10 @@ class Parser:
     additional_statement_parsers: t.List[t.Callable[[], t.Optional[nodes.Node]]]
 
     def __init__(self):
-        base_body_parsers = [
+        self.base_body_parsers = [
             self.parse_constant_declaration, self.parse_variable_declaration,
             self.parse_while_statement, self.parse_if_statement, self.parse_assignment, self.parse_function_call
         ]
-        self.while_statement_body_parsers = base_body_parsers
-        self.if_statement_body_parsers = base_body_parsers
-        self.function_declaration_statement_body_parsers = base_body_parsers
-        self.init_declaration_statement_body_parsers = base_body_parsers
 
     def parse(self, string: str) -> nodes.AST:
         self.code = string
@@ -150,13 +146,15 @@ class Parser:
             return name, None, value
 
     def parse_function_call(self) -> t.Optional[nodes.FunctionCall]:
+        state = self.backup_state()
         call = self.parse_expression()
         if call is None:
             return None
         if isinstance(call, nodes.FunctionCall):
             return call
         else:
-            raise errors.AngelNotImplemented
+            self.restore_state(state)
+            return None
 
     def parse_assignment(self) -> t.Optional[nodes.Assignment]:
         state = self.backup_state()
@@ -184,7 +182,7 @@ class Parser:
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
         self.additional_statement_parsers.append(self.parse_break)
-        body = self.parse_body(self.additional_statement_parsers + self.while_statement_body_parsers)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
@@ -198,7 +196,7 @@ class Parser:
         condition = self.parse_if_condition()
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
-        body = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         elifs = []
@@ -209,7 +207,7 @@ class Parser:
             elif_condition = self.parse_if_condition()
             if not self.parse_raw(":"):
                 raise errors.AngelSyntaxError("expected ':'", self.get_code())
-            elif_body = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
+            elif_body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
             if not elif_body:
                 raise errors.AngelSyntaxError("expected statement", self.get_code())
             elifs.append((elif_condition, elif_body))
@@ -217,7 +215,7 @@ class Parser:
             self.spaces()
         else_: nodes.AST = []
         if self.parse_raw("else:"):
-            else_ = self.parse_body(self.additional_statement_parsers + self.if_statement_body_parsers)
+            else_ = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
             if not else_:
                 raise errors.AngelSyntaxError("expected statement", self.get_code())
         elif elifs:
@@ -247,7 +245,7 @@ class Parser:
             args = []
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
-        body = self.parse_body(self.additional_statement_parsers + self.init_declaration_statement_body_parsers)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return nodes.InitDeclaration(line, args, body)
@@ -275,7 +273,7 @@ class Parser:
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
         self.additional_statement_parsers.append(self.parse_return_statement)
-        body = self.parse_body(self.additional_statement_parsers + self.function_declaration_statement_body_parsers)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
@@ -334,11 +332,11 @@ class Parser:
         if parameters is None:
             parameters = []
         if not self.parse_raw(":"):
-            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+            return self.make_struct_declaration(line, name, parameters, [])
         self.additional_statement_parsers.append(self.parse_init_declaration)
         self.additional_statement_parsers.append(self.parse_function_declaration)
         self.additional_statement_parsers.append(self.parse_field_declaration)
-        body = self.parse_body(self.additional_statement_parsers + self.function_declaration_statement_body_parsers)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         self.additional_statement_parsers.pop()
         self.additional_statement_parsers.pop()
@@ -346,9 +344,27 @@ class Parser:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return self.make_struct_declaration(line, name, parameters, body)
 
+    def parse_algebraic_declaration(self) -> t.Optional[nodes.AlgebraicDeclaration]:
+        line = self.position.line
+        if not self.parse_raw("algebraic"):
+            return None
+        self.spaces()
+        name = self.parse_name()
+        if name is None:
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        parameters: nodes.Parameters = []
+        if not self.parse_raw(":"):
+            return self.make_algebraic_declaration(line, name, parameters, [])
+        self.additional_statement_parsers.append(self.parse_struct_declaration)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
+        self.additional_statement_parsers.pop()
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return self.make_algebraic_declaration(line, name, parameters, body)
+
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
-        parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
+        parse_algebraic_declaration, parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
 
     def make_struct_declaration(
@@ -376,6 +392,17 @@ class Parser:
         return nodes.StructDeclaration(
             line, name, parameters, private_fields, public_fields, init_declarations, private_methods, public_methods
         )
+
+    def make_algebraic_declaration(
+        self, line: int, name: nodes.Name, parameters: nodes.Parameters, body: nodes.AST
+    ) -> nodes.AlgebraicDeclaration:
+        constructors = []
+        for node in body:
+            if isinstance(node, nodes.StructDeclaration):
+                constructors.append(node)
+            else:
+                raise errors.AngelSyntaxError("expected method or constructor declaration", self.get_code(node.line))
+        return nodes.AlgebraicDeclaration(line, name, parameters, constructors, public_methods=[], private_methods=[])
 
     def parse_body(self, statement_parsers) -> nodes.AST:
         def mega_parser() -> t.Optional[nodes.Node]:

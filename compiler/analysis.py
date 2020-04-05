@@ -30,6 +30,7 @@ class Analyzer(unittest.TestCase):
             nodes.VariableDeclaration: self.analyze_variable_declaration,
             nodes.FunctionDeclaration: self.analyze_function_declaration,
             nodes.StructDeclaration: self.analyze_struct_declaration,
+            nodes.AlgebraicDeclaration: self.analyze_algebraic_declaration,
             nodes.FieldDeclaration: self.analyze_field_declaration,
             nodes.MethodDeclaration: self.analyze_method_declaration,
             nodes.InitDeclaration: self.analyze_init_declaration,
@@ -109,6 +110,19 @@ class Analyzer(unittest.TestCase):
             init_declarations, private_methods, public_methods
         )
 
+    def analyze_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> nodes.AlgebraicDeclaration:
+        self.env.add_algebraic(declaration.line, declaration.name, declaration.parameters)
+        self.env.inc_nesting(declaration.name)
+        self.env.add_parameters(declaration.line, declaration.parameters)
+        # list(...) for mypy
+        constructors = t.cast(t.List[nodes.StructDeclaration], self.analyze_ast(list(declaration.constructors)))
+        private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
+        public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
+        self.env.dec_nesting(declaration.name)
+        return nodes.AlgebraicDeclaration(
+            declaration.line, declaration.name, declaration.parameters, constructors, private_methods, public_methods
+        )
+
     def generate_default_init(self, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]):
         if not init_declarations:
             init_declaration_body: nodes.AST = []
@@ -152,9 +166,7 @@ class Analyzer(unittest.TestCase):
         self.env.add_method(declaration.line, declaration.name, args, return_type)
         self.env.inc_nesting()
         self.function_return_types.append(return_type)
-        self.env.add_variable(
-            declaration.line, nodes.Name(nodes.SpecialName.self.value), self.env.parents[-1], value=None
-        )
+        self.env.add_self(declaration.line)
         for arg in args:
             self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
         body = self.analyze_ast(declaration.body)
@@ -173,9 +185,7 @@ class Analyzer(unittest.TestCase):
             args.append(argument)
         self.env.add_init_declaration(declaration.line, args)
         self.env.inc_nesting()
-        self.env.add_variable(
-            declaration.line, nodes.Name(nodes.SpecialName.self.value), self.env.parents[-1], value=None
-        )
+        self.env.add_self(declaration.line, is_variable=True)
         for arg in args:
             self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
         body = self.analyze_ast(declaration.body)

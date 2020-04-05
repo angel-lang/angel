@@ -51,5 +51,13 @@ class StructEntry(Entry):
 
 
 @dataclass
+class AlgebraicEntry(Entry):
+    name: nodes.Name
+    params: nodes.Parameters
+    constructors: t.Dict[str, StructEntry]
+    methods: t.Dict[str, FunctionEntry]
+
+
+@dataclass
 class ParameterEntry(Entry):
     name: nodes.Name

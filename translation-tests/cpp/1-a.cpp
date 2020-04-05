@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 #include "angel_builtins.h"
 #include "angel_string.h"
@@ -52,6 +53,21 @@ class Stack {
     return element;
   }
   std::uint_fast64_t depth() { return this->data.size(); }
+};
+class Color_a_Red {
+ public:
+  std::int_fast8_t data;
+  Color_a_Red(std::int_fast8_t data) { this->data = data; }
+};
+class Color_a_Blue {
+ public:
+  std::int_fast8_t data;
+  Color_a_Blue(std::int_fast8_t data) { this->data = data; }
+};
+class Color_a_Green {
+ public:
+  std::int_fast8_t data;
+  Color_a_Green(std::int_fast8_t data) { this->data = data; }
 };
 int main() {
   std::int_fast8_t constantWithEverything = 1;
@@ -148,5 +164,8 @@ int main() {
   std::int_fast8_t same = stack.push(4);
   __print(stack.data.size());
   __print(stack.depth());
+  Color_a_Red color1 = Color_a_Red(120);
+  std::variant<Color_a_Red, Color_a_Blue, Color_a_Green> color2 =
+      Color_a_Blue(0);
   return 0;
 }

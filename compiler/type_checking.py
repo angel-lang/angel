@@ -100,6 +100,8 @@ class TypeChecker(unittest.TestCase):
             nodes.OptionalType: self.infer_field_of_optional_type,
             nodes.StructType: self.infer_field_of_struct_type,
             nodes.GenericType: self.infer_field_of_generic_type,
+            nodes.AlgebraicConstructor: self.infer_field_of_algebraic_constructor_type,
+            nodes.AlgebraicType: self.infer_field_of_algebraic_type,
         }
 
         self.infer_type_from_subscript_dispatcher = {
@@ -115,6 +117,8 @@ class TypeChecker(unittest.TestCase):
             nodes.OptionalType: self.infer_subscript_of_optional_type,
             nodes.StructType: self.infer_subscript_of_struct_type,
             nodes.GenericType: self.infer_subscript_of_generic_type,
+            nodes.AlgebraicConstructor: self.infer_subscript_of_algebraic_constructor_type,
+            nodes.AlgebraicType: self.infer_subscript_of_algebraic_type,
         }
 
         self.type_inference_dispatcher = {
@@ -162,6 +166,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.Name, nodes.Name): self.unify_name_types,
             (nodes.StructType, nodes.StructType): self.unify_struct_types,
             (nodes.GenericType, nodes.GenericType): self.unify_generic_types,
+            (nodes.AlgebraicConstructor, nodes.AlgebraicConstructor): self.unify_algebraic_constructor_types,
+            (nodes.AlgebraicType, nodes.AlgebraicType): self.unify_algebraic_types,
 
             (nodes.BuiltinType, nodes.VectorType): self.unification_failed,
             (nodes.BuiltinType, nodes.DictType): self.unification_failed,
@@ -171,6 +177,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.BuiltinType, nodes.Name): self.unify_type_with_name,
             (nodes.BuiltinType, nodes.StructType): self.unification_failed,
             (nodes.BuiltinType, nodes.GenericType): self.unification_failed,
+            (nodes.BuiltinType, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.BuiltinType, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
                 UnificationResult(supertype, mapping)
@@ -184,6 +192,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.VectorType, nodes.Name): self.unify_type_with_name,
             (nodes.VectorType, nodes.StructType): self.unification_failed,
             (nodes.VectorType, nodes.GenericType): self.unification_failed,
+            (nodes.VectorType, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.VectorType, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.TemplateType, nodes.BuiltinType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.VectorType): self.unification_template_subtype_success,
@@ -194,6 +204,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.TemplateType, nodes.Name): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.StructType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.GenericType): self.unification_template_subtype_success,
+            (nodes.TemplateType, nodes.AlgebraicConstructor): self.unification_template_subtype_success,
+            (nodes.TemplateType, nodes.AlgebraicType): self.unification_template_subtype_success,
 
             (nodes.DictType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
                 UnificationResult(supertype, mapping)
@@ -207,6 +219,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.DictType, nodes.Name): self.unify_type_with_name,
             (nodes.DictType, nodes.StructType): self.unification_failed,
             (nodes.DictType, nodes.GenericType): self.unification_failed,
+            (nodes.DictType, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.DictType, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.OptionalType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
                 UnificationResult(supertype, mapping)
@@ -220,6 +234,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.OptionalType, nodes.Name): self.unify_type_with_name,
             (nodes.OptionalType, nodes.StructType): self.unification_failed,
             (nodes.OptionalType, nodes.GenericType): self.unification_failed,
+            (nodes.OptionalType, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.OptionalType, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.FunctionType, nodes.BuiltinType): self.unification_failed,
             (nodes.FunctionType, nodes.VectorType): self.unification_failed,
@@ -229,6 +245,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.FunctionType, nodes.Name): self.unify_type_with_name,
             (nodes.FunctionType, nodes.StructType): self.unification_failed,
             (nodes.FunctionType, nodes.GenericType): self.unification_failed,
+            (nodes.FunctionType, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.FunctionType, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.Name, nodes.BuiltinType): self.unification_failed,
             (nodes.Name, nodes.VectorType): self.unification_failed,
@@ -238,6 +256,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.Name, nodes.FunctionType): self.unification_failed,
             (nodes.Name, nodes.StructType): self.unification_failed,
             (nodes.Name, nodes.GenericType): self.unification_failed,
+            (nodes.Name, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.Name, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.StructType, nodes.BuiltinType): self.unification_failed,
             (nodes.StructType, nodes.VectorType): self.unification_failed,
@@ -247,6 +267,8 @@ class TypeChecker(unittest.TestCase):
             (nodes.StructType, nodes.FunctionType): self.unification_failed,
             (nodes.StructType, nodes.GenericType): self.unification_failed,
             (nodes.StructType, nodes.Name): self.unify_type_with_name,
+            (nodes.StructType, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.StructType, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.GenericType, nodes.BuiltinType): self.unification_failed,
             (nodes.GenericType, nodes.VectorType): self.unification_failed,
@@ -256,6 +278,30 @@ class TypeChecker(unittest.TestCase):
             (nodes.GenericType, nodes.FunctionType): self.unification_failed,
             (nodes.GenericType, nodes.StructType): self.unification_failed,
             (nodes.GenericType, nodes.Name): self.unify_type_with_name,
+            (nodes.GenericType, nodes.AlgebraicConstructor): self.unification_failed,
+            (nodes.GenericType, nodes.AlgebraicType): self.unification_failed,
+
+            (nodes.AlgebraicConstructor, nodes.BuiltinType): self.unification_failed,
+            (nodes.AlgebraicConstructor, nodes.VectorType): self.unification_failed,
+            (nodes.AlgebraicConstructor, nodes.DictType): self.unification_failed,
+            (nodes.AlgebraicConstructor, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.AlgebraicConstructor, nodes.OptionalType): self.unification_failed,
+            (nodes.AlgebraicConstructor, nodes.FunctionType): self.unification_failed,
+            (nodes.AlgebraicConstructor, nodes.StructType): self.unification_failed,
+            (nodes.AlgebraicConstructor, nodes.Name): self.unify_algebraic_constructor_with_name,
+            (nodes.AlgebraicConstructor, nodes.GenericType): self.unification_failed,
+            (nodes.AlgebraicConstructor, nodes.AlgebraicType): self.unification_failed,
+
+            (nodes.AlgebraicType, nodes.BuiltinType): self.unification_failed,
+            (nodes.AlgebraicType, nodes.VectorType): self.unification_failed,
+            (nodes.AlgebraicType, nodes.DictType): self.unification_failed,
+            (nodes.AlgebraicType, nodes.TemplateType): self.unification_template_supertype_success,
+            (nodes.AlgebraicType, nodes.OptionalType): self.unification_failed,
+            (nodes.AlgebraicType, nodes.FunctionType): self.unification_failed,
+            (nodes.AlgebraicType, nodes.StructType): self.unification_failed,
+            (nodes.AlgebraicType, nodes.Name): self.unify_type_with_name,
+            (nodes.AlgebraicType, nodes.GenericType): self.unification_failed,
+            (nodes.AlgebraicType, nodes.AlgebraicConstructor): self.unification_failed,
         }
 
         self.replace_template_types_dispatcher = {
@@ -272,8 +318,15 @@ class TypeChecker(unittest.TestCase):
             nodes.OptionalType: lambda optional_type: nodes.OptionalType(
                 self.replace_template_types(optional_type.inner_type)
             ),
+            nodes.AlgebraicConstructor: lambda algebraic: nodes.AlgebraicConstructor(
+                algebraic.algebraic, self.replace_template_types(algebraic.constructor)
+            ),
             nodes.StructType: lambda struct_type: nodes.StructType(
                 struct_type.name, [self.replace_template_types(param) for param in struct_type.params]
+            ),
+            nodes.AlgebraicType: lambda algebraic_type: nodes.AlgebraicType(
+                algebraic_type.name, [self.replace_template_types(param) for param in algebraic_type.params],
+                algebraic_type.constructor_types
             ),
             nodes.GenericType: lambda generic_type: nodes.GenericType(
                 generic_type.name, [self.replace_template_types(param) for param in generic_type.params]
@@ -302,6 +355,14 @@ class TypeChecker(unittest.TestCase):
         elif isinstance(entry, entries.StructEntry):
             params: t.List[nodes.Type] = [self.create_template_type() for _ in entry.params]
             return to_inference_result(self.unify_types(nodes.StructType(entry.name, params), supertype, mapping))
+        elif isinstance(entry, entries.AlgebraicEntry):
+            params = [self.create_template_type() for _ in entry.params]
+            constructor_types = self.build_algebraic_constructor_types_dict(entry)
+            return to_inference_result(
+                self.unify_types(
+                    nodes.AlgebraicType(entry.name, params, constructor_types=constructor_types), supertype, mapping
+                )
+            )
         else:
             assert 0, f"Type inference from name can't handle {type(entry)}"
 
@@ -419,10 +480,16 @@ class TypeChecker(unittest.TestCase):
         method_result = self.infer_type_from_field(
             nodes.Field(call.line, call.instance_path, call.method), supertype=None, mapping=mapping
         )
-        assert isinstance(method_result.type, nodes.FunctionType)
-        instance_result = self.infer_type(call.instance_path, mapping=mapping)
-        call.instance_type = instance_result.type
-        return self.match_with_function_type(method_result.type, call.args, supertype, mapping)
+        if isinstance(method_result.type, nodes.FunctionType):
+            instance_result = self.infer_type(call.instance_path, mapping=mapping)
+            call.instance_type = instance_result.type
+            return self.match_with_function_type(method_result.type, call.args, supertype, mapping)
+        elif isinstance(method_result.type, nodes.AlgebraicConstructor):
+            instance_result = self.infer_type(call.instance_path, mapping=mapping)
+            call.instance_type = instance_result.type
+            return to_inference_result(self.unify_types(method_result.type, supertype, mapping))
+        else:
+            assert 0, f"Cannot infer type from method call with type {method_result.type}"
 
     def infer_type_from_field(
             self, field: nodes.Field, supertype: t.Optional[nodes.Type], mapping: Mapping
@@ -487,6 +554,38 @@ class TypeChecker(unittest.TestCase):
         else:
             raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
 
+    def infer_field_of_algebraic_constructor_type(
+            self, base_type: nodes.AlgebraicConstructor, field: nodes.Field, mapping: Mapping,
+            supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        entry = self.entry_of_algebraic_constructor(base_type)
+        field_entry = entry.fields.get(field.field)
+        if field_entry is None:
+            method_entry = entry.methods.get(field.field)
+            if method_entry is None:
+                raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+            return to_inference_result(
+                self.unify_types(
+                    nodes.FunctionType(method_entry.args, method_entry.return_type), supertype, mapping
+                )
+            )
+        elif isinstance(field_entry, (entries.ConstantEntry, entries.VariableEntry)):
+            return to_inference_result(self.unify_types(field_entry.type, supertype, mapping))
+        else:
+            assert 0, f"Cannot infer type from field with entry {field_entry}"
+
+    def infer_field_of_algebraic_type(
+            self, base_type: nodes.AlgebraicType, field: nodes.Field, mapping: Mapping,
+            supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        if base_type.params:
+            constructor: nodes.Type = nodes.GenericType(nodes.Name(field.field), base_type.params)
+        else:
+            constructor = nodes.Name(field.field)
+        return to_inference_result(
+            self.unify_types(nodes.AlgebraicConstructor(base_type.name, constructor), supertype, mapping)
+        )
+
     def infer_field_of_template_type(
             self, base_type: nodes.TemplateType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
@@ -512,6 +611,12 @@ class TypeChecker(unittest.TestCase):
             self, base_type: nodes.OptionalType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+
+    def infer_subscript_of_algebraic_type(
+            self, base_type: nodes.AlgebraicType, subscript: nodes.Subscript, mapping: Mapping,
+            supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
 
     def infer_subscript_of_function_type(
             self, base_type: nodes.FunctionType, subscript: nodes.Subscript, mapping: Mapping,
@@ -553,6 +658,12 @@ class TypeChecker(unittest.TestCase):
 
     def infer_subscript_of_generic_type(
             self, base_type: nodes.GenericType, subscript: nodes.Subscript, mapping: Mapping,
+            supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+
+    def infer_subscript_of_algebraic_constructor_type(
+            self, base_type: nodes.AlgebraicConstructor, subscript: nodes.Subscript, mapping: Mapping,
             supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
@@ -682,10 +793,32 @@ class TypeChecker(unittest.TestCase):
     ) -> UnificationResult:
         subtype = apply_mapping(subtype, mapping)
         if supertype is None:
+            if isinstance(subtype, nodes.Name):
+                return UnificationResult(self.build_specific_name_type(subtype), mapping)
             return UnificationResult(self.replace_template_types(subtype), mapping)
         supertype = apply_mapping(supertype, mapping)
         result = dispatch(self.unification_dispatcher, (type(subtype), type(supertype)), subtype, supertype, mapping)
         return UnificationResult(self.replace_template_types(result.type), result.mapping)
+
+    def build_specific_name_type(self, name: nodes.Name) -> nodes.Type:
+        entry = self.entry(name)
+        if isinstance(entry, entries.AlgebraicEntry):
+            return nodes.AlgebraicType(name, [], self.build_algebraic_constructor_types_dict(entry))
+        return name
+
+    def build_algebraic_constructor_types_dict(
+        self, entry: entries.AlgebraicEntry
+    ) -> t.Dict[str, nodes.AlgebraicConstructor]:
+        constructor_types = {}
+        for constructor_name, constructor_entry in entry.constructors.items():
+            if constructor_entry.params:
+                constructor_type: nodes.Type = nodes.GenericType(
+                    constructor_entry.name, list(constructor_entry.params)
+                )
+            else:
+                constructor_type = constructor_entry.name
+            constructor_types[constructor_name] = nodes.AlgebraicConstructor(entry.name, constructor_type)
+        return constructor_types
 
     def unify_builtin_types(
             self, subtype: nodes.BuiltinType, supertype: nodes.BuiltinType, mapping: Mapping
@@ -733,6 +866,18 @@ class TypeChecker(unittest.TestCase):
             mapping[supertype.member] = subtype
             return UnificationResult(subtype, mapping)
         return self.unification_failed(subtype, supertype, mapping)
+
+    def unify_algebraic_constructor_with_name(
+        self, subtype: nodes.AlgebraicConstructor, supertype: nodes.Name, mapping: Mapping
+    ) -> UnificationResult:
+        try:
+            result = self.unify_type_with_name(subtype, supertype, mapping)
+        except errors.AngelTypeError:
+            if subtype.algebraic == supertype:
+                return UnificationResult(self.build_specific_name_type(supertype), mapping)
+            return self.unification_failed(subtype, supertype, mapping)
+        else:
+            return result
 
     def unify_optional_types(
             self, subtype: nodes.OptionalType, supertype: nodes.OptionalType, mapping: Mapping
@@ -810,6 +955,48 @@ class TypeChecker(unittest.TestCase):
                 parameters.append(param_result.type)
         return UnificationResult(nodes.GenericType(base_result.type, parameters), mapping)
 
+    def unify_algebraic_types(
+        self, subtype: nodes.AlgebraicType, supertype: nodes.AlgebraicType, mapping: Mapping
+    ) -> UnificationResult:
+        try:
+            base_result = self.unify_types(subtype.name, supertype.name, mapping)
+        except errors.AngelTypeError:
+            raise self.basic_type_error(subtype, supertype)
+        else:
+            mapping = base_result.mapping
+
+        parameters = []
+        for param1, param2 in zip(subtype.params, supertype.params):
+            try:
+                param_result = self.unify_types(param1, param2, mapping)
+            except errors.AngelTypeError:
+                raise self.basic_type_error(subtype, supertype)
+            else:
+                mapping = param_result.mapping
+                parameters.append(param_result.type)
+        return UnificationResult(
+            nodes.AlgebraicType(base_result.type, parameters, supertype.constructor_types), mapping
+        )
+
+    def unify_algebraic_constructor_types(
+        self, subtype: nodes.AlgebraicConstructor, supertype: nodes.AlgebraicConstructor, mapping: Mapping
+    ) -> UnificationResult:
+        try:
+            base_result = self.unify_types(subtype.algebraic, supertype.algebraic, mapping)
+        except errors.AngelTypeError:
+            raise self.basic_type_error(subtype, supertype)
+        else:
+            mapping = base_result.mapping
+
+        try:
+            constructor_result = self.unify_types(subtype.constructor, supertype.constructor, mapping)
+        except errors.AngelTypeError:
+            raise self.basic_type_error(subtype, supertype)
+        else:
+            return UnificationResult(
+                nodes.AlgebraicConstructor(base_result.type, constructor_result.type), constructor_result.mapping
+            )
+
     def unify_dict_types(
             self, subtype: nodes.DictType, supertype: nodes.DictType, mapping: Mapping
     ) -> UnificationResult:
@@ -867,6 +1054,15 @@ class TypeChecker(unittest.TestCase):
         if entry is None:
             return entries.ParameterEntry(0, name)
         return entry
+
+    def entry_of_algebraic_constructor(self, algebraic: nodes.AlgebraicConstructor) -> entries.StructEntry:
+        algebraic_entry = self.entry(algebraic.algebraic)
+        assert isinstance(algebraic_entry, entries.AlgebraicEntry)
+        if isinstance(algebraic.constructor, nodes.Name):
+            key = algebraic.constructor.member
+        elif isinstance(algebraic.constructor, nodes.GenericType):
+            key = algebraic.constructor.name.member
+        return algebraic_entry.constructors[key]
 
     def replace_template_types(self, from_type: nodes.Type) -> nodes.Type:
         return dispatch(self.replace_template_types_dispatcher, type(from_type), from_type)

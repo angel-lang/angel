@@ -108,6 +108,7 @@ class Evaluator(unittest.TestCase):
             nodes.InitDeclaration: self.estimate_init_declaration,
             nodes.MethodDeclaration: self.estimate_method_declaration,
             nodes.StructDeclaration: self.estimate_struct_declaration,
+            nodes.AlgebraicDeclaration: self.estimate_algebraic_declaration,
             nodes.FunctionCall: self.estimate_expression,
             nodes.MethodCall: self.estimate_expression,
 
@@ -168,6 +169,14 @@ class Evaluator(unittest.TestCase):
         self.estimate_ast(list(declaration.private_fields))
         self.estimate_ast(list(declaration.public_fields))
         self.estimate_ast(list(declaration.init_declarations))
+        self.estimate_ast(list(declaration.private_methods))
+        self.estimate_ast(list(declaration.public_methods))
+        self.env.dec_nesting(declaration.name)
+
+    def estimate_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> None:
+        self.env.add_algebraic(declaration.line, declaration.name, declaration.parameters)
+        self.env.inc_nesting(declaration.name)
+        self.estimate_ast(list(declaration.constructors))
         self.estimate_ast(list(declaration.private_methods))
         self.estimate_ast(list(declaration.public_methods))
         self.env.dec_nesting(declaration.name)
@@ -332,6 +341,8 @@ class Evaluator(unittest.TestCase):
             return enodes.Function(entry.args, entry.return_type, specification=entry.body)
         elif isinstance(entry, entries.StructEntry):
             return enodes.Struct(entry.name)
+        elif isinstance(entry, entries.AlgebraicEntry):
+            return enodes.Algebraic(entry.name)
         else:
             # @Completeness: must have branches for all entry types
             assert 0, f"{self.estimate_name} cannot dispatch entry type {type(entry)}"
@@ -363,6 +374,8 @@ class Evaluator(unittest.TestCase):
             assert isinstance(struct_entry, entries.StructEntry)
             method_entry = struct_entry.methods[field.field]
             return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
+        elif isinstance(base, enodes.Algebraic):
+            return enodes.AlgebraicConstructor(base.name, nodes.Name(field.field))
         else:
             assert 0, f"Cannot estimate field from '{base}'"
 
@@ -466,8 +479,14 @@ class Evaluator(unittest.TestCase):
 
     def estimate_method_call(self, call: nodes.MethodCall) -> t.Optional[enodes.Expression]:
         method = self.estimate_expression(nodes.Field(call.line, call.instance_path, call.method))
-        assert isinstance(method, enodes.Function)
-        return self.match_function_body(method, call.args, self_arg=call.instance_path, self_type=call.instance_type)
+        if isinstance(method, enodes.Function):
+            return self.match_function_body(
+                method, call.args, self_arg=call.instance_path, self_type=call.instance_type
+            )
+        elif isinstance(method, enodes.AlgebraicConstructor):
+            return method
+        else:
+            assert 0, f"Cannot estimate method call with estimated method {method}"
 
     def estimate_binary_expression(self, expression: nodes.BinaryExpression) -> enodes.Expression:
         left = self.estimate_expression(expression.left)

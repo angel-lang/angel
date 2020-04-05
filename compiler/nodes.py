@@ -1,7 +1,7 @@
 import enum
 import typing as t
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 INDENTATION = " " * 4
@@ -428,6 +428,7 @@ class FunctionCall(Node, Expression):
         return INDENTATION * indentation_level + code
 
 
+@dataclass
 class MethodCall(Node, Expression):
     line: int
     instance_path: Expression
@@ -596,6 +597,25 @@ class StructType(Type):
 
 
 @dataclass
+class AlgebraicConstructor(Type):
+    algebraic: Name
+    constructor: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.algebraic.to_code()}.{self.constructor.to_code()}"
+
+
+@dataclass
+class AlgebraicType(Type):
+    name: Name
+    params: t.List[Type]
+    constructor_types: t.Dict[str, AlgebraicConstructor] = field(default_factory=dict)
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"AlgebraicType({self.name.to_code()}, params={[param.to_code() for param in self.params]})"
+
+
+@dataclass
 class GenericType(Type):
     name: Name
     params: t.List[Type]
@@ -716,7 +736,32 @@ class StructDeclaration(Node):
         init_declarations = '\n'.join(node.to_code(indentation_level + 1) for node in self.init_declarations)
         private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
         public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
+        fields = private_fields + public_fields
+
+        if not fields and not init_declarations and not private_methods and not public_methods:
+            return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}"
+
         body = (
-            private_fields + public_fields + "\n" + init_declarations + "\n" + private_methods + "\n" + public_methods
+            fields + "\n" + init_declarations + "\n" + private_methods + "\n" + public_methods
         )
         return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}:\n{body}"
+
+
+@dataclass
+class AlgebraicDeclaration(Node):
+    name: Name
+    parameters: Parameters
+    constructors: t.List[StructDeclaration]
+    public_methods: t.List[MethodDeclaration]
+    private_methods: t.List[MethodDeclaration]
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        if self.parameters:
+            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+        else:
+            parameters = ''
+        constructors = '\n'.join(node.to_code(indentation_level + 1) for node in self.constructors)
+        private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
+        public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
+        body = constructors + "\n" + private_methods + "\n" + public_methods
+        return INDENTATION * indentation_level + f"algebraic {self.name.to_code()}{parameters}:\n{body}"

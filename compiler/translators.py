@@ -29,6 +29,10 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
 TMP_PREFIX = "__tmp_"
 
 
+def algebraic_constructor_name(algebraic: nodes.Name, constructor: nodes.Name) -> str:
+    return algebraic.member + "_a_" + constructor.member
+
+
 class Translator(unittest.TestCase):
     top_nodes: cpp_nodes.AST
     main_function_body: cpp_nodes.AST
@@ -63,6 +67,8 @@ class Translator(unittest.TestCase):
             nodes.FunctionType: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
+            nodes.AlgebraicConstructor: lambda _: NotImplementedError,
+            nodes.AlgebraicType: self.translate_algebraic_type_method_call,
         }
 
         self.field_dispatcher = {
@@ -75,6 +81,8 @@ class Translator(unittest.TestCase):
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: self.translate_generic_type_field,
+            nodes.AlgebraicConstructor: self.translate_name_type_field,
+            nodes.AlgebraicType: lambda _: NotImplementedError,
         }
 
         self.subscript_dispatcher = {
@@ -87,6 +95,8 @@ class Translator(unittest.TestCase):
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: lambda _: NotImplementedError,
+            nodes.AlgebraicConstructor: lambda _: NotImplementedError,
+            nodes.AlgebraicType: lambda _: NotImplementedError,
         }
 
         self.node_dispatcher = {
@@ -94,6 +104,7 @@ class Translator(unittest.TestCase):
             nodes.VariableDeclaration: self.translate_variable_declaration,
             nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.StructDeclaration: self.translate_struct_declaration,
+            nodes.AlgebraicDeclaration: self.translate_algebraic_declaration,
             nodes.FieldDeclaration: self.translate_field_declaration,
             nodes.MethodDeclaration: self.translate_method_declaration,
             nodes.InitDeclaration: self.translate_init_declaration,
@@ -133,7 +144,7 @@ class Translator(unittest.TestCase):
 
         self.type_dispatcher: t.Dict[type, t.Callable] = {
             nodes.BuiltinType: self.translate_builtin_type,
-            nodes.Name: lambda type_: cpp_nodes.Id(type_.member),
+            nodes.Name: self.translate_name_type,
             nodes.VectorType: self.translate_vector_type,
             nodes.OptionalType: self.translate_optional_type,
             nodes.DictType: self.translate_dict_type,
@@ -141,6 +152,8 @@ class Translator(unittest.TestCase):
             nodes.FunctionType: self.translate_function_type,
             nodes.StructType: self.translate_struct_type,
             nodes.GenericType: self.translate_generic_type,
+            nodes.AlgebraicConstructor: self.translate_algebraic_constructor,
+            nodes.AlgebraicType: self.translate_algebraic_type,
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(self.type_dispatcher, type(type_), type_)
@@ -162,6 +175,13 @@ class Translator(unittest.TestCase):
             return cpp_nodes.MethodCall(self.translate_expression(method_call.instance_path), "push_back", args)
         else:
             assert 0, f"Cannot translate method '{method_call.method}' call on Vector type"
+
+    def translate_algebraic_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
+        assert isinstance(method_call.instance_type, nodes.AlgebraicType)
+        return cpp_nodes.FunctionCall(
+            cpp_nodes.Id(algebraic_constructor_name(method_call.instance_type.name, nodes.Name(method_call.method))),
+            [self.translate_expression(arg) for arg in method_call.args]
+        )
 
     def translate_string_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         if method_call.method == nodes.StringFields.split.value:
@@ -313,6 +333,19 @@ class Translator(unittest.TestCase):
         return cpp_nodes.BinaryExpression(left, cpp_nodes.Operator(value.operator.value), right)
 
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
+        def add_node(node: cpp_nodes.Node):
+            buf = self.nodes_buffer
+            self.nodes_buffer = []
+            for n in buf:
+                add_node(n)
+
+            if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.ClassDeclaration, cpp_nodes.Template)):
+                self.top_nodes.append(node)
+            else:
+                # self.main_function_body.extend(self.nodes_buffer)
+                # self.nodes_buffer = []
+                self.main_function_body.append(node)
+
         self.includes = {}
         self.top_nodes = []
         self.main_function_body = []
@@ -320,12 +353,7 @@ class Translator(unittest.TestCase):
         self.tmp_count = 0
 
         for node in self.translate_body(ast):
-            if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.ClassDeclaration, cpp_nodes.Template)):
-                self.top_nodes.append(node)
-            else:
-                self.main_function_body.extend(self.nodes_buffer)
-                self.nodes_buffer = []
-                self.main_function_body.append(node)
+            add_node(node)
 
         return0 = cpp_nodes.Return(cpp_nodes.IntegerLiteral("0"))
         main_function = cpp_nodes.FunctionDeclaration(
@@ -342,7 +370,8 @@ class Translator(unittest.TestCase):
             translated = dispatch(self.node_dispatcher, type(node), node)
             result.extend(self.nodes_buffer)
             self.nodes_buffer = []
-            result.append(translated)
+            if translated is not None:
+                result.append(translated)
         return result
 
     def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.FunctionDeclaration:
@@ -373,6 +402,14 @@ class Translator(unittest.TestCase):
                 [self.translate_type(parameter) for parameter in node.parameters], struct_declaration
             )
         return struct_declaration
+
+    def translate_algebraic_declaration(self, node: nodes.AlgebraicDeclaration) -> None:
+        # list(...) for mypy
+        for constructor in node.constructors:
+            constructor.name = nodes.Name(algebraic_constructor_name(node.name, constructor.name))
+        body = self.translate_body(list(node.constructors))
+        self.nodes_buffer.extend(body)
+        return None
 
     def translate_init_declaration(self, declaration: nodes.InitDeclaration) -> cpp_nodes.InitDeclaration:
         args = []
@@ -521,12 +558,35 @@ class Translator(unittest.TestCase):
             return cpp_nodes.GenericType(base, [self.translate_type(param) for param in generic_type.params])
         return base
 
+    def translate_algebraic_type(self, algebraic: nodes.AlgebraicType) -> cpp_nodes.Type:
+        self.add_include(cpp_nodes.StdModule.variant)
+        return cpp_nodes.GenericType(
+            cpp_nodes.StdName.variant,
+            [self.translate_type(constructor) for constructor in algebraic.constructor_types.values()]
+        )
+
+    def translate_algebraic_constructor(self, algebraic: nodes.AlgebraicConstructor) -> cpp_nodes.Type:
+        if isinstance(algebraic.constructor, nodes.Name):
+            return cpp_nodes.Id(
+                algebraic_constructor_name(algebraic.algebraic, algebraic.constructor)
+            )
+        elif isinstance(algebraic.constructor, nodes.GenericType):
+            return cpp_nodes.GenericType(
+                cpp_nodes.Id(algebraic_constructor_name(algebraic.algebraic, algebraic.constructor.name)),
+                [self.translate_type(param) for param in algebraic.constructor.params]
+            )
+        else:
+            assert 0, f"Cannot translate constructor of type {type(algebraic.constructor)}"
+
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
         if builtin_type.value in nodes.BuiltinType.finite_int_types():
             self.add_include(cpp_nodes.StdModule.cstdint)
         elif builtin_type.value == nodes.BuiltinType.string.value:
             self.add_include(cpp_nodes.StdModule.string)
         return BUILTIN_TYPE_TO_CPP_TYPE[builtin_type.value]
+
+    def translate_name_type(self, name: nodes.Name) -> cpp_nodes.Type:
+        return cpp_nodes.Id(name.member)
 
     def translate_operator(self, operator: nodes.Operator) -> cpp_nodes.Operator:
         return cpp_nodes.Operator(operator.value)
