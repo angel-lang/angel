@@ -37,7 +37,7 @@ I would recommend to set up `Tab` key to insert 4 spaces.
 `./runnable.py my_file.angel` to compile `my_file.angel`.
 
 `./runnable.py my_file.angel | clang-format > my_file.cpp` to get pretty
-C++ code in `my_file.cpp`. 
+C++ code in `my_file.cpp`.
 
 # Tutorial
 ## Hello, world!
@@ -67,7 +67,7 @@ Assignment is a statement that assigns new value to some
 variable (or constant if it doesn't have value yet).
 
 In general it looks like this: `variable = 100`.
-Type checking is performed to ensure that new value has the type of the variable. 
+Type checking is performed to ensure that new value has the type of the variable.
 
 ## While
 You can see the great power of `while` in this example:
@@ -175,6 +175,18 @@ struct Stack(A):
         return element
 
 let stack = Stack([1, 2, 3])
+```
+
+## Algebraic data types
+```
+algebraic Number:
+    struct Signed:
+        data: I64
+
+    struct Unsigned:
+        data: U64
+
+let number = Number.Unsigned(42)
 ```
 
 ## Reading Input and Writing Output
@@ -291,6 +303,3 @@ Or you can use `while let`:
 while let realValue = getRandomOptionalValue():
     print(realValue)
 ```
-
-# Coming soon
-something special :)
