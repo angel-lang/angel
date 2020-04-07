@@ -612,7 +612,11 @@ class AlgebraicType(Type):
     constructor_types: t.Dict[str, AlgebraicConstructor] = field(default_factory=dict)
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"AlgebraicType({self.name.to_code()}, params={[param.to_code() for param in self.params]})"
+        if self.params:
+            params = f"({', '.join(param.to_code() for param in self.params)})"
+        else:
+            params = ""
+        return f"{self.name.to_code()}{params}"
 
 
 @dataclass

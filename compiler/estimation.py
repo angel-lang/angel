@@ -11,6 +11,7 @@ from .constants import builtin_funcs, string_fields, vector_fields, dict_fields
 
 
 EstimatedObjects = namedtuple("EstimatedObjects", ['builtin_funcs', 'string_fields', 'vector_fields', 'dict_fields'])
+EstimatedFields = t.Dict[str, t.Union[t.Callable[..., enodes.Expression], enodes.Expression]]
 
 
 class Evaluator(unittest.TestCase):
@@ -92,6 +93,15 @@ class Evaluator(unittest.TestCase):
             nodes.Operator.eq_eq.value: lambda x, y: dispatch(eq_dispatcher, (type(x), type(y)), x, y),
             nodes.Operator.lt.value: lambda x, y: dispatch(lt_dispatcher, (type(x), type(y)), x, y),
             nodes.Operator.gt.value: lambda x, y: dispatch(gt_dispatcher, (type(x), type(y)), x, y),
+        }
+
+        self.estimate_field_dispatcher = {
+            enodes.String: lambda base, f: self.estimate_builtin_field(self.estimated_objs.string_fields, base, f),
+            enodes.Vector: lambda base, f: self.estimate_builtin_field(self.estimated_objs.vector_fields, base, f),
+            enodes.Dict: lambda base, f: self.estimate_builtin_field(self.estimated_objs.dict_fields, base, f),
+            enodes.Instance: self.estimate_instance_field,
+            enodes.Algebraic: self.estimate_algebraic_field,
+            enodes.AlgebraicConstructorInstance: self.estimate_algebraic_constructor_instance_field,
         }
 
         self.assignment_dispatcher = {
@@ -342,42 +352,40 @@ class Evaluator(unittest.TestCase):
         elif isinstance(entry, entries.StructEntry):
             return enodes.Struct(entry.name)
         elif isinstance(entry, entries.AlgebraicEntry):
-            return enodes.Algebraic(entry.name)
+            return enodes.Algebraic(entry.name, entry)
         else:
             # @Completeness: must have branches for all entry types
             assert 0, f"{self.estimate_name} cannot dispatch entry type {type(entry)}"
 
+    def estimate_builtin_field(self, fields: EstimatedFields, base: enodes.Expression, field: str) -> enodes.Expression:
+        estimated = fields[field]
+        if callable(estimated):
+            return estimated(base)
+        return estimated
+
+    def estimate_algebraic_field(self, base: enodes.Algebraic, field: str) -> enodes.Expression:
+        return enodes.AlgebraicConstructor(base.name, nodes.Name(field), entry=base.entry.constructors[field])
+
+    def estimate_algebraic_constructor_instance_field(
+        self, base: enodes.AlgebraicConstructorInstance, field: str
+    ) -> enodes.Expression:
+        found = base.fields.get(field)
+        if found is not None:
+            return found
+        assert 0, "Methods on algebraic constructor instances are not supported"
+
+    def estimate_instance_field(self, base: enodes.Instance, field: str) -> enodes.Expression:
+        found = base.fields.get(field)
+        if found is not None:
+            return found
+        struct_entry = self.env[base.type.member]
+        assert isinstance(struct_entry, entries.StructEntry)
+        method_entry = struct_entry.methods[field]
+        return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
+
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:
         base = self.estimate_expression(field.base)
-        # @Cleanup: Move to dispatcher
-        # @Cleanup: common functionality for String, Vector and Dict
-        if isinstance(base, enodes.String):
-            estimated = self.estimated_objs.string_fields[field.field]
-            if callable(estimated):
-                return estimated(base)
-            return estimated
-        elif isinstance(base, enodes.Vector):
-            estimated = self.estimated_objs.vector_fields[field.field]
-            if callable(estimated):
-                return estimated(base)
-            return estimated
-        elif isinstance(base, enodes.Dict):
-            estimated = self.estimated_objs.dict_fields[field.field]
-            if callable(estimated):
-                return estimated(base)
-            return estimated
-        elif isinstance(base, enodes.Instance):
-            found = base.fields.get(field.field)
-            if found is not None:
-                return found
-            struct_entry = self.env[base.type.member]
-            assert isinstance(struct_entry, entries.StructEntry)
-            method_entry = struct_entry.methods[field.field]
-            return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
-        elif isinstance(base, enodes.Algebraic):
-            return enodes.AlgebraicConstructor(base.name, nodes.Name(field.field))
-        else:
-            assert 0, f"Cannot estimate field from '{base}'"
+        return dispatch(self.estimate_field_dispatcher, type(base), base, field.field)
 
     def estimate_subscript(self, subscript: nodes.Subscript) -> enodes.Expression:
         base = self.estimate_expression(subscript.base)
@@ -410,9 +418,16 @@ class Evaluator(unittest.TestCase):
         assert isinstance(function, enodes.Function)
         return self.match_function_body(function, call.args)
 
+    def match_algebraic_constructor_init(
+        self, algebraic_constructor: enodes.AlgebraicConstructor, init_declarations: t.List[entries.InitEntry],
+        args: t.List[nodes.Expression]
+    ) -> enodes.AlgebraicConstructorInstance:
+        result = self.match_init_declaration(enodes.Struct(algebraic_constructor.constructor), init_declarations, args)
+        return enodes.AlgebraicConstructorInstance(algebraic_constructor, result.fields)
+
     def match_init_declaration(
             self, struct: enodes.Struct, init_declarations: t.List[entries.InitEntry], args: t.List[nodes.Expression]
-    ) -> enodes.Expression:
+    ) -> enodes.Instance:
         arguments = [self.estimate_expression(argument) for argument in args]
         matched = True
         expected_major = []
@@ -447,7 +462,7 @@ class Evaluator(unittest.TestCase):
             self_entry = self.env[nodes.SpecialName.self.value]
             assert isinstance(self_entry, entries.VariableEntry)
             self_value = self_entry.estimated_value
-            assert self_value
+            assert isinstance(self_value, enodes.Instance)
             self.env.dec_nesting()
             return self_value
         expected = " or ".join(
@@ -484,7 +499,12 @@ class Evaluator(unittest.TestCase):
                 method, call.args, self_arg=call.instance_path, self_type=call.instance_type
             )
         elif isinstance(method, enodes.AlgebraicConstructor):
-            return method
+            algebraic_entry = self.entry(method.name)
+            assert isinstance(algebraic_entry, entries.AlgebraicEntry)
+            constructor_entry = algebraic_entry.constructors[method.constructor.member]
+            return self.match_algebraic_constructor_init(
+                method, list(constructor_entry.init_declarations.values()), call.args
+            )
         else:
             assert 0, f"Cannot estimate method call with estimated method {method}"
 
@@ -564,6 +584,13 @@ class Evaluator(unittest.TestCase):
     def update_context(self, env: environment.Environment, code: errors.Code = None):
         self.env = env
         self.code = code or self.code
+
+    def entry(self, name: nodes.Name) -> entries.Entry:
+        if name.module:
+            assert 0, "Module system is not supported"
+        entry = self.env[name.member]
+        assert entry is not None
+        return entry
 
     def test(self):
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))

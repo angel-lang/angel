@@ -185,3 +185,4 @@ algebraic Color:
 
 let color1 = Color.Red(120)
 let color2: Color = Color.Blue(0)
+print(color2.data)

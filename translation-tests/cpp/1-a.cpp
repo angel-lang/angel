@@ -3,7 +3,6 @@
 #include <map>
 #include <optional>
 #include <string>
-#include <variant>
 #include <vector>
 #include "angel_builtins.h"
 #include "angel_string.h"
@@ -165,7 +164,7 @@ int main() {
   __print(stack.data.size());
   __print(stack.depth());
   Color_a_Red color1 = Color_a_Red(120);
-  std::variant<Color_a_Red, Color_a_Blue, Color_a_Green> color2 =
-      Color_a_Blue(0);
+  Color_a_Blue color2 = Color_a_Blue(0);
+  __print((std::int_fast16_t)(color2.data));
   return 0;
 }

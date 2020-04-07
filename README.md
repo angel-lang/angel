@@ -177,7 +177,7 @@ struct Stack(A):
 let stack = Stack([1, 2, 3])
 ```
 
-## Algebraic data types
+## Algebraic Data Types
 ```
 algebraic Number:
     struct Signed:
@@ -187,6 +187,7 @@ algebraic Number:
         data: U64
 
 let number = Number.Unsigned(42)
+let n = number.data
 ```
 
 ## Reading Input and Writing Output

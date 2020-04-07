@@ -68,6 +68,21 @@ class AngelFieldError(AngelError):
 
 
 @dataclass
+class AngelConstructorError(AngelError):
+    algebraic: nodes.Type
+    constructor: str
+    code: Code
+
+    def __str__(self) -> str:
+        return "\n".join((
+            (f"Constructor Error: type '{self.algebraic.to_code()}' "
+             f"does not have '{self.constructor}' constructor"),
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelSubscriptError(AngelError):
     instance: nodes.Expression
     instance_type: nodes.Type
