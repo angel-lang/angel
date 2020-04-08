@@ -558,7 +558,7 @@ class TypeChecker(unittest.TestCase):
             self, base_type: nodes.AlgebraicConstructor, field: nodes.Field, mapping: Mapping,
             supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
-        entry = self.entry_of_algebraic_constructor(base_type)
+        entry = self.env.get_algebraic_constructor(base_type)
         field_entry = entry.fields.get(field.field)
         if field_entry is None:
             method_entry = entry.methods.get(field.field)
@@ -1061,21 +1061,10 @@ class TypeChecker(unittest.TestCase):
         self.code = code
 
     def entry(self, name: nodes.Name) -> entries.Entry:
-        if name.module:
-            assert 0, "Module system is not supported"
-        entry = self.env[name.member]
-        if entry is None:
+        result = self.env.get(name)
+        if result is None:
             return entries.ParameterEntry(0, name)
-        return entry
-
-    def entry_of_algebraic_constructor(self, algebraic: nodes.AlgebraicConstructor) -> entries.StructEntry:
-        algebraic_entry = self.entry(algebraic.algebraic)
-        assert isinstance(algebraic_entry, entries.AlgebraicEntry)
-        if isinstance(algebraic.constructor, nodes.Name):
-            key = algebraic.constructor.member
-        elif isinstance(algebraic.constructor, nodes.GenericType):
-            key = algebraic.constructor.name.member
-        return algebraic_entry.constructors[key]
+        return result
 
     def replace_template_types(self, from_type: nodes.Type) -> nodes.Type:
         return dispatch(self.replace_template_types_dispatcher, type(from_type), from_type)

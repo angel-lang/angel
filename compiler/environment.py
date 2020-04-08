@@ -1,6 +1,6 @@
 import typing as t
 
-from . import nodes, environment_entries as entries, estimation_nodes as enodes
+from . import nodes, environment_entries as entries, estimation_nodes as enodes, errors
 
 
 class Environment:
@@ -18,6 +18,22 @@ class Environment:
                 return entry
             nesting_level -= 1
         return None
+
+    def get(self, key: nodes.Name) -> t.Optional[entries.Entry]:
+        assert not key.module
+        entry = self[key.member]
+        if entry is None:
+            return None
+        return entry
+
+    def get_algebraic_constructor(self, algebraic: nodes.AlgebraicConstructor) -> entries.StructEntry:
+        algebraic_entry = self.get(algebraic.algebraic)
+        assert isinstance(algebraic_entry, entries.AlgebraicEntry)
+        if isinstance(algebraic.constructor, nodes.Name):
+            key = algebraic.constructor.member
+        elif isinstance(algebraic.constructor, nodes.GenericType):
+            key = algebraic.constructor.name.member
+        return algebraic_entry.constructors[key]
 
     def add_constant(
             self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],

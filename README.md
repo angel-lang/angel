@@ -186,9 +186,15 @@ algebraic Number:
     struct Unsigned:
         data: U64
 
+        fun isGoodForU8() -> Bool:
+            return self.data <= 256
+
 let number = Number.Unsigned(42)
 let n = number.data
+let isGood = number.isGoodForU8()
 ```
+
+Algebraic data types can have several constructors. Its constructors can have different fields and methods.
 
 ## Reading Input and Writing Output
 ```

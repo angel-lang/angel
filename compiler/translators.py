@@ -57,7 +57,7 @@ class Translator(unittest.TestCase):
         }
         self.method_call_dispatcher = {
             nodes.BuiltinType: lambda method_call: dispatch(
-                self.builtin_type_method_call, method_call.instance_type.value, method_call
+                self.builtin_type_method_call, t.cast(nodes.BuiltinType, method_call.instance_type).value, method_call
             ),
             nodes.Name: self.translate_method_call_name,
             nodes.GenericType: self.translate_method_call_name,
@@ -67,7 +67,7 @@ class Translator(unittest.TestCase):
             nodes.FunctionType: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
-            nodes.AlgebraicConstructor: lambda _: NotImplementedError,
+            nodes.AlgebraicConstructor: self.translate_method_call_name,
             nodes.AlgebraicType: self.translate_algebraic_type_method_call,
         }
 

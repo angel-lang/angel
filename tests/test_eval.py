@@ -289,13 +289,20 @@ class TestEval(unittest.TestCase):
             'algebraic Color:',
             '    struct Red:',
             '        data: I8',
+            '        fun getEstimation() -> String:',
+            '            if self.data < 10:',
+            '                return "Small"',
+            '            return "Big"',
             '    struct Blue:',
             '        data: I8',
             '    struct Green:',
             '        data: I8',
+            'let color = Color.Red(12)',
+            'print(color.data)',
+            'print(color.getEstimation())',
         ]
         result, output = self.eval(code)
-        self.assertEqual(output, [])
+        self.assertEqual(output, ['12', 'Big'])
 
 
 if __name__ == '__main__':

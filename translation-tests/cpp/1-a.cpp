@@ -57,6 +57,12 @@ class Color_a_Red {
  public:
   std::int_fast8_t data;
   Color_a_Red(std::int_fast8_t data) { this->data = data; }
+  std::string getEstimation() {
+    if (this->data < 10) {
+      return "Small";
+    }
+    return "Big";
+  }
 };
 class Color_a_Blue {
  public:
@@ -166,5 +172,8 @@ int main() {
   Color_a_Red color1 = Color_a_Red(120);
   Color_a_Blue color2 = Color_a_Blue(0);
   __print((std::int_fast16_t)(color2.data));
+  std::int_fast8_t colorData = color2.data;
+  std::string estimation = color1.getEstimation();
+  __print(estimation);
   return 0;
 }

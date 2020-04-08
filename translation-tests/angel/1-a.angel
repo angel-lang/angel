@@ -171,6 +171,11 @@ algebraic Color:
         init(data: I8):
             self.data = data
 
+        fun getEstimation() -> String:
+            if self.data < 10:
+                return "Small"
+            return "Big"
+
     struct Blue:
         data: I8
 
@@ -186,3 +191,6 @@ algebraic Color:
 let color1 = Color.Red(120)
 let color2: Color = Color.Blue(0)
 print(color2.data)
+let colorData = color2.data
+let estimation = color1.getEstimation()
+print(estimation)

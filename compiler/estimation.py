@@ -372,7 +372,10 @@ class Evaluator(unittest.TestCase):
         found = base.fields.get(field)
         if found is not None:
             return found
-        assert 0, "Methods on algebraic constructor instances are not supported"
+        algebraic_constructor = nodes.AlgebraicConstructor(base.type.name, base.type.constructor)
+        constructor_entry = self.env.get_algebraic_constructor(algebraic_constructor)
+        method_entry = constructor_entry.methods[field]
+        return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
 
     def estimate_instance_field(self, base: enodes.Instance, field: str) -> enodes.Expression:
         found = base.fields.get(field)
