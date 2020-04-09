@@ -181,16 +181,16 @@ let stack = Stack([1, 2, 3])
 ```
 algebraic Number:
     struct Signed:
-        data: I64
+        signed: I64
 
     struct Unsigned:
-        data: U64
+        unsigned: U64
 
         fun isGoodForU8() -> Bool:
-            return self.data <= 256
+            return self.unsigned <= 256
 
 let number = Number.Unsigned(42)
-let n = number.data
+let n = number.unsigned
 let isGood = number.isGoodForU8()
 ```
 
