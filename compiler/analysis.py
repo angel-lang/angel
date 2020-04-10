@@ -25,6 +25,12 @@ class Analyzer(unittest.TestCase):
             nodes.Subscript: self.check_subscript_reassignment,
         }
 
+        self.change_type_dispatcher = {
+            nodes.Name: self.change_type_of_name,
+            nodes.Field: self.change_type_of_field,
+            nodes.Subscript: self.change_type_of_subscript,
+        }
+
         self.node_dispatcher = {
             nodes.ConstantDeclaration: self.analyze_constant_declaration,
             nodes.VariableDeclaration: self.analyze_variable_declaration,
@@ -200,7 +206,7 @@ class Analyzer(unittest.TestCase):
             )
         else:
             right = statement.right
-        self.infer_type(right, supertype=self.infer_type(statement.left))
+        self.change_type(statement.left, self.infer_type(right, supertype=self.infer_type(statement.left)))
         dispatch(self.assignment_dispatcher, type(statement.left), statement.left)
         return nodes.Assignment(statement.line, statement.left, nodes.Operator.eq, right)
 
@@ -283,11 +289,24 @@ class Analyzer(unittest.TestCase):
             raise errors.AngelConstantReassignment(left, self.get_code(), self.get_code(entry.line))
 
     def check_field_reassignment(self, left: nodes.Field) -> None:
-        # @WIP
+        # TODO
         pass
 
     def check_subscript_reassignment(self, left: nodes.Subscript) -> None:
-        # @WIP
+        # TODO
+        pass
+
+    def change_type_of_name(self, left: nodes.Name, typ: nodes.Type) -> None:
+        entry = self.env.get(left)
+        assert isinstance(entry, (entries.VariableEntry, entries.ConstantEntry))
+        entry.type = typ
+
+    def change_type_of_field(self, left: nodes.Field, typ: nodes.Type) -> None:
+        # TODO
+        pass
+
+    def change_type_of_subscript(self, left: nodes.Subscript, typ: nodes.Type) -> None:
+        # TODO
         pass
 
     def infer_type(self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
@@ -299,6 +318,9 @@ class Analyzer(unittest.TestCase):
         self.type_checker.update_context(self.env, self.get_code())
         result = self.type_checker.unify_types(type_, type_, mapping={})
         return result.type
+
+    def change_type(self, left: nodes.AssignmentLeft, typ: nodes.Type):
+        return dispatch(self.change_type_dispatcher, type(left), left, typ)
 
     def estimate_value(self, value: nodes.Expression) -> enodes.Expression:
         self.estimator.update_context(self.env)
@@ -312,3 +334,4 @@ class Analyzer(unittest.TestCase):
     def test(self):
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))
         self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.assignment_dispatcher.keys()))
+        self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.change_type_dispatcher.keys()))

@@ -372,8 +372,10 @@ class Evaluator(unittest.TestCase):
         found = base.fields.get(field)
         if found is not None:
             return found
-        algebraic_constructor = nodes.AlgebraicConstructor(base.type.name, base.type.constructor)
-        constructor_entry = self.env.get_algebraic_constructor(algebraic_constructor)
+        constructor_entry = self.env.get_algebraic(
+            nodes.AlgebraicType(base.type.name, params=[], constructor=base.type.constructor)
+        )
+        assert isinstance(constructor_entry, entries.StructEntry)
         method_entry = constructor_entry.methods[field]
         return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
 
@@ -502,7 +504,7 @@ class Evaluator(unittest.TestCase):
                 method, call.args, self_arg=call.instance_path, self_type=call.instance_type
             )
         elif isinstance(method, enodes.AlgebraicConstructor):
-            algebraic_entry = self.entry(method.name)
+            algebraic_entry = self.env.get(method.name)
             assert isinstance(algebraic_entry, entries.AlgebraicEntry)
             constructor_entry = algebraic_entry.constructors[method.constructor.member]
             return self.match_algebraic_constructor_init(

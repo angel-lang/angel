@@ -67,7 +67,6 @@ class Translator(unittest.TestCase):
             nodes.FunctionType: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
-            nodes.AlgebraicConstructor: self.translate_method_call_name,
             nodes.AlgebraicType: self.translate_algebraic_type_method_call,
         }
 
@@ -81,8 +80,7 @@ class Translator(unittest.TestCase):
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: self.translate_generic_type_field,
-            nodes.AlgebraicConstructor: self.translate_name_type_field,
-            nodes.AlgebraicType: lambda _: NotImplementedError,
+            nodes.AlgebraicType: self.translate_algebraic_type_field,
         }
 
         self.subscript_dispatcher = {
@@ -95,7 +93,6 @@ class Translator(unittest.TestCase):
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: lambda _: NotImplementedError,
-            nodes.AlgebraicConstructor: lambda _: NotImplementedError,
             nodes.AlgebraicType: lambda _: NotImplementedError,
         }
 
@@ -152,7 +149,6 @@ class Translator(unittest.TestCase):
             nodes.FunctionType: self.translate_function_type,
             nodes.StructType: self.translate_struct_type,
             nodes.GenericType: self.translate_generic_type,
-            nodes.AlgebraicConstructor: self.translate_algebraic_constructor,
             nodes.AlgebraicType: self.translate_algebraic_type,
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
@@ -177,9 +173,18 @@ class Translator(unittest.TestCase):
             assert 0, f"Cannot translate method '{method_call.method}' call on Vector type"
 
     def translate_algebraic_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
-        assert isinstance(method_call.instance_type, nodes.AlgebraicType)
+        instance_type = method_call.instance_type
+        assert isinstance(instance_type, nodes.AlgebraicType)
+        if instance_type.constructor:
+            base = cpp_nodes.FunctionCall(
+                cpp_nodes.StdName.get, [self.translate_expression(method_call.instance_path)],
+                params=[cpp_nodes.Id(algebraic_constructor_name(instance_type.base, instance_type.constructor))]
+            )
+            return cpp_nodes.MethodCall(
+                base, method_call.method, [self.translate_expression(arg) for arg in method_call.args]
+            )
         return cpp_nodes.FunctionCall(
-            cpp_nodes.Id(algebraic_constructor_name(method_call.instance_type.name, nodes.Name(method_call.method))),
+            cpp_nodes.Id(algebraic_constructor_name(instance_type.base, nodes.Name(method_call.method))),
             [self.translate_expression(arg) for arg in method_call.args]
         )
 
@@ -224,6 +229,17 @@ class Translator(unittest.TestCase):
         assert base is not None
         if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
             return cpp_nodes.ArrowField(base, field.field)
+        return cpp_nodes.DotField(base, field.field)
+
+    def translate_algebraic_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
+        assert isinstance(field.base_type, nodes.AlgebraicType) and field.base_type.constructor
+        field_base = self.translate_expression(field.base)
+        if isinstance(field_base, cpp_nodes.SpecialName) and field_base.value == cpp_nodes.SpecialName.this.value:
+            return cpp_nodes.ArrowField(field_base, field.field)
+        base = cpp_nodes.FunctionCall(
+            cpp_nodes.StdName.get, [field_base],
+            params=[cpp_nodes.Id(algebraic_constructor_name(field.base_type.base, field.base_type.constructor))]
+        )
         return cpp_nodes.DotField(base, field.field)
 
     def translate_vector_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
@@ -559,24 +575,14 @@ class Translator(unittest.TestCase):
         return base
 
     def translate_algebraic_type(self, algebraic: nodes.AlgebraicType) -> cpp_nodes.Type:
+        # if algebraic.constructor:
+        #     return cpp_nodes.Id(algebraic_constructor_name(algebraic.base, algebraic.constructor))
         self.add_include(cpp_nodes.StdModule.variant)
         return cpp_nodes.GenericType(
             cpp_nodes.StdName.variant,
-            [self.translate_type(constructor) for constructor in algebraic.constructor_types.values()]
+            [cpp_nodes.Id(algebraic_constructor_name(algebraic.base, constructor))
+             for constructor in algebraic.constructor_types.values()]
         )
-
-    def translate_algebraic_constructor(self, algebraic: nodes.AlgebraicConstructor) -> cpp_nodes.Type:
-        if isinstance(algebraic.constructor, nodes.Name):
-            return cpp_nodes.Id(
-                algebraic_constructor_name(algebraic.algebraic, algebraic.constructor)
-            )
-        elif isinstance(algebraic.constructor, nodes.GenericType):
-            return cpp_nodes.GenericType(
-                cpp_nodes.Id(algebraic_constructor_name(algebraic.algebraic, algebraic.constructor.name)),
-                [self.translate_type(param) for param in algebraic.constructor.params]
-            )
-        else:
-            assert 0, f"Cannot translate constructor of type {type(algebraic.constructor)}"
 
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
         if builtin_type.value in nodes.BuiltinType.finite_int_types():

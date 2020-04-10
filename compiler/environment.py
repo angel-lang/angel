@@ -9,8 +9,10 @@ class Environment:
         self.space = [{}]
         self.nesting_level = 0
         self.parents: t.List[nodes.Name] = []
+        self.code = errors.Code()
 
     def __getitem__(self, key) -> t.Optional[entries.Entry]:
+        """Get entry. Return None if not found."""
         nesting_level = self.nesting_level
         while nesting_level >= 0:
             entry = self.space[nesting_level].get(key)
@@ -19,21 +21,21 @@ class Environment:
             nesting_level -= 1
         return None
 
-    def get(self, key: nodes.Name) -> t.Optional[entries.Entry]:
+    def get(self, key: nodes.Name) -> entries.Entry:
+        """Get entry of name. Raise NameError if name is not found."""
         assert not key.module
         entry = self[key.member]
         if entry is None:
-            return None
+            raise errors.AngelNameError(key, self.code)
         return entry
 
-    def get_algebraic_constructor(self, algebraic: nodes.AlgebraicConstructor) -> entries.StructEntry:
-        algebraic_entry = self.get(algebraic.algebraic)
+    def get_algebraic(self, algebraic: nodes.AlgebraicType) -> t.Union[entries.AlgebraicEntry, entries.StructEntry]:
+        """Get entry of algebraic data type or its constructor if algebraic.constructor."""
+        algebraic_entry = self.get(algebraic.base)
         assert isinstance(algebraic_entry, entries.AlgebraicEntry)
-        if isinstance(algebraic.constructor, nodes.Name):
-            key = algebraic.constructor.member
-        elif isinstance(algebraic.constructor, nodes.GenericType):
-            key = algebraic.constructor.name.member
-        return algebraic_entry.constructors[key]
+        if not algebraic.constructor:
+            return algebraic_entry
+        return algebraic_entry.constructors[algebraic.constructor.member]
 
     def add_constant(
             self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
@@ -100,12 +102,11 @@ class Environment:
 
     def _build_parent_struct_type(self) -> nodes.Type:
         assert self.parents
-        entry = self._get_parent_struct_entry()
         type_: nodes.Type = self.parents[-1]
-        if entry.params:
-            type_ = nodes.GenericType(t.cast(nodes.Name, type_), list(entry.params))
         for parent in reversed(self.parents[:-1]):
-            type_ = nodes.AlgebraicConstructor(parent, type_)
+            # TODO: add proper params and constructor_types
+            assert isinstance(type_, nodes.Name)
+            type_ = nodes.AlgebraicType(parent, [], type_)
         return type_
 
     def add_struct(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
@@ -143,6 +144,9 @@ class Environment:
     def update_init_declaration_body(self, args: nodes.Arguments, body: nodes.AST) -> None:
         entry = self._get_parent_struct_entry()
         entry.init_declarations[','.join(arg.to_code() for arg in args)].body = body
+
+    def update_code(self, code: errors.Code) -> None:
+        self.code = code
 
     def inc_nesting(self, parent: t.Optional[nodes.Name] = None) -> None:
         self.nesting_level += 1

@@ -297,12 +297,14 @@ class TestEval(unittest.TestCase):
             '        data: I8',
             '    struct Green:',
             '        data: I8',
-            'let color = Color.Red(12)',
+            'var color = Color.Red(12)',
             'print(color.data)',
             'print(color.getEstimation())',
+            'color = Color.Blue(5)',
+            'print(color.data)'
         ]
         result, output = self.eval(code)
-        self.assertEqual(output, ['12', 'Big'])
+        self.assertEqual(output, ['12', 'Big', '5'])
 
 
 if __name__ == '__main__':

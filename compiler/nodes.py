@@ -579,6 +579,15 @@ Parameters = t.List[Name]
 
 
 @dataclass
+class GenericType(Type):
+    name: Name
+    params: t.List[Type]
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.name.to_code()}({', '.join(param.to_code() for param in self.params)})"
+
+
+@dataclass
 class FunctionType(Type):
     args: Arguments
     return_type: Type
@@ -597,35 +606,20 @@ class StructType(Type):
 
 
 @dataclass
-class AlgebraicConstructor(Type):
-    algebraic: Name
-    constructor: Type
-
-    def to_code(self, indentation_level: int = 0) -> str:
-        return f"{self.algebraic.to_code()}.{self.constructor.to_code()}"
-
-
-@dataclass
 class AlgebraicType(Type):
-    name: Name
+    base: Name
     params: t.List[Type]
-    constructor_types: t.Dict[str, AlgebraicConstructor] = field(default_factory=dict)
+    constructor: t.Optional[Name] = None
+    constructor_types: t.Dict[str, Name] = field(default_factory=dict)
 
     def to_code(self, indentation_level: int = 0) -> str:
+        if self.constructor:
+            return f"{self.base.to_code()}.{self.constructor.to_code()}"
         if self.params:
             params = f"({', '.join(param.to_code() for param in self.params)})"
         else:
             params = ""
-        return f"{self.name.to_code()}{params}"
-
-
-@dataclass
-class GenericType(Type):
-    name: Name
-    params: t.List[Type]
-
-    def to_code(self, indentation_level: int = 0) -> str:
-        return f"{self.name.to_code()}({', '.join(param.to_code() for param in self.params)})"
+        return f"{self.base.to_code()}{params}"
 
 
 class StringFields(enum.Enum):

@@ -73,6 +73,7 @@ class StdName(Type, Expression, enum.Enum):
     optional = "optional"
     nullopt = "nullopt"
     variant = "variant"
+    get = "get"
 
     cout = "cout"
     cin = "cin"

@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 #include "angel_builtins.h"
 #include "angel_string.h"
@@ -169,11 +170,15 @@ int main() {
   std::int_fast8_t same = stack.push(4);
   __print(stack.data.size());
   __print(stack.depth());
-  Color_a_Red color1 = Color_a_Red(120);
-  Color_a_Blue color2 = Color_a_Blue(0);
-  __print((std::int_fast16_t)(color2.data));
-  std::int_fast8_t colorData = color2.data;
-  std::string estimation = color1.getEstimation();
+  std::variant<Color_a_Red, Color_a_Blue, Color_a_Green> color1 =
+      Color_a_Red(120);
+  std::variant<Color_a_Red, Color_a_Blue, Color_a_Green> color2 =
+      Color_a_Blue(0);
+  __print((std::int_fast16_t)(std::get<Color_a_Blue>(color2).data));
+  std::int_fast8_t colorData = std::get<Color_a_Blue>(color2).data;
+  std::string estimation = std::get<Color_a_Red>(color1).getEstimation();
   __print(estimation);
+  color1 = Color_a_Green(10);
+  __print((std::int_fast16_t)(std::get<Color_a_Green>(color1).data));
   return 0;
 }
