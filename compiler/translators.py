@@ -33,6 +33,10 @@ def algebraic_constructor_name(algebraic: nodes.Name, constructor: nodes.Name) -
     return algebraic.member + "_a_" + constructor.member
 
 
+def algebraic_method_name(algebraic: nodes.Name, method: nodes.Name) -> str:
+    return algebraic.member + "_m_" + method.member
+
+
 class Translator(unittest.TestCase):
     top_nodes: cpp_nodes.AST
     main_function_body: cpp_nodes.AST
@@ -176,6 +180,12 @@ class Translator(unittest.TestCase):
         instance_type = method_call.instance_type
         assert isinstance(instance_type, nodes.AlgebraicType)
         if instance_type.constructor:
+            if method_call.is_algebraic_method:
+                base = self.translate_expression(method_call.instance_path)
+                return cpp_nodes.FunctionCall(
+                    cpp_nodes.Id(algebraic_method_name(instance_type.base, nodes.Name(method_call.method))),
+                    [base] + [self.translate_expression(arg) for arg in method_call.args]
+                )
             base = cpp_nodes.FunctionCall(
                 cpp_nodes.StdName.get, [self.translate_expression(method_call.instance_path)],
                 params=[cpp_nodes.Id(algebraic_constructor_name(instance_type.base, instance_type.constructor))]
@@ -358,8 +368,6 @@ class Translator(unittest.TestCase):
             if isinstance(node, (cpp_nodes.FunctionDeclaration, cpp_nodes.ClassDeclaration, cpp_nodes.Template)):
                 self.top_nodes.append(node)
             else:
-                # self.main_function_body.extend(self.nodes_buffer)
-                # self.nodes_buffer = []
                 self.main_function_body.append(node)
 
         self.includes = {}
@@ -421,10 +429,27 @@ class Translator(unittest.TestCase):
 
     def translate_algebraic_declaration(self, node: nodes.AlgebraicDeclaration) -> None:
         # list(...) for mypy
+        constructor_names = []
         for constructor in node.constructors:
+            constructor_names.append(constructor.name)
             constructor.name = nodes.Name(algebraic_constructor_name(node.name, constructor.name))
         body = self.translate_body(list(node.constructors))
+        funcs: t.List[nodes.Node] = []
+        self_type = nodes.AlgebraicType(
+            node.name, params=[], constructor=None,
+            constructor_types={name.member: name for name in constructor_names}
+        )
+        self_arg = nodes.Argument("self", self_type)
+        for method in node.private_methods + node.public_methods:
+            funcs.append(
+                nodes.FunctionDeclaration(
+                    method.line, nodes.Name(algebraic_method_name(node.name, method.name)), [self_arg] + method.args,
+                    method.return_type, method.body
+                )
+            )
+        methods = self.translate_body(funcs)
         self.nodes_buffer.extend(body)
+        self.nodes_buffer.extend(methods)
         return None
 
     def translate_init_declaration(self, declaration: nodes.InitDeclaration) -> cpp_nodes.InitDeclaration:
@@ -575,8 +600,6 @@ class Translator(unittest.TestCase):
         return base
 
     def translate_algebraic_type(self, algebraic: nodes.AlgebraicType) -> cpp_nodes.Type:
-        # if algebraic.constructor:
-        #     return cpp_nodes.Id(algebraic_constructor_name(algebraic.base, algebraic.constructor))
         self.add_include(cpp_nodes.StdModule.variant)
         return cpp_nodes.GenericType(
             cpp_nodes.StdName.variant,

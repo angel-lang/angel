@@ -356,7 +356,9 @@ class Parser:
         if not self.parse_raw(":"):
             return self.make_algebraic_declaration(line, name, parameters, [])
         self.additional_statement_parsers.append(self.parse_struct_declaration)
+        self.additional_statement_parsers.append(self.parse_function_declaration)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
+        self.additional_statement_parsers.pop()
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
@@ -396,13 +398,21 @@ class Parser:
     def make_algebraic_declaration(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, body: nodes.AST
     ) -> nodes.AlgebraicDeclaration:
-        constructors = []
+        public_methods, private_methods, constructors = [], [], []
         for node in body:
             if isinstance(node, nodes.StructDeclaration):
                 constructors.append(node)
+            elif isinstance(node, nodes.FunctionDeclaration):
+                method_declaration = nodes.MethodDeclaration(
+                    node.line, node.name, node.args, node.return_type, node.body
+                )
+                if node.name.member.startswith("_"):
+                    private_methods.append(method_declaration)
+                else:
+                    public_methods.append(method_declaration)
             else:
                 raise errors.AngelSyntaxError("expected method or constructor declaration", self.get_code(node.line))
-        return nodes.AlgebraicDeclaration(line, name, parameters, constructors, public_methods=[], private_methods=[])
+        return nodes.AlgebraicDeclaration(line, name, parameters, constructors, public_methods, private_methods)
 
     def parse_body(self, statement_parsers) -> nodes.AST:
         def mega_parser() -> t.Optional[nodes.Node]:

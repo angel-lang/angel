@@ -188,6 +188,9 @@ algebraic Color:
         init(data: I8):
             self.data = data
 
+    fun word() -> String:
+        return "word"
+
 var color1 = Color.Red(120)
 let color2: Color = Color.Blue(0)
 print(color2.data)
@@ -196,3 +199,4 @@ let estimation = color1.getEstimation()
 print(estimation)
 color1 = Color.Green(10)
 print(color1.data)
+print(color1.word())

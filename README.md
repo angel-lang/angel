@@ -189,12 +189,17 @@ algebraic Number:
         fun isGoodForU8() -> Bool:
             return self.unsigned <= 256
 
+    fun zero() -> I64:
+        return 0
+
 let number = Number.Unsigned(42)
 let n = number.unsigned
 let isGood = number.isGoodForU8()
+let zero = n.zero()
 ```
 
 Algebraic data types can have several constructors. Its constructors can have different fields and methods.
+Algebraics can have their own methods.
 
 ## Reading Input and Writing Output
 ```

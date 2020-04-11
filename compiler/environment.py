@@ -70,11 +70,12 @@ class Environment:
     def add_method(
             self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
     ) -> None:
-        entry = self._get_parent_struct_entry()
+        entry = self._get_parent_type_entry()
         entry.methods[name.member] = entries.FunctionEntry(line, name, args, return_type, body=[])
 
     def add_field(self, line: int, name: nodes.Name, type_: nodes.Type) -> None:
-        entry = self._get_parent_struct_entry()
+        entry = self._get_parent_type_entry()
+        assert isinstance(entry, entries.StructEntry)
         entry.fields[name.member] = entries.VariableEntry(line, name, type_, value=None)
 
     def add_self(self, line: int, is_variable: bool = False) -> None:
@@ -86,10 +87,11 @@ class Environment:
         func(line, nodes.Name(nodes.SpecialName.self.value), type_, value=None)
 
     def add_init_declaration(self, line: int, args: nodes.Arguments) -> None:
-        entry = self._get_parent_struct_entry()
+        entry = self._get_parent_type_entry()
+        assert isinstance(entry, entries.StructEntry)
         entry.init_declarations[','.join(arg.to_code() for arg in args)] = entries.InitEntry(line, args, body=[])
 
-    def _get_parent_struct_entry(self) -> entries.StructEntry:
+    def _get_parent_type_entry(self) -> t.Union[entries.StructEntry, entries.AlgebraicEntry]:
         assert self.parents
         entry = self[self.parents[0].member]
         for parent in self.parents[1:]:
@@ -97,7 +99,7 @@ class Environment:
                 entry = entry.constructors[parent.member]
             else:
                 assert 0, "Non-supported struct nesting"
-        assert isinstance(entry, entries.StructEntry)
+        assert isinstance(entry, (entries.AlgebraicEntry, entries.StructEntry))
         return entry
 
     def _build_parent_struct_type(self) -> nodes.Type:
@@ -138,11 +140,12 @@ class Environment:
         self.space[self.nesting_level][name.member].body = body
 
     def update_method_body(self, name: nodes.Name, body: nodes.AST) -> None:
-        entry = self._get_parent_struct_entry()
+        entry = self._get_parent_type_entry()
         entry.methods[name.member].body = body
 
     def update_init_declaration_body(self, args: nodes.Arguments, body: nodes.AST) -> None:
-        entry = self._get_parent_struct_entry()
+        entry = self._get_parent_type_entry()
+        assert isinstance(entry, entries.StructEntry)
         entry.init_declarations[','.join(arg.to_code() for arg in args)].body = body
 
     def update_code(self, code: errors.Code) -> None:

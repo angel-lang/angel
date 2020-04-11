@@ -435,10 +435,11 @@ class MethodCall(Node, Expression):
     method: str
     args: t.List[Expression]
     instance_type: t.Optional[Type] = None
+    is_algebraic_method: bool = False
 
     def __init__(
             self, line: int, instance_path: Expression, method: str, args: t.List[Expression],
-            instance_type: t.Optional[Type] = None
+            instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
     ):
         self.line = line
         self.instance_path = instance_path
@@ -591,6 +592,7 @@ class GenericType(Type):
 class FunctionType(Type):
     args: Arguments
     return_type: Type
+    is_algebraic_method: bool = False
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()}"

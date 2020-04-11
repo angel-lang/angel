@@ -297,14 +297,17 @@ class TestEval(unittest.TestCase):
             '        data: I8',
             '    struct Green:',
             '        data: I8',
+            '    fun word() -> String:',
+            '        return "word"',
             'var color = Color.Red(12)',
             'print(color.data)',
             'print(color.getEstimation())',
             'color = Color.Blue(5)',
-            'print(color.data)'
+            'print(color.data)',
+            'print(color.word())'
         ]
         result, output = self.eval(code)
-        self.assertEqual(output, ['12', 'Big', '5'])
+        self.assertEqual(output, ['12', 'Big', '5', 'word'])
 
 
 if __name__ == '__main__':

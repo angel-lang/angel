@@ -286,7 +286,7 @@ class TypeChecker(unittest.TestCase):
             nodes.BuiltinType: lambda builtin_type: builtin_type,
             nodes.FunctionType: lambda func_type: nodes.FunctionType(
                 [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.args],
-                self.replace_template_types(func_type.return_type)
+                self.replace_template_types(func_type.return_type), func_type.is_algebraic_method
             ),
             nodes.DictType: lambda dict_type: nodes.DictType(self.replace_template_types(dict_type.key_type),
                                                              self.replace_template_types(dict_type.value_type)),
@@ -453,6 +453,7 @@ class TypeChecker(unittest.TestCase):
         if isinstance(method_result.type, nodes.FunctionType):
             instance_result = self.infer_type(call.instance_path, mapping=mapping)
             call.instance_type = instance_result.type
+            call.is_algebraic_method = method_result.type.is_algebraic_method
             return self.match_with_function_type(method_result.type, call.args, supertype, mapping)
         elif isinstance(method_result.type, nodes.AlgebraicType) and method_result.type.constructor:
             instance_result = self.infer_type(call.instance_path, mapping=mapping)
@@ -542,12 +543,19 @@ class TypeChecker(unittest.TestCase):
 
         field_entry = entry.fields.get(field.field)
         if field_entry is None:
+            is_algebraic_method = False
             method_entry = entry.methods.get(field.field)
             if method_entry is None:
-                raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+                algebraic_entry = self.env.get(base_type.base)
+                assert isinstance(algebraic_entry, entries.AlgebraicEntry)
+                method_entry = algebraic_entry.methods.get(field.field)
+                if method_entry is None:
+                    raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+                is_algebraic_method = True
             return to_inference_result(
                 self.unify_types(
-                    nodes.FunctionType(method_entry.args, method_entry.return_type), supertype, mapping
+                    nodes.FunctionType(method_entry.args, method_entry.return_type, is_algebraic_method),
+                    supertype, mapping
                 )
             )
         elif isinstance(field_entry, (entries.ConstantEntry, entries.VariableEntry)):
@@ -857,7 +865,10 @@ class TypeChecker(unittest.TestCase):
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
         else:
-            return UnificationResult(nodes.FunctionType(arguments, return_result.type), return_result.mapping)
+            return UnificationResult(
+                nodes.FunctionType(arguments, return_result.type, is_algebraic_method=subtype.is_algebraic_method),
+                return_result.mapping
+            )
 
     def unify_name_types(self, subtype: nodes.Name, supertype: nodes.Name, mapping: Mapping) -> UnificationResult:
         subtype_entry = self.entry_possible_param(subtype)

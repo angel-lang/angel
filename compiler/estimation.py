@@ -376,7 +376,11 @@ class Evaluator(unittest.TestCase):
             nodes.AlgebraicType(base.type.name, params=[], constructor=base.type.constructor)
         )
         assert isinstance(constructor_entry, entries.StructEntry)
-        method_entry = constructor_entry.methods[field]
+        method_entry = constructor_entry.methods.get(field)
+        if method_entry is None:
+            algebraic_entry = self.env.get(base.type.name)
+            assert isinstance(algebraic_entry, entries.AlgebraicEntry)
+            method_entry = algebraic_entry.methods[field]
         return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
 
     def estimate_instance_field(self, base: enodes.Instance, field: str) -> enodes.Expression:

@@ -75,6 +75,10 @@ class Color_a_Green {
   std::int_fast8_t data;
   Color_a_Green(std::int_fast8_t data) { this->data = data; }
 };
+std::string Color_m_word(
+    std::variant<Color_a_Red, Color_a_Blue, Color_a_Green> self) {
+  return "word";
+}
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;
@@ -180,5 +184,6 @@ int main() {
   __print(estimation);
   color1 = Color_a_Green(10);
   __print((std::int_fast16_t)(std::get<Color_a_Green>(color1).data));
+  __print(Color_m_word(color1));
   return 0;
 }
