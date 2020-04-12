@@ -395,6 +395,7 @@ class CharLiteral(Expression):
 @dataclass
 class VectorLiteral(Expression):
     elements: t.List[Expression]
+    typ: t.Optional[Type] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
         return "[" + ', '.join(element.to_code() for element in self.elements) + "]"

@@ -701,7 +701,10 @@ class TypeChecker(unittest.TestCase):
                 element_result = self.unify_types(element_result.type, current_element_result.type, mapping)
             except errors.AngelTypeError:
                 element_result = self.unify_types(current_element_result.type, element_result.type, mapping)
-        return to_inference_result(self.unify_types(nodes.VectorType(element_result.type), supertype, mapping))
+
+        subtype = nodes.VectorType(element_result.type)
+        value.typ = subtype
+        return to_inference_result(self.unify_types(subtype, supertype, mapping))
 
     def infer_type_from_dict_literal(
             self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping

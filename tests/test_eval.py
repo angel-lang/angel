@@ -220,6 +220,14 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['1'])
 
+    def test_vector_add(self):
+        code = [
+            'let l = [1, 2, 3] + [4]',
+            'print(l[3])',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['4'])
+
     def test_dict_length(self):
         code = [
             'let letters = ["a": 1, "b": 2]',

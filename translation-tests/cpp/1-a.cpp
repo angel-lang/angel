@@ -101,16 +101,20 @@ int main() {
   std::vector<std::int_fast8_t> emptyVectorWithType = {};
   std::vector<std::int_fast16_t> vectorWithoutType = {1, 260};
   std::vector<std::int_fast8_t> vectorWithType = {1};
+  std::vector<std::int_fast8_t> __tmp_0 = {1, 2, 3};
+  std::vector<std::int_fast8_t> __tmp_1 = {4};
+  __tmp_0.insert(__tmp_0.end(), __tmp_1.begin(), __tmp_1.end());
+  std::vector<std::int_fast8_t> l = __tmp_0;
   std::map<void*, void*> emptyDictWithoutType;
   std::map<std::string, std::int_fast8_t> emptyDictWithType;
-  std::map<std::string, std::int_fast8_t> __tmp_0;
-  __tmp_0["a"] = 1;
-  __tmp_0["c"] = 0;
-  __tmp_0["b"] = 3;
-  std::map<std::string, std::int_fast8_t> dictWithoutType = __tmp_0;
-  std::map<std::string, std::int_fast8_t> __tmp_1;
-  __tmp_1["a"] = 1;
-  std::map<std::string, std::int_fast8_t> dictWithType = __tmp_1;
+  std::map<std::string, std::int_fast8_t> __tmp_2;
+  __tmp_2["a"] = 1;
+  __tmp_2["c"] = 0;
+  __tmp_2["b"] = 3;
+  std::map<std::string, std::int_fast8_t> dictWithoutType = __tmp_2;
+  std::map<std::string, std::int_fast8_t> __tmp_3;
+  __tmp_3["a"] = 1;
+  std::map<std::string, std::int_fast8_t> dictWithType = __tmp_3;
   __print((std::int_fast16_t)(dictWithoutType["a"]));
   __print(dictWithoutType.size());
   std::optional<void*> someOptional = std::nullopt;
@@ -120,20 +124,20 @@ int main() {
   } else {
     __print("YES");
   }
-  auto __tmp_2 = optionalName;
-  if (__tmp_2 != std::nullopt) {
-    std::string realName = *__tmp_2;
+  auto __tmp_4 = optionalName;
+  if (__tmp_4 != std::nullopt) {
+    std::string realName = *__tmp_4;
     __print(realName);
   } else {
     __print("No name");
   }
   std::int_fast8_t lol = 0;
-  auto __tmp_3 = getN(lol);
-  while (__tmp_3 != std::nullopt) {
-    std::int_fast8_t n = *__tmp_3;
+  auto __tmp_5 = getN(lol);
+  while (__tmp_5 != std::nullopt) {
+    std::int_fast8_t n = *__tmp_5;
     __print(n);
     lol = lol + 1;
-    __tmp_3 = getN(lol);
+    __tmp_5 = getN(lol);
   }
   std::string names = "John,Mike,Kale";
   std::vector<std::string> parts = __string_split_char(names, ',');

@@ -356,6 +356,23 @@ class Translator(unittest.TestCase):
         assert left is not None
         right = self.translate_expression(value.right)
         assert right is not None
+        if isinstance(left, cpp_nodes.ArrayLiteral) and value.operator.value == nodes.Operator.add.value:
+            assert isinstance(right, cpp_nodes.ArrayLiteral)
+            assert isinstance(value.left, nodes.VectorLiteral) and isinstance(value.right, nodes.VectorLiteral)
+            assert value.left.typ is not None and value.right.typ is not None
+            _, tmp1 = self.create_tmp(self.translate_type(value.left.typ), left)
+            _, tmp2 = self.create_tmp(self.translate_type(value.right.typ), right)
+            self.nodes_buffer.append(
+                cpp_nodes.Semicolon(
+                    cpp_nodes.MethodCall(
+                        tmp1, "insert", [
+                            cpp_nodes.MethodCall(tmp1, "end", []), cpp_nodes.MethodCall(tmp2, "begin", []),
+                            cpp_nodes.MethodCall(tmp2, "end", [])
+                        ]
+                    )
+                )
+            )
+            return tmp1
         return cpp_nodes.BinaryExpression(left, cpp_nodes.Operator(value.operator.value), right)
 
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:

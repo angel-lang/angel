@@ -33,6 +33,9 @@ let emptyVectorWithType: [I8] = []
 let vectorWithoutType = [1, 260]
 let vectorWithType: [I8] = [1]
 
+// Vector add
+let l = [1, 2, 3] + [4]
+
 // Dict type
 let emptyDictWithoutType = [:]
 let emptyDictWithType: [String: I8] = [:]

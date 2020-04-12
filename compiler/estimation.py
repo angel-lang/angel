@@ -52,6 +52,7 @@ class Evaluator(unittest.TestCase):
         add_dispatcher = {
             (enodes.Int, enodes.Int): self.estimate_add_ints,
             (enodes.String, enodes.String): self.estimate_add_strings,
+            (enodes.Vector, enodes.Vector): self.estimate_add_vectors,
         }
 
         sub_dispatcher = {
@@ -314,6 +315,12 @@ class Evaluator(unittest.TestCase):
 
     def estimate_add_strings(self, x: enodes.String, y: enodes.String) -> enodes.String:
         return enodes.String(x.value + y.value)
+
+    def estimate_add_vectors(self, x: enodes.Vector, y: enodes.Vector) -> enodes.Vector:
+        element_type = x.element_type
+        if not x.elements:
+            element_type = y.element_type
+        return enodes.Vector(x.elements + y.elements, element_type)
 
     def estimate_sub_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
         value = x.value - y.value
