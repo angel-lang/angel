@@ -37,6 +37,7 @@ class Analyzer(unittest.TestCase):
             nodes.FunctionDeclaration: self.analyze_function_declaration,
             nodes.StructDeclaration: self.analyze_struct_declaration,
             nodes.AlgebraicDeclaration: self.analyze_algebraic_declaration,
+            nodes.InterfaceDeclaration: self.analyze_interface_declaration,
             nodes.FieldDeclaration: self.analyze_field_declaration,
             nodes.MethodDeclaration: self.analyze_method_declaration,
             nodes.InitDeclaration: self.analyze_init_declaration,
@@ -127,6 +128,18 @@ class Analyzer(unittest.TestCase):
         self.env.dec_nesting(declaration.name)
         return nodes.AlgebraicDeclaration(
             declaration.line, declaration.name, declaration.parameters, constructors, private_methods, public_methods
+        )
+
+    def analyze_interface_declaration(self, declaration: nodes.InterfaceDeclaration) -> nodes.InterfaceDeclaration:
+        self.env.add_interface(declaration.line, declaration.name, declaration.parameters)
+        self.env.inc_nesting(declaration.name)
+        self.env.add_parameters(declaration.line, declaration.parameters)
+        # list(...) for mypy
+        fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.fields)))
+        methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.methods)))
+        self.env.dec_nesting(declaration.name)
+        return nodes.InterfaceDeclaration(
+            declaration.line, declaration.name, declaration.parameters, fields, methods
         )
 
     def generate_default_init(self, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]):

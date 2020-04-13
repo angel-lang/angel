@@ -41,5 +41,13 @@ class AlgebraicEntry(Entry):
 
 
 @dataclass
+class InterfaceEntry(Entry):
+    name: nodes.Name
+    params: nodes.Parameters
+    fields: t.Dict[str, Entry]
+    methods: t.Dict[str, FunctionEntry]
+
+
+@dataclass
 class ParameterEntry(Entry):
     name: nodes.Name

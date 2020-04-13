@@ -132,6 +132,11 @@ class Environment:
             line, name, params, constructors={}, methods={}
         )
 
+    def add_interface(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
+        self.space[self.nesting_level][name.member] = entries.InterfaceEntry(
+            line, name, params, fields={}, methods={}
+        )
+
     def add_parameters(self, line: int, parameters: nodes.Parameters) -> None:
         for parameter in parameters:
             self.space[self.nesting_level][parameter.member] = entries.ParameterEntry(line, parameter)

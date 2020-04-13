@@ -203,3 +203,7 @@ print(estimation)
 color1 = Color.Green(10)
 print(color1.data)
 print(color1.word())
+
+
+// Interfaces
+interface Beautiful

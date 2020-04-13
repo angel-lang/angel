@@ -201,6 +201,11 @@ let zero = n.zero()
 Algebraic data types can have several constructors. Its constructors can have different fields and methods.
 Algebraics can have their own methods.
 
+## Interfaces
+```
+interface Beautiful
+```
+
 ## Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")

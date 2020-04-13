@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from . import nodes
 from .environment_simple_entries import (
-    Entry, FunctionEntry, AlgebraicEntry, InitEntry, StructEntry, ParameterEntry
+    Entry, FunctionEntry, AlgebraicEntry, InitEntry, StructEntry, ParameterEntry, InterfaceEntry
 )
 from .estimation_nodes import Expression
 

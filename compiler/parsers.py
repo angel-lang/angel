@@ -364,9 +364,23 @@ class Parser:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return self.make_algebraic_declaration(line, name, parameters, body)
 
+    def parse_interface_declaration(self) -> t.Optional[nodes.InterfaceDeclaration]:
+        line = self.position.line
+        if not self.parse_raw("interface"):
+            return None
+        self.spaces()
+        name = self.parse_name()
+        if name is None:
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        parameters: nodes.Parameters = []
+        if not self.parse_raw(":"):
+            return self.make_interface_declaration(line, name, parameters, [])
+        raise NotImplementedError
+
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
-        parse_algebraic_declaration, parse_while_statement, parse_if_statement, parse_assignment, parse_function_call
+        parse_algebraic_declaration, parse_interface_declaration, parse_while_statement, parse_if_statement,
+        parse_assignment, parse_function_call
     ]
 
     def make_struct_declaration(
@@ -413,6 +427,22 @@ class Parser:
             else:
                 raise errors.AngelSyntaxError("expected method or constructor declaration", self.get_code(node.line))
         return nodes.AlgebraicDeclaration(line, name, parameters, constructors, public_methods, private_methods)
+
+    def make_interface_declaration(
+        self, line: int, name: nodes.Name, parameters: nodes.Parameters, body: nodes.AST
+    ) -> nodes.InterfaceDeclaration:
+        methods, fields = [], []
+        for node in body:
+            if isinstance(node, nodes.FunctionDeclaration):
+                method_declaration = nodes.MethodDeclaration(
+                    node.line, node.name, node.args, node.return_type, node.body
+                )
+                methods.append(method_declaration)
+            elif isinstance(node, nodes.FieldDeclaration):
+                fields.append(node)
+            else:
+                raise errors.AngelSyntaxError("expected method or field declaration", self.get_code(node.line))
+        return nodes.InterfaceDeclaration(line, name, parameters, fields, methods)
 
     def parse_body(self, statement_parsers) -> nodes.AST:
         def mega_parser() -> t.Optional[nodes.Node]:

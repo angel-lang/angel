@@ -105,6 +105,7 @@ class Translator(unittest.TestCase):
             nodes.VariableDeclaration: self.translate_variable_declaration,
             nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.StructDeclaration: self.translate_struct_declaration,
+            nodes.InterfaceDeclaration: self.translate_interface_declaration,
             nodes.AlgebraicDeclaration: self.translate_algebraic_declaration,
             nodes.FieldDeclaration: self.translate_field_declaration,
             nodes.MethodDeclaration: self.translate_method_declaration,
@@ -443,6 +444,18 @@ class Translator(unittest.TestCase):
                 [self.translate_type(parameter) for parameter in node.parameters], struct_declaration
             )
         return struct_declaration
+
+    def translate_interface_declaration(self, node: nodes.InterfaceDeclaration) -> cpp_nodes.Node:
+        # list(...) for mypy
+        class_declaration = cpp_nodes.ClassDeclaration(
+            node.name.member, [], private=[],
+            public=self.translate_body(list(node.fields)) + self.translate_body(list(node.methods))
+        )
+        if node.parameters:
+            return cpp_nodes.Template(
+                [self.translate_type(parameter) for parameter in node.parameters], class_declaration
+            )
+        return class_declaration
 
     def translate_algebraic_declaration(self, node: nodes.AlgebraicDeclaration) -> None:
         # list(...) for mypy

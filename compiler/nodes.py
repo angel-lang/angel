@@ -766,3 +766,21 @@ class AlgebraicDeclaration(Node):
         public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
         body = constructors + "\n" + private_methods + "\n" + public_methods
         return INDENTATION * indentation_level + f"algebraic {self.name.to_code()}{parameters}:\n{body}"
+
+
+@dataclass
+class InterfaceDeclaration(Node):
+    name: Name
+    parameters: Parameters
+    fields: t.List[FieldDeclaration]
+    methods: t.List[MethodDeclaration]
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        if self.parameters:
+            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+        else:
+            parameters = ''
+        methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.methods)
+        fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.fields)
+        body = fields + "\n" + methods
+        return INDENTATION * indentation_level + f"interface {self.name.to_code()}{parameters}:\n{body}"
