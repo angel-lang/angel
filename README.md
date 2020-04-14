@@ -203,8 +203,16 @@ Algebraics can have their own methods.
 
 ## Interfaces
 ```
-interface Beautiful
+interface Empty
+
+
+interface Beautiful:
+    beautifulValue: String
+
+    fun showBeauty()
 ```
+
+Interfaces can contain field and method declarations.
 
 ## Reading Input and Writing Output
 ```

@@ -79,7 +79,11 @@ std::string Color_m_word(
     std::variant<Color_a_Red, Color_a_Blue, Color_a_Green> self) {
   return "word";
 }
-class Beautiful {};
+class Beautiful {
+ public:
+  std::string beautifulValue;
+  void showBeauty() {}
+};
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;

@@ -2,6 +2,7 @@ import re
 import typing as t
 from dataclasses import dataclass
 from itertools import zip_longest
+from functools import partial
 
 from . import nodes, errors
 
@@ -250,7 +251,7 @@ class Parser:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return nodes.InitDeclaration(line, args, body)
 
-    def parse_function_declaration(self) -> t.Optional[nodes.FunctionDeclaration]:
+    def parse_function_declaration(self, body_required: bool = True) -> t.Optional[nodes.FunctionDeclaration]:
         line = self.position.line
         if not self.parse_raw("fun"):
             return None
@@ -271,7 +272,9 @@ class Parser:
         else:
             return_type = nodes.BuiltinType.void
         if not self.parse_raw(":"):
-            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+            if body_required:
+                raise errors.AngelSyntaxError("expected ':'", self.get_code())
+            return nodes.FunctionDeclaration(line, name, args, return_type, [])
         self.additional_statement_parsers.append(self.parse_return_statement)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
@@ -375,7 +378,14 @@ class Parser:
         parameters: nodes.Parameters = []
         if not self.parse_raw(":"):
             return self.make_interface_declaration(line, name, parameters, [])
-        raise NotImplementedError
+        self.additional_statement_parsers.append(self.parse_field_declaration)
+        self.additional_statement_parsers.append(partial(self.parse_function_declaration, False))
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
+        self.additional_statement_parsers.pop()
+        self.additional_statement_parsers.pop()
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return self.make_interface_declaration(line, name, parameters, body)
 
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
@@ -545,7 +555,7 @@ class Parser:
 
     def parse_node(self) -> t.Optional[nodes.Node]:
         for parser in self.NODE_PARSERS:
-            node = parser(self)
+            node = t.cast(t.Callable[..., t.Optional[nodes.Node]], parser)(self)
             if node is not None:
                 return node
         return None

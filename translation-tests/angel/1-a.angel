@@ -206,4 +206,7 @@ print(color1.word())
 
 
 // Interfaces
-interface Beautiful
+interface Beautiful:
+    beautifulValue: String
+
+    fun showBeauty()
