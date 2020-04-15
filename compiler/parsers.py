@@ -376,8 +376,19 @@ class Parser:
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
         parameters: nodes.Parameters = []
+        backup_state = self.backup_state()
+        self.spaces()
+        if self.parse_raw("is"):
+            self.spaces()
+            parent_interfaces = self.parse_elements(
+                element_separator=",", element_parser=self.parse_parent_interface, chars_ending_sequence=":",
+                raise_error=False
+            )
+        else:
+            self.restore_state(backup_state)
+            parent_interfaces = []
         if not self.parse_raw(":"):
-            return self.make_interface_declaration(line, name, parameters, [])
+            return self.make_interface_declaration(line, name, parameters, parent_interfaces, [])
         self.additional_statement_parsers.append(self.parse_field_declaration)
         self.additional_statement_parsers.append(partial(self.parse_function_declaration, False))
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
@@ -385,7 +396,7 @@ class Parser:
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return self.make_interface_declaration(line, name, parameters, body)
+        return self.make_interface_declaration(line, name, parameters, parent_interfaces, body)
 
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
@@ -439,7 +450,8 @@ class Parser:
         return nodes.AlgebraicDeclaration(line, name, parameters, constructors, public_methods, private_methods)
 
     def make_interface_declaration(
-        self, line: int, name: nodes.Name, parameters: nodes.Parameters, body: nodes.AST
+        self, line: int, name: nodes.Name, parameters: nodes.Parameters, parent_interfaces: nodes.Interfaces,
+        body: nodes.AST
     ) -> nodes.InterfaceDeclaration:
         methods, fields = [], []
         for node in body:
@@ -452,7 +464,7 @@ class Parser:
                 fields.append(node)
             else:
                 raise errors.AngelSyntaxError("expected method or field declaration", self.get_code(node.line))
-        return nodes.InterfaceDeclaration(line, name, parameters, fields, methods)
+        return nodes.InterfaceDeclaration(line, name, parameters, parent_interfaces, fields, methods)
 
     def parse_body(self, statement_parsers) -> nodes.AST:
         def mega_parser() -> t.Optional[nodes.Node]:
@@ -535,20 +547,35 @@ class Parser:
                 return operator
         return None
 
+    def parse_elements(
+        self, element_separator: str, element_parser: t.Callable[[], t.Any],
+        chars_ending_sequence: t.Optional[str] = None, raise_error: bool = True
+    ) -> t.List[t.Any]:
+        if chars_ending_sequence is None:
+            chars_ending_sequence = ""
+
+        result = []
+        element = element_parser()
+        while element is not None:
+            result.append(element)
+            if not self.parse_raw(element_separator) and \
+                    not any(self.next_nonspace_char_is(char) for char in chars_ending_sequence):
+                if raise_error:
+                    raise errors.AngelSyntaxError(
+                        f"expected '{element_separator}' or any char in '{chars_ending_sequence}'", self.get_code()
+                    )
+                return result
+            self.spaces()
+            element = element_parser()
+        return result
+
     def parse_container(
             self, open_container: str, close_container: str, element_separator: str,
             element_parser: t.Callable[[], t.Any]
     ) -> t.Optional[t.List[t.Any]]:
         if not self.parse_raw(open_container):
             return None
-        result = []
-        element = element_parser()
-        while element is not None:
-            result.append(element)
-            if not self.parse_raw(element_separator) and not self.next_nonspace_char_is(close_container):
-                raise errors.AngelSyntaxError(f"expected '{element_separator}' or '{close_container}'", self.get_code())
-            self.spaces()
-            element = element_parser()
+        result = self.parse_elements(element_separator, element_parser, chars_ending_sequence=close_container)
         if not self.parse_raw(close_container):
             raise errors.AngelSyntaxError(f"expected '{close_container}'", self.get_code())
         return result
@@ -562,6 +589,13 @@ class Parser:
 
     def is_eof(self) -> bool:
         return self.code[self.idx:] == ""
+
+    def parse_parent_interface(self) -> t.Optional[nodes.Interface]:
+        raw = self.parse_type()
+        if raw is None:
+            return None
+        assert isinstance(raw, (nodes.Name, nodes.GenericType))
+        return raw
 
     def parse_type(self) -> t.Optional[nodes.Type]:
         inner_type = self.parse_type_atom()

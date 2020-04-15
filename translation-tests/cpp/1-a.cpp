@@ -84,6 +84,7 @@ class Beautiful {
   std::string beautifulValue;
   void showBeauty() {}
 };
+class Cool : public Beautiful {};
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;

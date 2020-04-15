@@ -206,13 +206,13 @@ Algebraics can have their own methods.
 interface Empty
 
 
-interface Beautiful:
+interface Beautiful is Empty:
     beautifulValue: String
 
     fun showBeauty()
 ```
 
-Interfaces can contain field and method declarations.
+Interfaces can contain field and method declarations and inherit them from other interfaces.
 
 ## Reading Input and Writing Output
 ```

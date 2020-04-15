@@ -576,10 +576,6 @@ class Argument:
         return f"{self.name.to_code()}: {self.type.to_code()}"
 
 
-Arguments = t.List[Argument]
-Parameters = t.List[Name]
-
-
 @dataclass
 class GenericType(Type):
     name: Name
@@ -587,6 +583,12 @@ class GenericType(Type):
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"{self.name.to_code()}({', '.join(param.to_code() for param in self.params)})"
+
+
+Arguments = t.List[Argument]
+Parameters = t.List[Name]
+Interface = t.Union[Name, GenericType]
+Interfaces = t.List[Interface]
 
 
 @dataclass
@@ -772,15 +774,22 @@ class AlgebraicDeclaration(Node):
 class InterfaceDeclaration(Node):
     name: Name
     parameters: Parameters
+    parent_interfaces: Interfaces
     fields: t.List[FieldDeclaration]
     methods: t.List[MethodDeclaration]
 
     def to_code(self, indentation_level: int = 0) -> str:
+        if self.parent_interfaces:
+            interfaces = ' is ' + ', '.join(interface.to_code() for interface in self.parent_interfaces)
+        else:
+            interfaces = ''
+
         if self.parameters:
             parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
         else:
             parameters = ''
+
         methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.methods)
         fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.fields)
         body = fields + "\n" + methods
-        return INDENTATION * indentation_level + f"interface {self.name.to_code()}{parameters}:\n{body}"
+        return INDENTATION * indentation_level + f"interface {self.name.to_code()}{parameters}{interfaces}:\n{body}"

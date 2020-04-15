@@ -139,7 +139,7 @@ class Analyzer(unittest.TestCase):
         methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.methods)))
         self.env.dec_nesting(declaration.name)
         return nodes.InterfaceDeclaration(
-            declaration.line, declaration.name, declaration.parameters, fields, methods
+            declaration.line, declaration.name, declaration.parameters, declaration.parent_interfaces, fields, methods
         )
 
     def generate_default_init(self, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]):

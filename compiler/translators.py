@@ -448,8 +448,9 @@ class Translator(unittest.TestCase):
     def translate_interface_declaration(self, node: nodes.InterfaceDeclaration) -> cpp_nodes.Node:
         # list(...) for mypy
         class_declaration = cpp_nodes.ClassDeclaration(
-            node.name.member, [], private=[],
-            public=self.translate_body(list(node.fields)) + self.translate_body(list(node.methods))
+            node.name.member,
+            [(cpp_nodes.AccessModifier.public, self.translate_type(interface)) for interface in node.parent_interfaces],
+            private=[], public=self.translate_body(list(node.fields)) + self.translate_body(list(node.methods))
         )
         if node.parameters:
             return cpp_nodes.Template(

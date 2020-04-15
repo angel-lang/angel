@@ -210,3 +210,6 @@ interface Beautiful:
     beautifulValue: String
 
     fun showBeauty()
+
+
+interface Cool is Beautiful
