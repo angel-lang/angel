@@ -334,8 +334,19 @@ class Parser:
             open_container="(", close_container=")", element_separator=",", element_parser=self.parse_name)
         if parameters is None:
             parameters = []
+        backup_state = self.backup_state()
+        self.spaces()
+        if self.parse_raw("is"):
+            self.spaces()
+            interfaces = self.parse_elements(
+                element_separator=",", element_parser=self.parse_parent_interface, chars_ending_sequence=":",
+                raise_error=False
+            )
+        else:
+            self.restore_state(backup_state)
+            interfaces = []
         if not self.parse_raw(":"):
-            return self.make_struct_declaration(line, name, parameters, [])
+            return self.make_struct_declaration(line, name, parameters, interfaces, [])
         self.additional_statement_parsers.append(self.parse_init_declaration)
         self.additional_statement_parsers.append(self.parse_function_declaration)
         self.additional_statement_parsers.append(self.parse_field_declaration)
@@ -345,7 +356,7 @@ class Parser:
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return self.make_struct_declaration(line, name, parameters, body)
+        return self.make_struct_declaration(line, name, parameters, interfaces, body)
 
     def parse_algebraic_declaration(self) -> t.Optional[nodes.AlgebraicDeclaration]:
         line = self.position.line
@@ -405,7 +416,8 @@ class Parser:
     ]
 
     def make_struct_declaration(
-            self, line: int, name: nodes.Name, parameters: nodes.Parameters, body: nodes.AST
+            self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces,
+            body: nodes.AST
     ) -> nodes.StructDeclaration:
         private_fields, public_fields, init_declarations, private_methods, public_methods = [], [], [], [], []
         for node in body:
@@ -427,7 +439,8 @@ class Parser:
             else:
                 raise errors.AngelSyntaxError("expected method, field or init declaration", self.get_code(node.line))
         return nodes.StructDeclaration(
-            line, name, parameters, private_fields, public_fields, init_declarations, private_methods, public_methods
+            line, name, parameters, interfaces, private_fields, public_fields, init_declarations,
+            private_methods, public_methods
         )
 
     def make_algebraic_declaration(

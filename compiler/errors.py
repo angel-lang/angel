@@ -38,6 +38,89 @@ class AngelDivByZero(AngelError):
 
 
 @dataclass
+class _AngelInterfaceError(AngelError):
+    subject: nodes.Name
+    interface: nodes.Name
+    code: Code
+
+
+@dataclass
+class AngelMissingInterfaceMember(_AngelInterfaceError):
+    missing_member: nodes.Name
+    inherited_from: t.Optional[nodes.Type] = None
+
+    def __str__(self) -> str:
+        subject = self.subject.to_code()
+        if self.inherited_from:
+            inheritence = f" (which inherits from '{self.inherited_from.to_code()}')"
+        else:
+            inheritence = ""
+        return "\n".join((
+            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritence}",
+            f"                                however, member '{self.missing_member.to_code()}' is missing",
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
+class AngelInterfaceFieldError(_AngelInterfaceError):
+    field: nodes.Name
+    subject_field_type: nodes.Type
+    interface_field_type: nodes.Type
+    inherited_from: t.Optional[nodes.Type] = None
+
+    def __str__(self) -> str:
+        subject = self.subject.to_code()
+        l2 = f"however, '{self.field.to_code()}' has type '{self.subject_field_type.to_code()}'"
+        l3 = f"and expected type is '{self.interface_field_type.to_code()}'"
+        if self.inherited_from:
+            inheritence = f" (which inherits from '{self.inherited_from.to_code()}')"
+        else:
+            inheritence = ""
+        return "\n".join((
+            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritence}",
+            "                                " + l2,
+            "                                " + l3,
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
+class AngelInterfaceMethodError(_AngelInterfaceError):
+    method: nodes.Name
+    subject_method_args: nodes.Arguments
+    subject_method_return_type: nodes.Type
+    interface_method_args: nodes.Arguments
+    interface_method_return_type: nodes.Type
+    inherited_from: t.Optional[nodes.Type] = None
+
+    def __str__(self) -> str:
+        subject = self.subject.to_code()
+        method = self.method.to_code()
+        subject_args = ', '.join(arg.to_code() for arg in self.subject_method_args)
+        subject_type = self.subject_method_return_type.to_code()
+        interface_args = ', '.join(arg.to_code() for arg in self.interface_method_args)
+        interface_type = self.interface_method_return_type.to_code()
+
+        if self.inherited_from:
+            inheritence = f" (which inherits from '{self.inherited_from.to_code()}')"
+        else:
+            inheritence = ""
+
+        l2 = f"however, it implemented {method}({subject_args}) -> {subject_type}"
+        l3 = f"and expected implementation is {method}({interface_args}) -> {interface_type}"
+        return "\n".join((
+            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritence}",
+            "                                " + l2,
+            "                                " + l3,
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelPrivateFieldsNotInitializedAndNoInit(AngelError):
     field: nodes.Name
     code: Code

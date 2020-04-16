@@ -1,5 +1,6 @@
 import typing as t
 import unittest
+from itertools import zip_longest
 
 from . import (
     nodes, estimation, type_checking, environment, estimation_nodes as enodes, errors, environment_entries as entries
@@ -49,6 +50,10 @@ class Analyzer(unittest.TestCase):
             nodes.Break: self.analyze_break,
             nodes.FunctionCall: self.analyze_function_call,
             nodes.MethodCall: self.analyze_method_call,
+        }
+
+        self.check_interface_implementation_dispatcher = {
+            entries.StructEntry: self.check_struct_interface_implementation
         }
 
     def analyze_ast(self, ast: nodes.AST) -> nodes.AST:
@@ -112,9 +117,10 @@ class Analyzer(unittest.TestCase):
         private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
         public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
         self.env.dec_nesting(declaration.name)
+        self.check_interface_implementations(declaration.interfaces, declaration.name)
         return nodes.StructDeclaration(
-            declaration.line, declaration.name, declaration.parameters, private_fields, public_fields,
-            init_declarations, private_methods, public_methods
+            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, private_fields,
+            public_fields, init_declarations, private_methods, public_methods
         )
 
     def analyze_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> nodes.AlgebraicDeclaration:
@@ -131,7 +137,9 @@ class Analyzer(unittest.TestCase):
         )
 
     def analyze_interface_declaration(self, declaration: nodes.InterfaceDeclaration) -> nodes.InterfaceDeclaration:
-        self.env.add_interface(declaration.line, declaration.name, declaration.parameters)
+        self.env.add_interface(
+            declaration.line, declaration.name, declaration.parameters, declaration.parent_interfaces
+        )
         self.env.inc_nesting(declaration.name)
         self.env.add_parameters(declaration.line, declaration.parameters)
         # list(...) for mypy
@@ -285,6 +293,86 @@ class Analyzer(unittest.TestCase):
     def analyze_method_call(self, method_call: nodes.MethodCall) -> nodes.MethodCall:
         self.infer_type(method_call)
         return method_call
+
+    def check_interface_implementations(self, interfaces: nodes.Interfaces, name: nodes.Name) -> None:
+        if self.env.parents:
+            entry: entries.Entry = self.env.get_algebraic(nodes.AlgebraicType(self.env.parents[-1], [], name))
+        else:
+            entry = self.env.get(name)
+        for interface in interfaces:
+            if isinstance(interface, nodes.GenericType):
+                interface_entry = self.env.get(interface.name)
+            else:
+                interface_entry = self.env.get(interface)
+
+            dispatch(self.check_interface_implementation_dispatcher, type(entry), entry, interface_entry)
+
+    def check_struct_interface_implementation(
+        self, struct_entry: entries.StructEntry, interface_entry: entries.InterfaceEntry
+    ) -> None:
+        for field_name, field_entry in interface_entry.fields.items():
+            assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
+            found = struct_entry.fields.get(field_name)
+            if not found:
+                raise errors.AngelMissingInterfaceMember(
+                    struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), field_entry.name
+                )
+            assert isinstance(found, (entries.VariableEntry, entries.ConstantEntry))
+            if found.type != field_entry.type:
+                raise errors.AngelInterfaceFieldError(
+                    struct_entry.name, interface_entry.name, self.get_code(found.line),
+                    field_entry.name, found.type, field_entry.type
+                )
+
+        for field_name, (inherited_from, field_entry) in interface_entry.inherited_fields.items():
+            assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
+            found = struct_entry.fields.get(field_name)
+            if not found:
+                raise errors.AngelMissingInterfaceMember(
+                    struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), field_entry.name,
+                    inherited_from=inherited_from
+                )
+            assert isinstance(found, (entries.VariableEntry, entries.ConstantEntry))
+            if found.type != field_entry.type:
+                raise errors.AngelInterfaceFieldError(
+                    struct_entry.name, interface_entry.name, self.get_code(found.line),
+                    field_entry.name, found.type, field_entry.type, inherited_from=inherited_from
+                )
+
+        for method_name, method_entry in interface_entry.methods.items():
+            found = struct_entry.methods.get(method_name)
+            if not found:
+                raise errors.AngelMissingInterfaceMember(
+                    struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), method_entry.name
+                )
+            self.match_method_implementation(interface_entry.name, struct_entry.name, method_entry, found)
+
+        for method_name, (inherited_from, method_entry) in interface_entry.inherited_methods.items():
+            found = struct_entry.methods.get(method_name)
+            if not found:
+                raise errors.AngelMissingInterfaceMember(
+                    struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), method_entry.name,
+                    inherited_from=inherited_from
+                )
+            self.match_method_implementation(
+                interface_entry.name, struct_entry.name, method_entry, found, inherited_from
+            )
+
+    def match_method_implementation(
+        self, interface: nodes.Name, subject: nodes.Name, interface_method: entries.FunctionEntry,
+        subject_method: entries.FunctionEntry, inherited_from: t.Optional[nodes.Type] = None
+    ) -> None:
+        if interface_method.return_type != subject_method.return_type:
+            raise errors.AngelInterfaceMethodError(
+                subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
+                subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
+            )
+        for interface_arg, subject_arg in zip_longest(interface_method.args, subject_method.args):
+            if interface_arg is None or subject_arg is None or (interface_arg.type != subject_arg.type):
+                raise errors.AngelInterfaceMethodError(
+                    subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
+                    subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
+                )
 
     def check_name_reassignment(self, left: nodes.Name) -> None:
         if left.module:

@@ -132,9 +132,28 @@ class Environment:
             line, name, params, constructors={}, methods={}
         )
 
-    def add_interface(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
+    def add_interface(
+        self, line: int, name: nodes.Name, params: nodes.Parameters, parent_interfaces: nodes.Interfaces
+    ) -> None:
+        inherited_fields, inherited_methods = {}, {}
+        for interface in parent_interfaces:
+            if isinstance(interface, nodes.Name):
+                interface_entry = self.get(interface)
+            else:
+                interface_entry = self.get(interface.name)
+            assert isinstance(interface_entry, entries.InterfaceEntry)
+
+            for field_name, field_entry in interface_entry.fields.items():
+                inherited_fields[field_name] = (interface, field_entry)
+            inherited_fields.update(interface_entry.inherited_fields)
+
+            for method_name, method_entry in interface_entry.methods.items():
+                inherited_methods[method_name] = (interface, method_entry)
+            inherited_methods.update(interface_entry.inherited_methods)
+
         self.space[self.nesting_level][name.member] = entries.InterfaceEntry(
-            line, name, params, fields={}, methods={}
+            line, name, params, parent_interfaces=parent_interfaces, fields={}, methods={},
+            inherited_fields=inherited_fields, inherited_methods=inherited_methods
         )
 
     def add_parameters(self, line: int, parameters: nodes.Parameters) -> None:

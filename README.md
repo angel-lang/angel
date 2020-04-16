@@ -214,6 +214,20 @@ interface Beautiful is Empty:
 
 Interfaces can contain field and method declarations and inherit them from other interfaces.
 
+You can implement interfaces in structs.
+All fields and methods must be present in the struct.
+All fields/methods must have the same types/signatures as their prototypes in interfaces.
+```
+struct Person is Beautiful:
+    firstName: String
+    secondName: String
+    age: U8
+    beautifulValue: String
+
+    fun showBeauty():
+        print(self.beautifulValue)
+```
+
 ## Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")

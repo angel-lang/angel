@@ -213,3 +213,13 @@ interface Beautiful:
 
 
 interface Cool is Beautiful
+
+
+struct Person is Cool:
+    firstName: String
+    secondName: String
+    age: U8
+    beautifulValue: String
+
+    fun showBeauty():
+        print(self.beautifulValue)

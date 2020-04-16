@@ -85,6 +85,23 @@ class Beautiful {
   void showBeauty() {}
 };
 class Cool : public Beautiful {};
+class Person : public Cool {
+ public:
+  std::string firstName;
+  std::string secondName;
+  std::uint_fast8_t age;
+  std::string beautifulValue;
+  Person(std::string firstName,
+         std::string secondName,
+         std::uint_fast8_t age,
+         std::string beautifulValue) {
+    this->firstName = firstName;
+    this->secondName = secondName;
+    this->age = age;
+    this->beautifulValue = beautifulValue;
+  }
+  void showBeauty() { __print(this->beautifulValue); }
+};
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;

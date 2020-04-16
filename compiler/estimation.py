@@ -194,7 +194,9 @@ class Evaluator(unittest.TestCase):
         self.env.dec_nesting(declaration.name)
 
     def estimate_interface_declaration(self, declaration: nodes.InterfaceDeclaration) -> None:
-        self.env.add_interface(declaration.line, declaration.name, declaration.parameters)
+        self.env.add_interface(
+            declaration.line, declaration.name, declaration.parameters, declaration.parent_interfaces
+        )
         self.env.inc_nesting(declaration.name)
         self.estimate_ast(list(declaration.fields))
         self.estimate_ast(list(declaration.methods))

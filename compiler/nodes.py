@@ -723,6 +723,7 @@ class InitDeclaration(Node):
 class StructDeclaration(Node):
     name: Name
     parameters: Parameters
+    interfaces: Interfaces
     private_fields: t.List[FieldDeclaration]
     public_fields: t.List[FieldDeclaration]
     init_declarations: t.List[InitDeclaration]
@@ -730,10 +731,16 @@ class StructDeclaration(Node):
     public_methods: t.List[MethodDeclaration]
 
     def to_code(self, indentation_level: int = 0) -> str:
+        if self.interfaces:
+            interfaces = ' is ' + ', '.join(interface.to_code() for interface in self.interfaces)
+        else:
+            interfaces = ''
+
         if self.parameters:
             parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
         else:
             parameters = ''
+
         private_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_fields)
         public_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_fields)
         init_declarations = '\n'.join(node.to_code(indentation_level + 1) for node in self.init_declarations)
@@ -742,12 +749,12 @@ class StructDeclaration(Node):
         fields = private_fields + public_fields
 
         if not fields and not init_declarations and not private_methods and not public_methods:
-            return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}"
+            return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}{interfaces}"
 
         body = (
             fields + "\n" + init_declarations + "\n" + private_methods + "\n" + public_methods
         )
-        return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}:\n{body}"
+        return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}{interfaces}:\n{body}"
 
 
 @dataclass

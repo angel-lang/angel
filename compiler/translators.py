@@ -438,7 +438,11 @@ class Translator(unittest.TestCase):
         self.struct_name = node.name.member
         public = self.translate_body(list(node.public_fields)) + self.translate_body(list(node.init_declarations)) +\
             self.translate_body(list(node.public_methods))
-        struct_declaration = cpp_nodes.ClassDeclaration(node.name.member, [], private, public)
+        struct_declaration = cpp_nodes.ClassDeclaration(
+            node.name.member,
+            [(cpp_nodes.AccessModifier.public, self.translate_type(interface)) for interface in node.interfaces],
+            private, public
+        )
         if node.parameters:
             return cpp_nodes.Template(
                 [self.translate_type(parameter) for parameter in node.parameters], struct_declaration

@@ -44,8 +44,11 @@ class AlgebraicEntry(Entry):
 class InterfaceEntry(Entry):
     name: nodes.Name
     params: nodes.Parameters
+    parent_interfaces: nodes.Interfaces
     fields: t.Dict[str, Entry]
     methods: t.Dict[str, FunctionEntry]
+    inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, Entry]]
+    inherited_methods: t.Dict[str, t.Tuple[nodes.Interface, FunctionEntry]]
 
 
 @dataclass
