@@ -155,6 +155,7 @@ class BuiltinType(Type, enum.Enum):
     void = "Void"
 
     convertible_to_string = "ConvertibleToString"
+    iterable = "Iterable"
 
     # These types are mentioned only in expressions.
     optional = "Optional"
@@ -512,6 +513,19 @@ class Break(Node):
 
 
 @dataclass
+class For(Node):
+    element: Name
+    container: Expression
+    body: AST
+    container_type: t.Optional[Type] = None
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        code = f"for {self.element.to_code()} in {self.container.to_code()}:\n{body}"
+        return INDENTATION * indentation_level + code
+
+
+@dataclass
 class While(Node):
     condition: Expression
     body: AST
@@ -578,7 +592,7 @@ class Argument:
 
 @dataclass
 class GenericType(Type):
-    name: Name
+    name: t.Union[Name, BuiltinType]
     params: t.List[Type]
 
     def to_code(self, indentation_level: int = 0) -> str:

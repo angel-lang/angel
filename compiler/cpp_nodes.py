@@ -38,6 +38,9 @@ class StdModule(enum.Enum):
 
 
 class Operator(enum.Enum):
+    increment = "++"
+    decrement = "--"
+
     lshift = "<<"
     rshift = ">>"
 
@@ -102,6 +105,15 @@ class SpecialName(Expression, enum.Enum):
 
     def to_code(self) -> str:
         return self.value
+
+
+@dataclass
+class MemberName(Type):
+    namespace: Type
+    member: str
+
+    def to_code(self) -> str:
+        return f"{self.namespace.to_code()}::{self.member}"
 
 
 @dataclass
@@ -206,6 +218,15 @@ class Deref(Expression):
 
     def to_code(self) -> str:
         return f"*{self.value.to_code()}"
+
+
+@dataclass
+class UnaryExpression(Expression):
+    operator: Operator
+    subexpression: Expression
+
+    def to_code(self) -> str:
+        return f"{self.operator.value}{self.subexpression.to_code()}"
 
 
 @dataclass
@@ -366,6 +387,21 @@ class Break(Node):
 
     def to_code(self) -> str:
         return "break;"
+
+
+@dataclass
+class For(Node):
+    start_condition: SubDeclaration
+    continue_condition: Expression
+    end_condition: Expression
+    body: AST
+
+    def to_code(self) -> str:
+        start = self.start_condition.to_code()
+        continue_ = self.continue_condition.to_code()
+        end = self.end_condition.to_code()
+        body = "\n".join(node.to_code() for node in self.body)
+        return f"for({start};{continue_};{end}){{{body}}}"
 
 
 @dataclass

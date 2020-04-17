@@ -212,5 +212,11 @@ int main() {
   color1 = Color_a_Green(10);
   __print((std::int_fast16_t)(std::get<Color_a_Green>(color1).data));
   __print(Color_m_word(color1));
+  std::vector<std::int_fast8_t> __tmp_6 = {1, 2, 3};
+  for (std::vector<std::int_fast8_t>::iterator __tmp_7 = __tmp_6.begin();
+       __tmp_7 != __tmp_6.end(); ++__tmp_7) {
+    std::int_fast8_t element = *__tmp_7;
+    __print((std::int_fast16_t)(element));
+  }
   return 0;
 }

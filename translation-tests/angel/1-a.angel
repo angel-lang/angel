@@ -223,3 +223,7 @@ struct Person is Cool:
 
     fun showBeauty():
         print(self.beautifulValue)
+
+// For loop
+for element in [1, 2, 3]:
+    print(element)

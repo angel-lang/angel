@@ -77,7 +77,8 @@ class Parser:
     def __init__(self):
         self.base_body_parsers = [
             self.parse_constant_declaration, self.parse_variable_declaration,
-            self.parse_while_statement, self.parse_if_statement, self.parse_assignment, self.parse_function_call
+            self.parse_while_statement, self.parse_for_statement, self.parse_if_statement,
+            self.parse_assignment, self.parse_function_call
         ]
 
     def parse(self, string: str) -> nodes.AST:
@@ -173,6 +174,30 @@ class Parser:
         if right is None:
             raise errors.AngelSyntaxError("expected expression", self.get_code())
         return nodes.Assignment(line, left, operator, right)
+
+    def parse_for_statement(self) -> t.Optional[nodes.For]:
+        line = self.position.line
+        if not self.parse_raw("for"):
+            return None
+        self.spaces()
+        element = self.parse_name()
+        if not element:
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        self.spaces()
+        if not self.parse_raw("in"):
+            raise errors.AngelSyntaxError("expected 'in'", self.get_code())
+        self.spaces()
+        container = self.parse_expression()
+        if not container:
+            raise errors.AngelSyntaxError("expected expression", self.get_code())
+        if not self.parse_raw(":"):
+            raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        self.additional_statement_parsers.append(self.parse_break)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
+        self.additional_statement_parsers.pop()
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return nodes.For(line, element, container, body)
 
     def parse_while_statement(self) -> t.Optional[nodes.While]:
         line = self.position.line
@@ -411,8 +436,8 @@ class Parser:
 
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
-        parse_algebraic_declaration, parse_interface_declaration, parse_while_statement, parse_if_statement,
-        parse_assignment, parse_function_call
+        parse_algebraic_declaration, parse_interface_declaration, parse_while_statement, parse_for_statement,
+        parse_if_statement, parse_assignment, parse_function_call
     ]
 
     def make_struct_declaration(

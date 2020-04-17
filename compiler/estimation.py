@@ -130,6 +130,7 @@ class Evaluator(unittest.TestCase):
                 self.assignment_dispatcher, type(statement.left), statement.left, statement.right
             ),
             nodes.While: self.estimate_while_statement,
+            nodes.For: self.estimate_for_statement,
             nodes.If: self.estimate_if_statement,
         }
 
@@ -270,6 +271,23 @@ class Evaluator(unittest.TestCase):
                 return result
             estimated_condition = self.estimate_expression(condition)
             assert isinstance(estimated_condition, enodes.Bool)
+        return None
+
+    def estimate_for_statement(self, statement: nodes.For) -> t.Optional[enodes.Expression]:
+        container = self.estimate_expression(statement.container)
+        assert isinstance(container, enodes.Vector)
+        self.env.inc_nesting()
+        for element in container.elements:
+            self.env.add_constant(
+                statement.line, statement.element, container.element_type, value=None, estimated_value=element
+            )
+            result = self.estimate_ast(statement.body)
+            if isinstance(result, enodes.Break):
+                break
+            elif result is not None and not isinstance(result, enodes.Void):
+                self.env.dec_nesting()
+                return result
+        self.env.dec_nesting()
         return None
 
     def desugar_if_let(

@@ -46,6 +46,7 @@ class Analyzer(unittest.TestCase):
             nodes.Assignment: self.analyze_assignment,
             nodes.If: self.analyze_if_statement,
             nodes.While: self.analyze_while_statement,
+            nodes.For: self.analyze_for_statement,
             nodes.Return: self.analyze_return,
             nodes.Break: self.analyze_break,
             nodes.FunctionCall: self.analyze_function_call,
@@ -255,6 +256,19 @@ class Analyzer(unittest.TestCase):
         self.env.dec_nesting()
         return nodes.If(statement.line, condition, body, elifs, else_)
 
+    def analyze_for_statement(self, statement: nodes.For) -> nodes.For:
+        element_type = self.create_template_type()
+        iterable_type = nodes.GenericType(nodes.BuiltinType.iterable, [element_type])
+        container_type = self.infer_type(statement.container)
+        self.unify_types(container_type, iterable_type)
+        self.env.inc_nesting()
+        self.env.add_variable(statement.line, statement.element, self.resolve_template_type(element_type), value=None)
+        body = self.analyze_ast(statement.body)
+        self.env.dec_nesting()
+        statement.container_type = container_type
+        statement.body = body
+        return statement
+
     def analyze_while_statement(self, statement: nodes.While) -> nodes.While:
         if isinstance(statement.condition, nodes.ConstantDeclaration):
             condition: nodes.Expression = self.analyze_constant_declaration(statement.condition)
@@ -301,6 +315,8 @@ class Analyzer(unittest.TestCase):
             entry = self.env.get(name)
         for interface in interfaces:
             if isinstance(interface, nodes.GenericType):
+                # TODO: support builtin interfaces
+                assert isinstance(interface.name, nodes.Name)
                 interface_entry = self.env.get(interface.name)
             else:
                 interface_entry = self.env.get(interface)
@@ -410,9 +426,22 @@ class Analyzer(unittest.TestCase):
         # TODO
         pass
 
+    def create_template_type(self) -> nodes.TemplateType:
+        self.type_checker.update_context(self.env, self.get_code())
+        return self.type_checker.create_template_type()
+
+    def resolve_template_type(self, template_type: nodes.TemplateType) -> nodes.Type:
+        self.type_checker.update_context(self.env, self.get_code())
+        return self.type_checker.replace_template_types(template_type)
+
     def infer_type(self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None) -> nodes.Type:
         self.type_checker.update_context(self.env, self.get_code())
         result = self.type_checker.infer_type(value, supertype)
+        return result.type
+
+    def unify_types(self, subtype: nodes.Type, supertype: nodes.Type) -> nodes.Type:
+        self.type_checker.update_context(self.env, self.get_code())
+        result = self.type_checker.unify_types(subtype, supertype, mapping={})
         return result.type
 
     def check_type(self, type_: nodes.Type) -> nodes.Type:

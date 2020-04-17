@@ -114,6 +114,7 @@ class Translator(unittest.TestCase):
             nodes.FunctionCall: lambda node: cpp_nodes.Semicolon(self.translate_function_call(node)),
             nodes.MethodCall: lambda node: cpp_nodes.Semicolon(self.translate_method_call(node)),
             nodes.While: self.translate_while_statement,
+            nodes.For: self.translate_for_statement,
             nodes.If: self.translate_if_statement,
             nodes.Return: self.translate_return_statement,
             nodes.Break: lambda node: cpp_nodes.Break(),
@@ -508,6 +509,30 @@ class Translator(unittest.TestCase):
         assert right is not None
         return cpp_nodes.Assignment(left, self.translate_operator(node.operator), right)
 
+    def translate_for_statement(self, node: nodes.For) -> cpp_nodes.For:
+        assert isinstance(node.container_type, nodes.VectorType)
+        container_type = self.translate_type(node.container_type)
+        _, container_tmp = self.create_tmp(container_type, self.translate_expression(node.container))
+        iterator_tmp = self.create_tmp_name()
+        iterator_type = cpp_nodes.MemberName(container_type, "iterator")
+        start_condition = cpp_nodes.SubDeclaration(
+            iterator_type, iterator_tmp.value, cpp_nodes.MethodCall(container_tmp, 'begin', [])
+        )
+        continue_condition = cpp_nodes.BinaryExpression(
+            iterator_tmp, cpp_nodes.Operator.neq, cpp_nodes.MethodCall(container_tmp, 'end', [])
+        )
+        end_condition = cpp_nodes.UnaryExpression(cpp_nodes.Operator.increment, iterator_tmp)
+        self.env.inc_nesting()
+        nodes_buffer = self.nodes_buffer
+        self.nodes_buffer = []
+        body = self.translate_body(node.body)
+        self.nodes_buffer = nodes_buffer
+        self.env.dec_nesting()
+        element_declaration: cpp_nodes.Node = cpp_nodes.Declaration(
+            self.translate_type(node.container_type.subtype), node.element.member, cpp_nodes.Deref(iterator_tmp)
+        )
+        return cpp_nodes.For(start_condition, continue_condition, end_condition, [element_declaration] + body)
+
     def translate_while_statement(self, node: nodes.While) -> cpp_nodes.While:
         translated_condition, body, assignment = self.desugar_if_condition(node.condition, node.body)
         if assignment is not None:
@@ -655,13 +680,17 @@ class Translator(unittest.TestCase):
     def translate_operator(self, operator: nodes.Operator) -> cpp_nodes.Operator:
         return cpp_nodes.Operator(operator.value)
 
+    def create_tmp_name(self) -> cpp_nodes.Id:
+        tmp_name = TMP_PREFIX + str(self.tmp_count)
+        self.tmp_count += 1
+        return cpp_nodes.Id(tmp_name)
+
     def create_tmp(
             self, type_: cpp_nodes.Type, value: t.Optional[cpp_nodes.Expression] = None
     ) -> t.Tuple[nodes.Name, cpp_nodes.Id]:
-        tmp_name = TMP_PREFIX + str(self.tmp_count)
-        self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name, value=value))
-        self.tmp_count += 1
-        return nodes.Name(tmp_name), cpp_nodes.Id(tmp_name)
+        tmp_name = self.create_tmp_name()
+        self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name.value, value=value))
+        return nodes.Name(tmp_name.value), tmp_name
 
     def add_include(self, module: cpp_nodes.StdModule):
         self.includes[module.value] = cpp_nodes.Include(module.value)

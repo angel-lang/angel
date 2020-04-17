@@ -140,6 +140,8 @@ class Environment:
             if isinstance(interface, nodes.Name):
                 interface_entry = self.get(interface)
             else:
+                # TODO: support inheritence from builtin interfaces
+                assert isinstance(interface.name, nodes.Name)
                 interface_entry = self.get(interface.name)
             assert isinstance(interface_entry, entries.InterfaceEntry)
 
