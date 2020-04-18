@@ -82,7 +82,7 @@ Expression `i <= 10` will be recomputed at the start of each cycle.
 It is not cached.
 
 ## For loop
-You can iterate through elements of some container (only Vector for now).
+You can iterate through elements of some container (only Vector or String for now).
 ```
 for element in [1, 2, 3]:
     print(element)

@@ -204,6 +204,14 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['1', '2', '3'])
 
+    def test_for_element_in_string(self):
+        code = [
+            'for element in "123":',
+            '    print(element)'
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['1', '2', '3'])
+
     def test_string_split(self):
         code = [
             'let names = "John,Mike,Kale".split(\',\')',

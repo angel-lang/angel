@@ -225,5 +225,10 @@ struct Person is Cool:
         print(self.beautifulValue)
 
 // For loop
+//// Vector
 for element in [1, 2, 3]:
+    print(element)
+
+//// String
+for element in "John":
     print(element)

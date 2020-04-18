@@ -218,5 +218,11 @@ int main() {
     std::int_fast8_t element = *__tmp_7;
     __print((std::int_fast16_t)(element));
   }
+  std::string __tmp_8 = "John";
+  for (std::string::iterator __tmp_9 = __tmp_8.begin();
+       __tmp_9 != __tmp_8.end(); ++__tmp_9) {
+    char element = *__tmp_9;
+    __print(element);
+  }
   return 0;
 }

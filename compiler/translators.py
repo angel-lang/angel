@@ -510,7 +510,12 @@ class Translator(unittest.TestCase):
         return cpp_nodes.Assignment(left, self.translate_operator(node.operator), right)
 
     def translate_for_statement(self, node: nodes.For) -> cpp_nodes.For:
-        assert isinstance(node.container_type, nodes.VectorType)
+        if isinstance(node.container_type, nodes.VectorType):
+            element_type = node.container_type.subtype
+        elif isinstance(node.container_type, nodes.BuiltinType):
+            element_type = nodes.BuiltinType.char
+        else:
+            raise NotImplementedError
         container_type = self.translate_type(node.container_type)
         _, container_tmp = self.create_tmp(container_type, self.translate_expression(node.container))
         iterator_tmp = self.create_tmp_name()
@@ -529,7 +534,7 @@ class Translator(unittest.TestCase):
         self.nodes_buffer = nodes_buffer
         self.env.dec_nesting()
         element_declaration: cpp_nodes.Node = cpp_nodes.Declaration(
-            self.translate_type(node.container_type.subtype), node.element.member, cpp_nodes.Deref(iterator_tmp)
+            self.translate_type(element_type), node.element.member, cpp_nodes.Deref(iterator_tmp)
         )
         return cpp_nodes.For(start_condition, continue_condition, end_condition, [element_declaration] + body)
 

@@ -275,11 +275,18 @@ class Evaluator(unittest.TestCase):
 
     def estimate_for_statement(self, statement: nodes.For) -> t.Optional[enodes.Expression]:
         container = self.estimate_expression(statement.container)
-        assert isinstance(container, enodes.Vector)
+        if isinstance(container, enodes.Vector):
+            elements: t.Iterable = container.elements
+            element_type = container.element_type
+        elif isinstance(container, enodes.String):
+            elements = (enodes.Char(char) for char in container.value)
+            element_type = nodes.BuiltinType.char
+        else:
+            raise NotImplementedError
         self.env.inc_nesting()
-        for element in container.elements:
+        for element in elements:
             self.env.add_constant(
-                statement.line, statement.element, container.element_type, value=None, estimated_value=element
+                statement.line, statement.element, element_type, value=None, estimated_value=element
             )
             result = self.estimate_ast(statement.body)
             if isinstance(result, enodes.Break):

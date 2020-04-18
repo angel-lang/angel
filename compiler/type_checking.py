@@ -173,7 +173,7 @@ class TypeChecker(unittest.TestCase):
             (nodes.BuiltinType, nodes.FunctionType): self.unification_failed,
             (nodes.BuiltinType, nodes.Name): self.unify_type_with_name,
             (nodes.BuiltinType, nodes.StructType): self.unification_failed,
-            (nodes.BuiltinType, nodes.GenericType): self.unification_failed,
+            (nodes.BuiltinType, nodes.GenericType): self.unify_builtin_type_with_generic_type,
             (nodes.BuiltinType, nodes.AlgebraicType): self.unification_failed,
 
             (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
@@ -793,21 +793,32 @@ class TypeChecker(unittest.TestCase):
         return constructor_types
 
     def unify_builtin_types(
-            self, subtype: nodes.BuiltinType, supertype: nodes.BuiltinType, mapping: Mapping
+        self, subtype: nodes.BuiltinType, supertype: nodes.BuiltinType, mapping: Mapping
     ) -> UnificationResult:
         if supertype.value in subtype.get_builtin_supertypes():
             return UnificationResult(supertype, mapping)
         raise self.basic_type_error(subtype, supertype)
 
+    def unify_builtin_type_with_generic_type(
+        self, subtype: nodes.BuiltinType, supertype: nodes.GenericType, mapping: Mapping
+    ) -> UnificationResult:
+        if isinstance(supertype.name, nodes.BuiltinType) and supertype.name.value == nodes.BuiltinType.iterable.value:
+            if subtype.value == nodes.BuiltinType.string.value:
+                element_result = self.unify_types(nodes.BuiltinType.char, supertype.params[0], mapping)
+                return UnificationResult(
+                    nodes.GenericType(nodes.BuiltinType.iterable, [element_result.type]), element_result.mapping
+                )
+        return self.unification_failed(subtype, supertype, mapping)
+
     def unify_builtin_type_with_template_type(
-            self, subtype: nodes.BuiltinType, supertype: nodes.TemplateType, mapping: Mapping
+        self, subtype: nodes.BuiltinType, supertype: nodes.TemplateType, mapping: Mapping
     ) -> UnificationResult:
         assert self.template_types[supertype.id] is None
         self.template_types[supertype.id] = subtype
         return UnificationResult(subtype, mapping)
 
     def unification_template_supertype_success(
-            self, subtype: nodes.Type, supertype: nodes.TemplateType, mapping: Mapping
+        self, subtype: nodes.Type, supertype: nodes.TemplateType, mapping: Mapping
     ) -> UnificationResult:
         assert self.template_types[supertype.id] is None
         self.template_types[supertype.id] = subtype
