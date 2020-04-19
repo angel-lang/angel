@@ -57,6 +57,60 @@ class Analyzer(unittest.TestCase):
             entries.StructEntry: self.check_struct_interface_implementation
         }
 
+        self.builtin_interface_dispatcher = {
+            nodes.BuiltinType.addable.value: entries.InterfaceEntry(
+                line=0, name=nodes.Name(nodes.BuiltinType.addable.value),
+                params=[], parent_interfaces=[],
+                fields={}, methods={
+                    nodes.SpecialMethods.add.value: entries.FunctionEntry(
+                        line=0, name=nodes.Name(nodes.SpecialMethods.add.value),
+                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                        return_type=nodes.BuiltinType.self_, body=[]
+                    )
+                },
+                inherited_fields={}, inherited_methods={}
+            ),
+
+            nodes.BuiltinType.subtractable.value: entries.InterfaceEntry(
+                line=0, name=nodes.Name(nodes.BuiltinType.subtractable.value),
+                params=[], parent_interfaces=[],
+                fields={}, methods={
+                    nodes.SpecialMethods.sub.value: entries.FunctionEntry(
+                        line=0, name=nodes.Name(nodes.SpecialMethods.sub.value),
+                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                        return_type=nodes.BuiltinType.self_, body=[]
+                    )
+                },
+                inherited_fields={}, inherited_methods={}
+            ),
+
+            nodes.BuiltinType.multipliable.value: entries.InterfaceEntry(
+                line=0, name=nodes.Name(nodes.BuiltinType.multipliable.value),
+                params=[], parent_interfaces=[],
+                fields={}, methods={
+                    nodes.SpecialMethods.mul.value: entries.FunctionEntry(
+                        line=0, name=nodes.Name(nodes.SpecialMethods.mul.value),
+                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                        return_type=nodes.BuiltinType.self_, body=[]
+                    )
+                },
+                inherited_fields={}, inherited_methods={}
+            ),
+
+            nodes.BuiltinType.divisible.value: entries.InterfaceEntry(
+                line=0, name=nodes.Name(nodes.BuiltinType.divisible.value),
+                params=[], parent_interfaces=[],
+                fields={}, methods={
+                    nodes.SpecialMethods.div.value: entries.FunctionEntry(
+                        line=0, name=nodes.Name(nodes.SpecialMethods.div.value),
+                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                        return_type=nodes.BuiltinType.self_, body=[]
+                    )
+                },
+                inherited_fields={}, inherited_methods={}
+            )
+        }
+
     def analyze_ast(self, ast: nodes.AST) -> nodes.AST:
         return [self.analyze_node(node) for node in ast]
 
@@ -117,11 +171,12 @@ class Analyzer(unittest.TestCase):
         init_declarations = t.cast(t.List[nodes.InitDeclaration], self.analyze_ast(init_declarations))
         private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
         public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
-        self.env.dec_nesting(declaration.name)
+        special_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.special_methods)))
         self.check_interface_implementations(declaration.interfaces, declaration.name)
+        self.env.dec_nesting(declaration.name)
         return nodes.StructDeclaration(
             declaration.line, declaration.name, declaration.parameters, declaration.interfaces, private_fields,
-            public_fields, init_declarations, private_methods, public_methods
+            public_fields, init_declarations, private_methods, public_methods, special_methods
         )
 
     def analyze_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> nodes.AlgebraicDeclaration:
@@ -309,8 +364,8 @@ class Analyzer(unittest.TestCase):
         return method_call
 
     def check_interface_implementations(self, interfaces: nodes.Interfaces, name: nodes.Name) -> None:
-        if self.env.parents:
-            entry: entries.Entry = self.env.get_algebraic(nodes.AlgebraicType(self.env.parents[-1], [], name))
+        if len(self.env.parents) > 1:
+            entry: entries.Entry = self.env.get_algebraic(nodes.AlgebraicType(self.env.parents[-2], [], name))
         else:
             entry = self.env.get(name)
         for interface in interfaces:
@@ -318,6 +373,8 @@ class Analyzer(unittest.TestCase):
                 # TODO: support builtin interfaces
                 assert isinstance(interface.name, nodes.Name)
                 interface_entry = self.env.get(interface.name)
+            elif isinstance(interface, nodes.BuiltinType):
+                interface_entry = self.get_builtin_interface_entry(interface)
             else:
                 interface_entry = self.env.get(interface)
 
@@ -378,13 +435,22 @@ class Analyzer(unittest.TestCase):
         self, interface: nodes.Name, subject: nodes.Name, interface_method: entries.FunctionEntry,
         subject_method: entries.FunctionEntry, inherited_from: t.Optional[nodes.Type] = None
     ) -> None:
-        if interface_method.return_type != subject_method.return_type:
+        try:
+            self.unify_types(subject_method.return_type, interface_method.return_type)
+        except errors.AngelTypeError:
             raise errors.AngelInterfaceMethodError(
                 subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
                 subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
             )
         for interface_arg, subject_arg in zip_longest(interface_method.args, subject_method.args):
-            if interface_arg is None or subject_arg is None or (interface_arg.type != subject_arg.type):
+            if interface_arg is None or subject_arg is None:
+                raise errors.AngelInterfaceMethodError(
+                    subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
+                    subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
+                )
+            try:
+                self.unify_types(subject_arg.type, interface_arg.type)
+            except errors.AngelTypeError:
                 raise errors.AngelInterfaceMethodError(
                     subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
                     subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
@@ -460,6 +526,9 @@ class Analyzer(unittest.TestCase):
         if not line:
             return errors.Code(self.lines[self.line - 1], self.line)
         return errors.Code(self.lines[line - 1], line)
+
+    def get_builtin_interface_entry(self, interface: nodes.BuiltinType) -> entries.InterfaceEntry:
+        return self.builtin_interface_dispatcher[interface.value]
 
     def test(self):
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))

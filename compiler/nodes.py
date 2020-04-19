@@ -153,8 +153,13 @@ class BuiltinType(Type, enum.Enum):
     char = "Char"
     bool = "Bool"
     void = "Void"
+    self_ = "Self"
 
     convertible_to_string = "ConvertibleToString"
+    addable = "Addable"
+    subtractable = "Subtractable"
+    multipliable = "Multipliable"
+    divisible = "Divisible"
     iterable = "Iterable"
 
     # These types are mentioned only in expressions.
@@ -175,6 +180,17 @@ class BuiltinType(Type, enum.Enum):
     @classmethod
     def finite_float_types(cls) -> t.List[str]:
         return [BuiltinType.f32.value, BuiltinType.f64.value]
+
+    @classmethod
+    def abstract_interfaces(cls) -> t.List[str]:
+        return [
+            BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
+            BuiltinType.divisible.value
+        ]
+
+    @property
+    def is_abstract_interface(self):
+        return self.value in self.abstract_interfaces()
 
     @property
     def is_finite_int_type(self):
@@ -601,7 +617,7 @@ class GenericType(Type):
 
 Arguments = t.List[Argument]
 Parameters = t.List[Name]
-Interface = t.Union[Name, GenericType]
+Interface = t.Union[Name, BuiltinType, GenericType]
 Interfaces = t.List[Interface]
 
 
@@ -743,6 +759,7 @@ class StructDeclaration(Node):
     init_declarations: t.List[InitDeclaration]
     private_methods: t.List[MethodDeclaration]
     public_methods: t.List[MethodDeclaration]
+    special_methods: t.List[MethodDeclaration]
 
     def to_code(self, indentation_level: int = 0) -> str:
         if self.interfaces:

@@ -102,6 +102,18 @@ class Person : public Cool {
   }
   void showBeauty() { __print(this->beautifulValue); }
 };
+class V {
+ public:
+  std::int_fast8_t first;
+  std::int_fast8_t second;
+  V(std::int_fast8_t first, std::int_fast8_t second) {
+    this->first = first;
+    this->second = second;
+  }
+  V operator+(V other) {
+    return V(this->first + other.first, this->second + other.second);
+  }
+};
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;
@@ -212,6 +224,11 @@ int main() {
   color1 = Color_a_Green(10);
   __print((std::int_fast16_t)(std::get<Color_a_Green>(color1).data));
   __print(Color_m_word(color1));
+  V v1 = V(1, 2);
+  V v2 = V(2, 2);
+  V v3 = v1 + v2;
+  __print((std::int_fast16_t)(v3.first));
+  __print((std::int_fast16_t)(v3.second));
   std::vector<std::int_fast8_t> __tmp_6 = {1, 2, 3};
   for (std::vector<std::int_fast8_t>::iterator __tmp_7 = __tmp_6.begin();
        __tmp_7 != __tmp_6.end(); ++__tmp_7) {

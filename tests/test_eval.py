@@ -308,6 +308,24 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ["2", "4", "4", "4"])
 
+    def test_addable_impl(self):
+        code = [
+            'struct V is Addable:',
+            '    first: I8',
+            '    second: I8',
+
+            '    fun __add__(other: V) -> V:',
+            '        return V(self.first + other.first, self.second + other.second)',
+
+            'let v1 = V(1, 2)',
+            'let v2 = V(2, 2)',
+            'let v3 = v1 + v2',
+            'print(v3.first)',
+            'print(v3.second)'
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ["3", "4"])
+
     def test_color_algebraic(self):
         code = [
             'algebraic Color:',

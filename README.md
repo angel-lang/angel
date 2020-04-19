@@ -235,6 +235,25 @@ struct Person is Beautiful:
         print(self.beautifulValue)
 ```
 
+### Operator overloading
+To overload `+` operator, struct must implement `Addable` interface. `Self` is the implementor's type.
+```
+interface Addable:
+    fun __add__(other: Self) -> Self
+```
+
+Example:
+```
+struct V is Addable:
+    first: I8
+    second: I8
+
+    fun __add__(other: V) -> V:
+        return V(self.first + other.first, self.second + other.second)
+
+let v = V(1, 2) + V(3, 4)
+```
+
 ## Reading Input and Writing Output
 ```
 let name = read("Enter your name: ")

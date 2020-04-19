@@ -53,6 +53,7 @@ class Evaluator(unittest.TestCase):
             (enodes.Int, enodes.Int): self.estimate_add_ints,
             (enodes.String, enodes.String): self.estimate_add_strings,
             (enodes.Vector, enodes.Vector): self.estimate_add_vectors,
+            (enodes.Instance, enodes.Instance): self.estimate_add_instances,
         }
 
         sub_dispatcher = {
@@ -184,6 +185,7 @@ class Evaluator(unittest.TestCase):
         self.estimate_ast(list(declaration.init_declarations))
         self.estimate_ast(list(declaration.private_methods))
         self.estimate_ast(list(declaration.public_methods))
+        self.estimate_ast(list(declaration.special_methods))
         self.env.dec_nesting(declaration.name)
 
     def estimate_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> None:
@@ -357,6 +359,18 @@ class Evaluator(unittest.TestCase):
             element_type = y.element_type
         return enodes.Vector(x.elements + y.elements, element_type)
 
+    def estimate_add_instances(self, x: enodes.Instance, y: enodes.Instance) -> enodes.Instance:
+        assert x.type == y.type
+        entry = self.env.get(x.type)
+        assert isinstance(entry, entries.StructEntry)
+        method_entry = entry.methods[nodes.SpecialMethods.add.value]
+        result = self.match_function_body(
+            enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
+            args=[], args_estimated=[y], self_estimated=x, self_type=x.type
+        )
+        assert isinstance(result, enodes.Instance)
+        return result
+
     def estimate_sub_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
         value = x.value - y.value
         new_type = self.infer_type(nodes.IntegerLiteral(str(value)))
@@ -522,26 +536,29 @@ class Evaluator(unittest.TestCase):
         raise errors.AngelWrongArguments(expected, self.code, args)
 
     def match_function_body(
-            self, function: enodes.Function, args: t.List[nodes.Expression],
-            self_arg: t.Optional[nodes.Expression] = None,
-            self_type: t.Optional[nodes.Type] = None,
+        self, function: enodes.Function, args: t.List[nodes.Expression],
+        args_estimated: t.Optional[t.List[enodes.Expression]] = None,
+        self_arg: t.Optional[nodes.Expression] = None, self_estimated: t.Optional[enodes.Expression] = None,
+        self_type: t.Optional[nodes.Type] = None,
     ) -> t.Optional[enodes.Expression]:
-        arguments = [self.estimate_expression(argument) for argument in args]
+        if not self_estimated and self_arg:
+            self_estimated = self.estimate_expression(self_arg)
+        args_estimated = args_estimated or [self.estimate_expression(argument) for argument in args]
         if isinstance(function.specification, list):
             self.env.inc_nesting()
-            if self_arg and self_type:
+            if self_estimated and self_type:
                 self.env.add_variable(
                     0, nodes.Name(nodes.SpecialName.self.value), self_type, value=self_arg,
-                    estimated_value=self.estimate_expression(self_arg)
+                    estimated_value=self_estimated
                 )
-            for arg, value, estimated in zip(function.args, args, arguments):
+            for arg, value, estimated in zip_longest(function.args, args, args_estimated):
                 self.env.add_constant(0, arg.name, arg.type, value, estimated)
             result = self.estimate_ast(function.specification)
             self.env.dec_nesting()
             return result
-        if self_arg:
-            return function.specification(self.estimate_expression(self_arg), *arguments)
-        return function.specification(*arguments)
+        if self_estimated:
+            return function.specification(self_estimated, *args_estimated)
+        return function.specification(*args_estimated)
 
     def estimate_method_call(self, call: nodes.MethodCall) -> t.Optional[enodes.Expression]:
         method = self.estimate_expression(nodes.Field(call.line, call.instance_path, call.method))

@@ -26,6 +26,14 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
 }
 
 
+SPECIAL_METHOD_TO_OPERATOR = {
+    nodes.SpecialMethods.add.value: cpp_nodes.Operator.add.value,
+    nodes.SpecialMethods.sub.value: cpp_nodes.Operator.sub.value,
+    nodes.SpecialMethods.mul.value: cpp_nodes.Operator.mul.value,
+    nodes.SpecialMethods.div.value: cpp_nodes.Operator.div.value,
+}
+
+
 TMP_PREFIX = "__tmp_"
 
 
@@ -433,17 +441,22 @@ class Translator(unittest.TestCase):
         self.env.dec_nesting()
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
 
+    def translate_special_method(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
+        node.name = nodes.Name('operator' + SPECIAL_METHOD_TO_OPERATOR[node.name.member])
+        return self.translate_method_declaration(node)
+
     def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.Node:
         # list(...) for mypy
         private = self.translate_body(list(node.private_fields)) + self.translate_body(list(node.private_methods))
         self.struct_name = node.name.member
+        special_methods: t.List[cpp_nodes.Node] = [self.translate_special_method(method) for method in node.special_methods]
         public = self.translate_body(list(node.public_fields)) + self.translate_body(list(node.init_declarations)) +\
-            self.translate_body(list(node.public_methods))
-        struct_declaration = cpp_nodes.ClassDeclaration(
-            node.name.member,
-            [(cpp_nodes.AccessModifier.public, self.translate_type(interface)) for interface in node.interfaces],
-            private, public
-        )
+            self.translate_body(list(node.public_methods)) + special_methods
+        parents = []
+        for interface in node.interfaces:
+            if not isinstance(interface, nodes.BuiltinType) or not interface.is_abstract_interface:
+                parents.append((cpp_nodes.AccessModifier.public, self.translate_type(interface)))
+        struct_declaration = cpp_nodes.ClassDeclaration(node.name.member, parents, private, public)
         if node.parameters:
             return cpp_nodes.Template(
                 [self.translate_type(parameter) for parameter in node.parameters], struct_declaration

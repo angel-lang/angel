@@ -7,7 +7,7 @@ from functools import partial
 from . import nodes, errors
 
 
-IDENTIFIER_REGEX = re.compile("[_]?[a-zA-Z][a-zA-Z0-9]*")
+IDENTIFIER_REGEX = re.compile("[_]?[_]?[a-zA-Z][a-zA-Z0-9]*(__)?")
 INTEGER_REGEX = re.compile("[0-9]+")
 
 
@@ -445,6 +445,7 @@ class Parser:
             body: nodes.AST
     ) -> nodes.StructDeclaration:
         private_fields, public_fields, init_declarations, private_methods, public_methods = [], [], [], [], []
+        special_methods = []
         for node in body:
             if isinstance(node, nodes.FieldDeclaration):
                 if node.name.member.startswith("_"):
@@ -455,7 +456,9 @@ class Parser:
                 method_declaration = nodes.MethodDeclaration(
                     node.line, node.name, node.args, node.return_type, node.body
                 )
-                if node.name.member.startswith("_"):
+                if node.name.member.startswith("__"):
+                    special_methods.append(method_declaration)
+                elif node.name.member.startswith("_"):
                     private_methods.append(method_declaration)
                 else:
                     public_methods.append(method_declaration)
@@ -465,7 +468,7 @@ class Parser:
                 raise errors.AngelSyntaxError("expected method, field or init declaration", self.get_code(node.line))
         return nodes.StructDeclaration(
             line, name, parameters, interfaces, private_fields, public_fields, init_declarations,
-            private_methods, public_methods
+            private_methods, public_methods, special_methods
         )
 
     def make_algebraic_declaration(
