@@ -886,6 +886,7 @@ class Parser:
     def spaces(self) -> None:
         prepared_for_line_comment = False
         in_line_comment = False
+        state = self.backup_state()
         for char in self.code[self.idx:]:
             if char == "\n":
                 in_line_comment = False
@@ -896,6 +897,7 @@ class Parser:
                 self.idx += 1
                 self.position.column += 1
             elif char == "/":
+                state = self.backup_state()
                 self.idx += 1
                 self.position.column += 1
                 if in_line_comment:
@@ -909,6 +911,8 @@ class Parser:
                 self.idx += 1
                 self.position.column += 1
             else:
+                if prepared_for_line_comment:
+                    self.restore_state(state)
                 break
 
     def parse_keyword(self, keyword: str) -> bool:

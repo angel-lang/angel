@@ -310,21 +310,39 @@ class TestEval(unittest.TestCase):
 
     def test_addable_impl(self):
         code = [
-            'struct V is Addable:',
+            'struct V is ArithmeticObject:',
             '    first: I8',
             '    second: I8',
 
             '    fun __add__(other: V) -> V:',
             '        return V(self.first + other.first, self.second + other.second)',
 
+            '    fun __sub__(other: V) -> V:',
+            '        return V(self.first - other.first, self.second - other.second)',
+
+            '    fun __mul__(other: V) -> V:',
+            '        return V(self.first * other.first, self.second * other.second)',
+
+            '    fun __div__(other: V) -> V:',
+            '        return V(self.first / other.first, self.second / other.second)',
+
+            '    fun report():',
+            '        print(self.first)',
+            '        print(self.second)',
+
             'let v1 = V(1, 2)',
             'let v2 = V(2, 2)',
             'let v3 = v1 + v2',
-            'print(v3.first)',
-            'print(v3.second)'
+            'let v4 = v1 - v2',
+            'let v5 = v1 * v2',
+            'let v6 = v1 / v2',
+            'v3.report()',
+            'v4.report()',
+            'v5.report()',
+            'v6.report()',
         ]
         result, output = self.eval(code)
-        self.assertEqual(output, ["3", "4"])
+        self.assertEqual(output, ["3", "4", "-1", "0", "2", "4", "0", "1"])
 
     def test_color_algebraic(self):
         code = [

@@ -110,8 +110,21 @@ class V {
     this->first = first;
     this->second = second;
   }
+  void report() {
+    __print((std::int_fast16_t)(this->first));
+    __print((std::int_fast16_t)(this->second));
+  }
   V operator+(V other) {
     return V(this->first + other.first, this->second + other.second);
+  }
+  V operator-(V other) {
+    return V(this->first - other.first, this->second - other.second);
+  }
+  V operator*(V other) {
+    return V(this->first * other.first, this->second * other.second);
+  }
+  V operator/(V other) {
+    return V(this->first / other.first, this->second / other.second);
   }
 };
 int main() {
@@ -227,8 +240,13 @@ int main() {
   V v1 = V(1, 2);
   V v2 = V(2, 2);
   V v3 = v1 + v2;
-  __print((std::int_fast16_t)(v3.first));
-  __print((std::int_fast16_t)(v3.second));
+  V v4 = v1 - v2;
+  V v5 = v1 * v2;
+  V v6 = v1 / v2;
+  v3.report();
+  v4.report();
+  v5.report();
+  v6.report();
   std::vector<std::int_fast8_t> __tmp_6 = {1, 2, 3};
   for (std::vector<std::int_fast8_t>::iterator __tmp_7 = __tmp_6.begin();
        __tmp_7 != __tmp_6.end(); ++__tmp_7) {

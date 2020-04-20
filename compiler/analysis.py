@@ -58,6 +58,14 @@ class Analyzer(unittest.TestCase):
         }
 
         self.builtin_interface_dispatcher = {
+            nodes.BuiltinType.arithmetic_object.value: entries.InterfaceEntry(
+                line=0, name=nodes.Name(nodes.BuiltinType.arithmetic_object.value),
+                params=[], parent_interfaces=[
+                    nodes.BuiltinType.addable, nodes.BuiltinType.subtractable, nodes.BuiltinType.multipliable,
+                    nodes.BuiltinType.divisible
+                ], fields={}, methods={}, inherited_fields={}, inherited_methods={}
+            ),
+
             nodes.BuiltinType.addable.value: entries.InterfaceEntry(
                 line=0, name=nodes.Name(nodes.BuiltinType.addable.value),
                 params=[], parent_interfaces=[],
@@ -528,7 +536,23 @@ class Analyzer(unittest.TestCase):
         return errors.Code(self.lines[line - 1], line)
 
     def get_builtin_interface_entry(self, interface: nodes.BuiltinType) -> entries.InterfaceEntry:
-        return self.builtin_interface_dispatcher[interface.value]
+        entry = self.builtin_interface_dispatcher[interface.value]
+        inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, entries.Entry]] = {}
+        inherited_methods: t.Dict[str, t.Tuple[nodes.Interface, entries.FunctionEntry]] = {}
+        for parent_interface in entry.parent_interfaces:
+            assert isinstance(parent_interface, nodes.BuiltinType)
+            parent_entry = self.get_builtin_interface_entry(parent_interface)
+            inherited_fields.update({
+                name: (parent_interface, field_entry) for name, field_entry in parent_entry.fields.items()
+            })
+            inherited_fields.update(parent_entry.inherited_fields)
+            inherited_methods.update({
+                name: (parent_interface, method_entry) for name, method_entry in parent_entry.methods.items()
+            })
+            inherited_methods.update(parent_entry.inherited_methods)
+        entry.inherited_fields = inherited_fields
+        entry.inherited_methods = inherited_methods
+        return entry
 
     def test(self):
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))

@@ -53,19 +53,30 @@ class Evaluator(unittest.TestCase):
             (enodes.Int, enodes.Int): self.estimate_add_ints,
             (enodes.String, enodes.String): self.estimate_add_strings,
             (enodes.Vector, enodes.Vector): self.estimate_add_vectors,
-            (enodes.Instance, enodes.Instance): self.estimate_add_instances,
+            (enodes.Instance, enodes.Instance): partial(
+                self.estimate_arithmetic_operation_instances, nodes.SpecialMethods.add
+            ),
         }
 
         sub_dispatcher = {
             (enodes.Int, enodes.Int): self.estimate_sub_ints,
+            (enodes.Instance, enodes.Instance): partial(
+                self.estimate_arithmetic_operation_instances, nodes.SpecialMethods.sub
+            ),
         }
 
         mul_dispatcher = {
             (enodes.Int, enodes.Int): self.estimate_mul_ints,
+            (enodes.Instance, enodes.Instance): partial(
+                self.estimate_arithmetic_operation_instances, nodes.SpecialMethods.mul
+            ),
         }
 
         div_dispatcher = {
             (enodes.Int, enodes.Int): self.estimate_div_ints,
+            (enodes.Instance, enodes.Instance): partial(
+                self.estimate_arithmetic_operation_instances, nodes.SpecialMethods.div
+            ),
         }
 
         eq_dispatcher = {
@@ -359,11 +370,13 @@ class Evaluator(unittest.TestCase):
             element_type = y.element_type
         return enodes.Vector(x.elements + y.elements, element_type)
 
-    def estimate_add_instances(self, x: enodes.Instance, y: enodes.Instance) -> enodes.Instance:
+    def estimate_arithmetic_operation_instances(
+        self, method_name: nodes.SpecialMethods, x: enodes.Instance, y: enodes.Instance
+    ) -> enodes.Instance:
         assert x.type == y.type
         entry = self.env.get(x.type)
         assert isinstance(entry, entries.StructEntry)
-        method_entry = entry.methods[nodes.SpecialMethods.add.value]
+        method_entry = entry.methods[method_name.value]
         result = self.match_function_body(
             enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
             args=[], args_estimated=[y], self_estimated=x, self_type=x.type
@@ -596,9 +609,8 @@ class Evaluator(unittest.TestCase):
     def estimate_cast(self, cast: nodes.Cast) -> enodes.Expression:
         value = self.estimate_expression(cast.value)
         # Only compiler can cast (for now).
-        assert isinstance(value, enodes.Int)
-        assert isinstance(cast.to_type, nodes.BuiltinType) and cast.to_type.is_finite_int_type
-        return enodes.Int(value.value, cast.to_type)
+        assert isinstance(value, (enodes.Int, enodes.Float)) and isinstance(cast.to_type, nodes.BuiltinType)
+        return enodes.Int(int(value.value), cast.to_type)
 
     def estimate_optional_some_call(self, call: nodes.OptionalSomeCall) -> enodes.Expression:
         return enodes.OptionalSomeCall(self.estimate_expression(call.value))

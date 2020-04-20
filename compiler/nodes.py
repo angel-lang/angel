@@ -160,6 +160,7 @@ class BuiltinType(Type, enum.Enum):
     subtractable = "Subtractable"
     multipliable = "Multipliable"
     divisible = "Divisible"
+    arithmetic_object = "ArithmeticObject"
     iterable = "Iterable"
 
     # These types are mentioned only in expressions.
@@ -185,7 +186,7 @@ class BuiltinType(Type, enum.Enum):
     def abstract_interfaces(cls) -> t.List[str]:
         return [
             BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
-            BuiltinType.divisible.value
+            BuiltinType.divisible.value, BuiltinType.arithmetic_object.value
         ]
 
     @property
@@ -266,6 +267,10 @@ class BuiltinType(Type, enum.Enum):
             BuiltinType.bool.value: [BuiltinType.bool.value, BuiltinType.convertible_to_string.value],
             BuiltinType.char.value: [BuiltinType.char.value, BuiltinType.convertible_to_string.value],
             BuiltinType.void.value: [BuiltinType.void.value],
+            BuiltinType.arithmetic_object.value: [
+                BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
+                BuiltinType.divisible.value
+            ]
         }[self.value]
 
     def to_code(self, indentation_level: int = 0) -> str:
