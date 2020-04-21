@@ -56,6 +56,11 @@ class SubscriptTrailer(Trailer):
     index: nodes.Expression
 
 
+@dataclass
+class CastTrailer(Trailer):
+    to_type: nodes.Type
+
+
 class OptionalTypeTrailer(Trailer):
     pass
 
@@ -732,6 +737,8 @@ class Parser:
                 atom = nodes.Field(trailer.line, atom, trailer.field)
             elif isinstance(trailer, SubscriptTrailer):
                 atom = nodes.Subscript(trailer.line, atom, trailer.index)
+            elif isinstance(trailer, CastTrailer):
+                atom = nodes.Cast(atom, trailer.to_type)
             else:
                 raise errors.AngelNotImplemented
             trailer = self.parse_trailer()
@@ -750,6 +757,7 @@ class Parser:
 
     def parse_trailer(self) -> t.Optional[Trailer]:
         line = self.position.line
+        state = self.backup_state()
         args = self.parse_container(
             open_container="(", close_container=")", element_separator=",", element_parser=self.parse_expression)
         if args is None:
@@ -765,6 +773,15 @@ class Parser:
                 if not self.parse_raw("]"):
                     raise errors.AngelSyntaxError("expected ']'", self.get_code())
                 return SubscriptTrailer(line, index)
+            self.spaces()
+            if self.parse_raw("as"):
+                self.spaces()
+                to_type = self.parse_type()
+                if not to_type:
+                    raise errors.AngelSyntaxError("expected type", self.get_code())
+                return CastTrailer(line, to_type)
+            else:
+                self.restore_state(state)
             return None
         return TupleTrailer(line, args)
 

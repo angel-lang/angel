@@ -242,8 +242,7 @@ struct V is ArithmeticObject:
         return V(self.first / other.first, self.second / other.second)
 
     fun report():
-        print(self.first)
-        print(self.second)
+        print(self.first as String + " " + self.second as String)
 
 let v1 = V(1, 2)
 let v2 = V(2, 2)

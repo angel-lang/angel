@@ -111,8 +111,7 @@ class V {
     this->second = second;
   }
   void report() {
-    __print((std::int_fast16_t)(this->first));
-    __print((std::int_fast16_t)(this->second));
+    __print(std::to_string(this->first) + " " + std::to_string(this->second));
   }
   V operator+(V other) {
     return V(this->first + other.first, this->second + other.second);

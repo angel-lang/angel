@@ -128,9 +128,7 @@ class TypeChecker(unittest.TestCase):
             nodes.MethodCall: self.infer_type_from_method_call,
             nodes.Field: self.infer_type_from_field,
             nodes.Subscript: self.infer_type_from_subscript,
-            nodes.Cast: lambda value, supertype, mapping: to_inference_result(
-                self.unify_types(value.to_type, supertype, mapping)
-            ),
+            nodes.Cast: self.infer_type_from_cast,
             nodes.ConstantDeclaration: lambda value, supertype, mapping: self.infer_type(
                 value.value, supertype, mapping
             ),
@@ -465,13 +463,21 @@ class TypeChecker(unittest.TestCase):
             assert 0, f"Cannot infer type from method call with type {method_result.type}"
 
     def infer_type_from_field(
-            self, field: nodes.Field, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, field: nodes.Field, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         base_result = self.infer_type(field.base)
         field.base_type = base_result.type
         return dispatch(
             self.infer_type_from_field_dispatcher, type(field.base_type), field.base_type, field, mapping, supertype
         )
+
+    def infer_type_from_cast(
+        self, cast: nodes.Cast, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        if isinstance(cast.to_type, nodes.BuiltinType):
+            self.infer_type(cast.value, cast.to_type.as_convertible_interface)
+            return to_inference_result(self.unify_types(cast.to_type, supertype, mapping))
+        raise NotImplementedError
 
     def infer_type_from_subscript(
             self, subscript: nodes.Subscript, supertype: t.Optional[nodes.Type], mapping: Mapping

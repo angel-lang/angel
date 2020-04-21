@@ -396,13 +396,14 @@ class Evaluator(unittest.TestCase):
         assert isinstance(new_type, nodes.BuiltinType)
         return enodes.Int(value, new_type)
 
-    def estimate_div_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Float:
+    def estimate_div_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
         if y.value == 0:
             raise errors.AngelDivByZero
-        value = Decimal(x.value) / Decimal(y.value)
-        new_type = self.infer_type(nodes.DecimalLiteral(str(value)))
+        value = int(Decimal(x.value) / Decimal(y.value))
+        new_type = self.infer_type(nodes.IntegerLiteral(str(value)))
         assert isinstance(new_type, nodes.BuiltinType)
-        return enodes.Float(value, new_type)
+        # TODO: move to enodes.Float(value, new_type)
+        return enodes.Int(int(value), new_type)
 
     def estimate_expression(self, expression: nodes.Expression) -> enodes.Expression:
         return dispatch(self.expression_dispatcher, type(expression), expression)
@@ -608,8 +609,10 @@ class Evaluator(unittest.TestCase):
 
     def estimate_cast(self, cast: nodes.Cast) -> enodes.Expression:
         value = self.estimate_expression(cast.value)
-        # Only compiler can cast (for now).
-        assert isinstance(value, (enodes.Int, enodes.Float)) and isinstance(cast.to_type, nodes.BuiltinType)
+        assert isinstance(cast.to_type, nodes.BuiltinType)
+        assert isinstance(value, (enodes.Int, enodes.Float))
+        if cast.to_type.value == nodes.BuiltinType.string.value:
+            return enodes.String(str(value.value))
         return enodes.Int(int(value.value), cast.to_type)
 
     def estimate_optional_some_call(self, call: nodes.OptionalSomeCall) -> enodes.Expression:

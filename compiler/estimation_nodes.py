@@ -1,4 +1,4 @@
-F"""Nodes that represent evaluated expressions at compile-time."""
+"""Nodes that represent evaluated expressions at compile-time."""
 import enum
 import typing as t
 from decimal import Decimal

@@ -225,9 +225,11 @@ class Translator(unittest.TestCase):
             assert 0, f"Cannot translate method '{method_call.method}' call on String type"
 
     def translate_cast(self, value: nodes.Cast) -> cpp_nodes.Expression:
+        to_type = self.translate_type(value.to_type)
         expr = self.translate_expression(value.value)
-        assert expr is not None
-        return cpp_nodes.Cast(expr, self.translate_type(value.to_type))
+        if isinstance(to_type, cpp_nodes.StdName) and to_type.value == cpp_nodes.StdName.string.value:
+            return cpp_nodes.FunctionCall(cpp_nodes.StdName.to_string, [expr])
+        return cpp_nodes.Cast(expr, to_type)
 
     def translate_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert field.base_type is not None

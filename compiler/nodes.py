@@ -205,6 +205,12 @@ class BuiltinType(Type, enum.Enum):
     def is_finite(self):
         return self.is_finite_int_type or self.is_finite_float_type
 
+    @property
+    def as_convertible_interface(self):
+        return {
+            BuiltinType.string.value: BuiltinType.convertible_to_string,
+        }[self.value]
+
     def get_range(self) -> str:
         assert self.is_finite
         return {

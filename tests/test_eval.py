@@ -327,8 +327,7 @@ class TestEval(unittest.TestCase):
             '        return V(self.first / other.first, self.second / other.second)',
 
             '    fun report():',
-            '        print(self.first)',
-            '        print(self.second)',
+            '        print(self.first as String + " " + self.second as String)',
 
             'let v1 = V(1, 2)',
             'let v2 = V(2, 2)',
@@ -342,7 +341,7 @@ class TestEval(unittest.TestCase):
             'v6.report()',
         ]
         result, output = self.eval(code)
-        self.assertEqual(output, ["3", "4", "-1", "0", "2", "4", "0", "1"])
+        self.assertEqual(output, ["3 4", "-1 0", "2 4", "0 1"])
 
     def test_color_algebraic(self):
         code = [
