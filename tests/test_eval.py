@@ -7,9 +7,9 @@ from compiler import parsers, analysis, environment, clarification, repl_evaluat
 class TestEval(unittest.TestCase):
     def get_env(self, lines: t.List[str]) -> environment.Environment:
         parser = parsers.Parser()
-        clarifier = clarification.Clarifier()
-        analyzer = analysis.Analyzer(lines)
-        repl_evaluator = repl_evaluation.REPLEvaluator()
+        clarifier = clarification.Clarifier('', mangle_names=False)
+        analyzer = analysis.Analyzer(lines, '', mangle_names=False)
+        repl_evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False)
         repl_evaluator.estimate_ast(analyzer.analyze_ast((clarifier.clarify_ast(parser.parse("\n".join(lines))))))
         return repl_evaluator.env
 
@@ -27,9 +27,9 @@ class TestEval(unittest.TestCase):
 
         env = env or environment.Environment()
         parser = parsers.Parser()
-        clarifier = clarification.Clarifier()
-        analyzer = analysis.Analyzer(lines, env)
-        repl_evaluator = repl_evaluation.REPLEvaluator(env)
+        clarifier = clarification.Clarifier('', mangle_names=False)
+        analyzer = analysis.Analyzer(lines, '', mangle_names=False, env=env)
+        repl_evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False, env=env)
         repl_evaluation.print = print_test
         repl_evaluation.input = input_test
         result = repl_evaluator.estimate_ast(

@@ -174,12 +174,13 @@ class Translator(unittest.TestCase):
 
     def translate_method_call_name(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         return cpp_nodes.MethodCall(
-            self.translate_expression(method_call.instance_path), method_call.method,
+            self.translate_expression(method_call.instance_path), method_call.method.member,
             [self.translate_expression(arg) for arg in method_call.args]
         )
 
     def translate_vector_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
-        if method_call.method == nodes.VectorFields.append.value:
+        method = method_call.method.unmangled or method_call.method.member
+        if method == nodes.VectorFields.append.value:
             self.add_include(cpp_nodes.StdModule.vector)
             args = [self.translate_expression(arg) for arg in method_call.args]
             return cpp_nodes.MethodCall(self.translate_expression(method_call.instance_path), "push_back", args)
@@ -193,7 +194,7 @@ class Translator(unittest.TestCase):
             if method_call.is_algebraic_method:
                 base = self.translate_expression(method_call.instance_path)
                 return cpp_nodes.FunctionCall(
-                    cpp_nodes.Id(algebraic_method_name(instance_type.base, nodes.Name(method_call.method))),
+                    cpp_nodes.Id(algebraic_method_name(instance_type.base, method_call.method)),
                     [base] + [self.translate_expression(arg) for arg in method_call.args]
                 )
             base = cpp_nodes.FunctionCall(
@@ -201,15 +202,16 @@ class Translator(unittest.TestCase):
                 params=[cpp_nodes.Id(algebraic_constructor_name(instance_type.base, instance_type.constructor))]
             )
             return cpp_nodes.MethodCall(
-                base, method_call.method, [self.translate_expression(arg) for arg in method_call.args]
+                base, method_call.method.member, [self.translate_expression(arg) for arg in method_call.args]
             )
         return cpp_nodes.FunctionCall(
-            cpp_nodes.Id(algebraic_constructor_name(instance_type.base, nodes.Name(method_call.method))),
+            cpp_nodes.Id(algebraic_constructor_name(instance_type.base, method_call.method)),
             [self.translate_expression(arg) for arg in method_call.args]
         )
 
     def translate_string_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
-        if method_call.method == nodes.StringFields.split.value:
+        method = method_call.method.unmangled or method_call.method.member
+        if method == nodes.StringFields.split.value:
             self.add_include(cpp_nodes.StdModule.vector)
             self.add_include(cpp_nodes.StdModule.string)
             self.add_library_include(library.Modules.string)
@@ -243,30 +245,31 @@ class Translator(unittest.TestCase):
         base = self.translate_expression(field.base)
         assert base is not None
         if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
-            return cpp_nodes.ArrowField(base, field.field)
-        return cpp_nodes.DotField(base, field.field)
+            return cpp_nodes.ArrowField(base, field.field.member)
+        return cpp_nodes.DotField(base, field.field.member)
 
     def translate_generic_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         base = self.translate_expression(field.base)
         assert base is not None
         if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
-            return cpp_nodes.ArrowField(base, field.field)
-        return cpp_nodes.DotField(base, field.field)
+            return cpp_nodes.ArrowField(base, field.field.member)
+        return cpp_nodes.DotField(base, field.field.member)
 
     def translate_algebraic_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert isinstance(field.base_type, nodes.AlgebraicType) and field.base_type.constructor
         field_base = self.translate_expression(field.base)
         if isinstance(field_base, cpp_nodes.SpecialName) and field_base.value == cpp_nodes.SpecialName.this.value:
-            return cpp_nodes.ArrowField(field_base, field.field)
+            return cpp_nodes.ArrowField(field_base, field.field.member)
         base = cpp_nodes.FunctionCall(
             cpp_nodes.StdName.get, [field_base],
             params=[cpp_nodes.Id(algebraic_constructor_name(field.base_type.base, field.base_type.constructor))]
         )
-        return cpp_nodes.DotField(base, field.field)
+        return cpp_nodes.DotField(base, field.field.member)
 
     def translate_vector_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert isinstance(field.base_type, nodes.VectorType)
-        if field.field == nodes.VectorFields.length.value:
+        field_name = field.field.unmangled or field.field.member
+        if field_name == nodes.VectorFields.length.value:
             self.add_include(cpp_nodes.StdModule.vector)
             return cpp_nodes.MethodCall(self.translate_expression(field.base), "size", [])
         else:
@@ -274,7 +277,8 @@ class Translator(unittest.TestCase):
 
     def translate_dict_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert isinstance(field.base_type, nodes.DictType)
-        if field.field == nodes.DictFields.length.value:
+        field_name = field.field.unmangled or field.field.member
+        if field_name == nodes.DictFields.length.value:
             self.add_include(cpp_nodes.StdModule.map)
             return cpp_nodes.MethodCall(self.translate_expression(field.base), "size", [])
         else:
@@ -283,10 +287,11 @@ class Translator(unittest.TestCase):
     def translate_builtin_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert isinstance(field.base_type, nodes.BuiltinType)
         if field.base_type.value == nodes.BuiltinType.string.value:
-            if field.field == nodes.StringFields.length.value:
+            field_name = field.field.unmangled or field.field.member
+            if field_name == nodes.StringFields.length.value:
                 base = self.translate_expression(field.base)
                 assert base is not None
-                return cpp_nodes.MethodCall(base, field.field, args=[])
+                return cpp_nodes.MethodCall(base, field.field.member, args=[])
             assert 0, f"Field 'String.{field.field}' is not supported"
         else:
             assert 0, f"Fields for '{field.base_type.to_code()}' are not supported"
@@ -444,14 +449,16 @@ class Translator(unittest.TestCase):
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
 
     def translate_special_method(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
-        node.name = nodes.Name('operator' + SPECIAL_METHOD_TO_OPERATOR[node.name.member])
+        node.name = nodes.Name('operator' + SPECIAL_METHOD_TO_OPERATOR[node.name.unmangled or node.name.member])
         return self.translate_method_declaration(node)
 
     def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.Node:
         # list(...) for mypy
         private = self.translate_body(list(node.private_fields)) + self.translate_body(list(node.private_methods))
         self.struct_name = node.name.member
-        special_methods: t.List[cpp_nodes.Node] = [self.translate_special_method(method) for method in node.special_methods]
+        special_methods: t.List[cpp_nodes.Node] = [
+            self.translate_special_method(method) for method in node.special_methods
+        ]
         public = self.translate_body(list(node.public_fields)) + self.translate_body(list(node.init_declarations)) +\
             self.translate_body(list(node.public_methods)) + special_methods
         parents = []

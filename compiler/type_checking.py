@@ -80,7 +80,9 @@ class TypeChecker(unittest.TestCase):
 
         self.infer_type_from_field_of_builtin_type_dispatcher = {
             nodes.BuiltinType.string.value: lambda field, mapping, supertype: to_inference_result(
-                self.unify_types(nodes.StringFields(field.field).as_type, supertype, mapping)
+                self.unify_types(
+                    nodes.StringFields(field.field.unmangled or field.field.member).as_type, supertype, mapping
+                )
             )
         }
 
@@ -445,7 +447,7 @@ class TypeChecker(unittest.TestCase):
         return mapping
 
     def infer_type_from_method_call(
-            self, call: nodes.MethodCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, call: nodes.MethodCall, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         method_result = self.infer_type_from_field(
             nodes.Field(call.line, call.instance_path, call.method), supertype=None, mapping=mapping
@@ -490,18 +492,18 @@ class TypeChecker(unittest.TestCase):
         )
 
     def infer_field_of_function_type(
-            self, base_type: nodes.FunctionType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.FunctionType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
-        raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
 
     def infer_field_of_struct_type(
-            self, base_type: nodes.StructType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.StructType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         # Only instance fields are supported.
-        raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
 
     def infer_field_of_generic_type(
-            self, base_type: nodes.GenericType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.GenericType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         struct_mapping = self.basic_struct_mapping(base_type)
         struct_mapping.update(mapping)
@@ -510,7 +512,7 @@ class TypeChecker(unittest.TestCase):
         raise NotImplementedError
 
     def infer_field_of_name_type(
-            self, base_type: nodes.Name, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.Name, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         if base_type.module:
             assert 0, f"Module system is not supported"
@@ -518,11 +520,11 @@ class TypeChecker(unittest.TestCase):
         if entry is None:
             raise errors.AngelNameError(base_type, self.code)
         if isinstance(entry, entries.StructEntry):
-            field_entry = entry.fields.get(field.field)
+            field_entry = entry.fields.get(field.field.member)
             if field_entry is None:
-                method_entry = entry.methods.get(field.field)
+                method_entry = entry.methods.get(field.field.member)
                 if method_entry is None:
-                    raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+                    raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
                 return to_inference_result(
                     self.unify_types(
                         nodes.FunctionType(method_entry.args, method_entry.return_type), supertype, mapping
@@ -533,34 +535,34 @@ class TypeChecker(unittest.TestCase):
             else:
                 assert 0, f"Cannot infer type from field with entry {field_entry}"
         else:
-            raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+            raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
 
     def infer_field_of_algebraic_type(
         self, base_type: nodes.AlgebraicType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         entry = self.env.get_algebraic(base_type)
         if isinstance(entry, entries.AlgebraicEntry):
-            if field.field not in entry.constructors:
-                raise errors.AngelConstructorError(base_type, field.field, self.code)
+            if field.field.member not in entry.constructors:
+                raise errors.AngelConstructorError(base_type, field.field.member, self.code)
 
             return to_inference_result(
                 self.unify_types(
                     nodes.AlgebraicType(
-                        base_type.base, base_type.params, nodes.Name(field.field), base_type.constructor_types
+                        base_type.base, base_type.params, field.field, base_type.constructor_types
                     ), supertype, mapping
                 )
             )
 
-        field_entry = entry.fields.get(field.field)
+        field_entry = entry.fields.get(field.field.member)
         if field_entry is None:
             is_algebraic_method = False
-            method_entry = entry.methods.get(field.field)
+            method_entry = entry.methods.get(field.field.member)
             if method_entry is None:
                 algebraic_entry = self.env.get(base_type.base)
                 assert isinstance(algebraic_entry, entries.AlgebraicEntry)
-                method_entry = algebraic_entry.methods.get(field.field)
+                method_entry = algebraic_entry.methods.get(field.field.member)
                 if method_entry is None:
-                    raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+                    raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
                 is_algebraic_method = True
             return to_inference_result(
                 self.unify_types(
@@ -574,58 +576,63 @@ class TypeChecker(unittest.TestCase):
             assert 0, f"Cannot infer type from field with entry {field_entry}"
 
     def infer_field_of_template_type(
-            self, base_type: nodes.TemplateType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.TemplateType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
-        raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
 
     def infer_field_of_dict_type(
-            self, base_type: nodes.DictType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.DictType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         return to_inference_result(
             self.unify_types(
-                nodes.DictFields(field.field).as_type(base_type.key_type, base_type.value_type), supertype, mapping
+                nodes.DictFields(field.field.unmangled or field.field.member).as_type(
+                    base_type.key_type, base_type.value_type
+                ), supertype, mapping
             )
         )
 
     def infer_field_of_vector_type(
-            self, base_type: nodes.VectorType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.VectorType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         return to_inference_result(
-            self.unify_types(nodes.VectorFields(field.field).as_type(base_type.subtype), supertype, mapping)
+            self.unify_types(
+                nodes.VectorFields(field.field.unmangled or field.field.member).as_type(base_type.subtype),
+                supertype, mapping
+            )
         )
 
     def infer_field_of_optional_type(
-            self, base_type: nodes.OptionalType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.OptionalType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
-        raise errors.AngelFieldError(field.base, base_type, field.field, self.code)
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
 
     def infer_subscript_of_algebraic_type(
-            self, base_type: nodes.AlgebraicType, subscript: nodes.Subscript, mapping: Mapping,
-            supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.AlgebraicType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
 
     def infer_subscript_of_function_type(
-            self, base_type: nodes.FunctionType, subscript: nodes.Subscript, mapping: Mapping,
-            supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.FunctionType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
 
     def infer_subscript_of_struct_type(
-            self, base_type: nodes.StructType, subscript: nodes.Subscript, mapping: Mapping,
-            supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.StructType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
 
     def infer_subscript_of_optional_type(
-            self, base_type: nodes.OptionalType, subscript: nodes.Subscript, mapping: Mapping,
-            supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.OptionalType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
 
     def infer_subscript_of_vector_type(
-            self, base_type: nodes.VectorType, subscript: nodes.Subscript, mapping: Mapping,
-            supertype: t.Optional[nodes.Type]
+        self, base_type: nodes.VectorType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         self.infer_type(subscript.index, nodes.BuiltinType.u64)
         return to_inference_result(self.unify_types(base_type.subtype, supertype, mapping))

@@ -5,10 +5,10 @@ from compiler import type_checking, estimation, repl_evaluation, analysis, trans
 
 class TestCompleteness(unittest.TestCase):
     def setUp(self) -> None:
-        self.analyzer = analysis.Analyzer([])
+        self.analyzer = analysis.Analyzer([], '', mangle_names=False)
         self.type_checker = type_checking.TypeChecker()
-        self.estimator: estimation.Evaluator = estimation.Estimator()
-        self.repl_evaluator: estimation.Evaluator = repl_evaluation.REPLEvaluator()
+        self.estimator: estimation.Evaluator = estimation.Estimator('', mangle_names=False)
+        self.repl_evaluator: estimation.Evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False)
         self.translator = translators.Translator()
 
     def test_all(self):

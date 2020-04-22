@@ -6,7 +6,7 @@ from functools import partial
 from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
-from .utils import dispatch, NODES, EXPRS, ASSIGNMENTS
+from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS
 from .constants import builtin_funcs, string_fields, vector_fields, dict_fields
 
 
@@ -15,11 +15,16 @@ EstimatedFields = t.Dict[str, t.Union[t.Callable[..., enodes.Expression], enodes
 
 
 class Evaluator(unittest.TestCase):
-    def __init__(self, estimated_objs: EstimatedObjects, env: t.Optional[environment.Environment] = None) -> None:
+    def __init__(
+        self, estimated_objs: EstimatedObjects, main_module_hash: str,
+        mangle_names: bool = True, env: t.Optional[environment.Environment] = None
+    ) -> None:
         super().__init__()
         self.env = env or environment.Environment()
         self.code = errors.Code()
         self.repl_tmp_count = 0
+        self.main_module_hash = main_module_hash
+        self.mangle_names = mangle_names
         self.type_checker = type_checking.TypeChecker()
 
         self.estimated_objs = estimated_objs
@@ -243,12 +248,12 @@ class Evaluator(unittest.TestCase):
             base_entry = self.env[field.base.member]
             assert isinstance(base_entry, entries.VariableEntry)
             assert isinstance(base_entry.estimated_value, enodes.Instance)
-            base_entry.estimated_value.fields[field.field] = estimated_value
+            base_entry.estimated_value.fields[field.field.member] = estimated_value
         elif isinstance(field.base, nodes.SpecialName):
             base_entry = self.env[field.base.value]
             assert isinstance(base_entry, entries.VariableEntry)
             assert isinstance(base_entry.estimated_value, enodes.Instance)
-            base_entry.estimated_value.fields[field.field] = estimated_value
+            base_entry.estimated_value.fields[field.field.member] = estimated_value
         else:
             assert 0, f"Cannot estimate field assignment with base '{field.base}'"
 
@@ -376,7 +381,9 @@ class Evaluator(unittest.TestCase):
         assert x.type == y.type
         entry = self.env.get(x.type)
         assert isinstance(entry, entries.StructEntry)
-        method_entry = entry.methods[method_name.value]
+        method_entry = entry.methods[
+            mangle(nodes.Name(method_name.value), self.main_module_hash, self.mangle_names).member
+        ]
         result = self.match_function_body(
             enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
             args=[], args_estimated=[y], self_estimated=x, self_type=x.type
@@ -427,39 +434,41 @@ class Evaluator(unittest.TestCase):
             # @Completeness: must have branches for all entry types
             assert 0, f"{self.estimate_name} cannot dispatch entry type {type(entry)}"
 
-    def estimate_builtin_field(self, fields: EstimatedFields, base: enodes.Expression, field: str) -> enodes.Expression:
-        estimated = fields[field]
+    def estimate_builtin_field(
+        self, fields: EstimatedFields, base: enodes.Expression, field: nodes.Name
+    ) -> enodes.Expression:
+        estimated = fields[field.unmangled or field.member]
         if callable(estimated):
             return estimated(base)
         return estimated
 
-    def estimate_algebraic_field(self, base: enodes.Algebraic, field: str) -> enodes.Expression:
-        return enodes.AlgebraicConstructor(base.name, nodes.Name(field), entry=base.entry.constructors[field])
+    def estimate_algebraic_field(self, base: enodes.Algebraic, field: nodes.Name) -> enodes.Expression:
+        return enodes.AlgebraicConstructor(base.name, field, entry=base.entry.constructors[field.member])
 
     def estimate_algebraic_constructor_instance_field(
-        self, base: enodes.AlgebraicConstructorInstance, field: str
+        self, base: enodes.AlgebraicConstructorInstance, field: nodes.Name
     ) -> enodes.Expression:
-        found = base.fields.get(field)
+        found = base.fields.get(field.member)
         if found is not None:
             return found
         constructor_entry = self.env.get_algebraic(
             nodes.AlgebraicType(base.type.name, params=[], constructor=base.type.constructor)
         )
         assert isinstance(constructor_entry, entries.StructEntry)
-        method_entry = constructor_entry.methods.get(field)
+        method_entry = constructor_entry.methods.get(field.member)
         if method_entry is None:
             algebraic_entry = self.env.get(base.type.name)
             assert isinstance(algebraic_entry, entries.AlgebraicEntry)
-            method_entry = algebraic_entry.methods[field]
+            method_entry = algebraic_entry.methods[field.member]
         return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
 
-    def estimate_instance_field(self, base: enodes.Instance, field: str) -> enodes.Expression:
-        found = base.fields.get(field)
+    def estimate_instance_field(self, base: enodes.Instance, field: nodes.Name) -> enodes.Expression:
+        found = base.fields.get(field.member)
         if found is not None:
             return found
         struct_entry = self.env[base.type.member]
         assert isinstance(struct_entry, entries.StructEntry)
-        method_entry = struct_entry.methods[field]
+        method_entry = struct_entry.methods[field.member]
         return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
 
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:

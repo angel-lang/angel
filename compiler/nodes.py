@@ -90,14 +90,26 @@ class TemplateType(Type):
 
 
 @dataclass
+class Name(Type, AssignmentLeft):
+    member: str
+    module: t.Optional[str] = None
+    unmangled: str = ''
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        if self.module:
+            return f"{self.module}#{self.member}"
+        return self.member
+
+
+@dataclass
 class Field(AssignmentLeft):
     line: int
     base: Expression
-    field: str
+    field: Name
     base_type: t.Optional[Type] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"{self.base.to_code()}.{self.field}"
+        return f"{self.base.to_code()}.{self.field.to_code()}"
 
 
 @dataclass
@@ -360,17 +372,6 @@ class BinaryExpression(Expression):
 
 
 @dataclass
-class Name(Type, AssignmentLeft):
-    member: str
-    module: t.Optional[str] = None
-
-    def to_code(self, indentation_level: int = 0) -> str:
-        if self.module:
-            return f"{self.module}#{self.member}"
-        return self.member
-
-
-@dataclass
 class Cast(Expression):
     value: Expression
     to_type: Type
@@ -461,13 +462,13 @@ class FunctionCall(Node, Expression):
 class MethodCall(Node, Expression):
     line: int
     instance_path: Expression
-    method: str
+    method: Name
     args: t.List[Expression]
     instance_type: t.Optional[Type] = None
     is_algebraic_method: bool = False
 
     def __init__(
-            self, line: int, instance_path: Expression, method: str, args: t.List[Expression],
+            self, line: int, instance_path: Expression, method: Name, args: t.List[Expression],
             instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
     ):
         self.line = line
@@ -477,7 +478,8 @@ class MethodCall(Node, Expression):
         self.instance_type = instance_type
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"{self.instance_path.to_code()}.{self.method}({', '.join(arg.to_code() for arg in self.args)})"
+        method = self.method.to_code()
+        return f"{self.instance_path.to_code()}.{method}({', '.join(arg.to_code() for arg in self.args)})"
 
 
 @dataclass

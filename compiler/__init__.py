@@ -7,6 +7,7 @@ import subprocess
 from . import (
     parsers, translators, generators, environment, errors, clarification, repl_evaluation, analysis
 )
+from .utils import get_hash
 
 
 DEBUG = False
@@ -19,12 +20,13 @@ def compile_file(file_path: str) -> str:
     return compile_string(contents)
 
 
-def compile_string(string: str) -> str:
+def compile_string(string: str, mangle_names: bool = True) -> str:
     """Translate Angel code represented by `string` into C++ code and returns it."""
     lines = string.split("\n")
     parser = parsers.Parser()
-    clarifier = clarification.Clarifier()
-    analyzer = analysis.Analyzer(lines)
+    hash_ = get_hash(string)
+    clarifier = clarification.Clarifier(hash_, mangle_names)
+    analyzer = analysis.Analyzer(lines, hash_, mangle_names)
     translator = translators.Translator()
     try:
         cpp_ast = translator.translate(
@@ -45,9 +47,9 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     """Evaluate Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
     parser = parsers.Parser()
-    clarifier = clarification.Clarifier()
-    analyzer = analysis.Analyzer(lines, env=env)
-    repl_evaluator = repl_evaluation.REPLEvaluator(env=env)
+    clarifier = clarification.Clarifier('', mangle_names=False)
+    analyzer = analysis.Analyzer(lines, '', mangle_names=False, env=env)
+    repl_evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False, env=env)
     try:
         return repl_evaluator.estimate_ast(
             analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
@@ -83,8 +85,10 @@ class REPL(cmd.Cmd):
     def do_eval(self):
         try:
             proc = subprocess.run(
-                ['clang-format', '--assume-filename=a.cpp'], input=compile_string("\n".join(self.input_)),
-                encoding="utf-8", stdout=subprocess.PIPE)
+                ['clang-format', '--assume-filename=a.cpp'],
+                input=compile_string("\n".join(self.input_), mangle_names=False), encoding="utf-8",
+                stdout=subprocess.PIPE
+            )
             print(proc.stdout)
         except Exception:
             traceback.print_exc(chain=False)

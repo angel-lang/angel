@@ -5,20 +5,26 @@ from itertools import zip_longest
 from . import (
     nodes, estimation, type_checking, environment, estimation_nodes as enodes, errors, environment_entries as entries
 )
-from .utils import dispatch, NODES, ASSIGNMENTS
+from .utils import mangle, dispatch, NODES, ASSIGNMENTS
 
 
 class Analyzer(unittest.TestCase):
 
-    def __init__(self, lines: t.List[str], env: t.Optional[environment.Environment] = None):
+    def __init__(
+        self, lines: t.List[str], main_module_hash: str, mangle_names: bool = True,
+        env: t.Optional[environment.Environment] = None,
+    ):
         super().__init__()
         self.env = env or environment.Environment()
         self.lines = lines
         self.line = 0
         self.function_return_types: t.List[nodes.Type] = []
 
+        self.main_module_hash = main_module_hash
+        self.mangle_names = mangle_names
+
         self.type_checker = type_checking.TypeChecker()
-        self.estimator = estimation.Estimator()
+        self.estimator = estimation.Estimator(main_module_hash, mangle_names)
 
         self.assignment_dispatcher = {
             nodes.Name: self.check_name_reassignment,
@@ -222,7 +228,7 @@ class Analyzer(unittest.TestCase):
                 args.append(nodes.Argument(field.name, field.type, field.value))
                 init_declaration_body.append(
                     nodes.Assignment(
-                        0, nodes.Field(0, nodes.SpecialName.self, field.name.member), nodes.Operator.eq, field.name
+                        0, nodes.Field(0, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.name
                     )
                 )
             for field in private_fields:
@@ -230,7 +236,7 @@ class Analyzer(unittest.TestCase):
                     raise errors.AngelPrivateFieldsNotInitializedAndNoInit(field.name, self.get_code(field.line))
                 init_declaration_body.append(
                     nodes.Assignment(
-                        0, nodes.Field(0, nodes.SpecialName.self, field.name.member), nodes.Operator.eq, field.value
+                        0, nodes.Field(0, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.value
                     )
                 )
             default_init_declaration = nodes.InitDeclaration(0, args, init_declaration_body)
@@ -393,7 +399,12 @@ class Analyzer(unittest.TestCase):
     ) -> None:
         for field_name, field_entry in interface_entry.fields.items():
             assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
-            found = struct_entry.fields.get(field_name)
+            found = struct_entry.fields.get(
+                field_name,
+                struct_entry.fields.get(
+                    mangle(nodes.Name(field_name), self.main_module_hash, self.mangle_names).member
+                )
+            )
             if not found:
                 raise errors.AngelMissingInterfaceMember(
                     struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), field_entry.name
@@ -407,7 +418,12 @@ class Analyzer(unittest.TestCase):
 
         for field_name, (inherited_from, field_entry) in interface_entry.inherited_fields.items():
             assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
-            found = struct_entry.fields.get(field_name)
+            found = struct_entry.fields.get(
+                field_name,
+                struct_entry.fields.get(
+                    mangle(nodes.Name(field_name), self.main_module_hash, self.mangle_names).member
+                )
+            )
             if not found:
                 raise errors.AngelMissingInterfaceMember(
                     struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), field_entry.name,
@@ -421,22 +437,32 @@ class Analyzer(unittest.TestCase):
                 )
 
         for method_name, method_entry in interface_entry.methods.items():
-            found = struct_entry.methods.get(method_name)
-            if not found:
+            found_method: t.Optional[entries.FunctionEntry] = struct_entry.methods.get(
+                method_name,
+                struct_entry.methods.get(
+                    mangle(nodes.Name(method_name), self.main_module_hash, self.mangle_names).member
+                )
+            )
+            if not found_method:
                 raise errors.AngelMissingInterfaceMember(
                     struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), method_entry.name
                 )
-            self.match_method_implementation(interface_entry.name, struct_entry.name, method_entry, found)
+            self.match_method_implementation(interface_entry.name, struct_entry.name, method_entry, found_method)
 
         for method_name, (inherited_from, method_entry) in interface_entry.inherited_methods.items():
-            found = struct_entry.methods.get(method_name)
-            if not found:
+            found_method = struct_entry.methods.get(
+                method_name,
+                struct_entry.methods.get(
+                    mangle(nodes.Name(method_name), self.main_module_hash, self.mangle_names).member
+                )
+            )
+            if not found_method:
                 raise errors.AngelMissingInterfaceMember(
                     struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), method_entry.name,
                     inherited_from=inherited_from
                 )
             self.match_method_implementation(
-                interface_entry.name, struct_entry.name, method_entry, found, inherited_from
+                interface_entry.name, struct_entry.name, method_entry, found_method, inherited_from
             )
 
     def match_method_implementation(

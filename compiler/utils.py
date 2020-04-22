@@ -1,4 +1,5 @@
 import typing as t
+import hashlib
 
 from . import errors, nodes
 
@@ -8,6 +9,20 @@ def dispatch(dispatcher, key, *args):
     if func is None:
         raise errors.AngelNotImplemented(f'cannot dispatch {key}')
     return func(*args)
+
+
+def get_hash(string: str) -> str:
+    md5 = hashlib.new('md5')
+    md5.update(string.encode('utf-8'))
+    return md5.hexdigest()[:6]
+
+
+def mangle(name: nodes.Name, hash_: str, mangle_names: bool = True) -> nodes.Name:
+    if name.module:
+        raise NotImplementedError
+    if mangle_names:
+        return nodes.Name("_".join(["angel", hash_, name.member]), unmangled=name.member)
+    return name
 
 
 def get_all_subclasses(cls):

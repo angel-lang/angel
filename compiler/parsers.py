@@ -48,7 +48,7 @@ class TupleTrailer(Trailer):
 
 @dataclass
 class FieldTrailer(Trailer):
-    field: str
+    field: nodes.Name
 
 
 @dataclass
@@ -765,7 +765,7 @@ class Parser:
                 field = self.parse_identifier()
                 if not field:
                     raise errors.AngelSyntaxError("expected identifier", self.get_code())
-                return FieldTrailer(line, field)
+                return FieldTrailer(line, nodes.Name(field))
             elif self.parse_raw("["):
                 index = self.parse_expression()
                 if not index:

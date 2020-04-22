@@ -1,9 +1,14 @@
 import enum
+from dataclasses import dataclass
 
 from . import nodes
+from .utils import mangle
 
 
+@dataclass
 class Clarifier:
+    main_module_hash: str
+    mangle_names: bool = True
 
     def clarify_ast(self, ast: nodes.AST) -> nodes.AST:
         return [self.clarify_node(node) for node in ast]
@@ -19,13 +24,13 @@ class Clarifier:
                     continue
                 else:
                     return result
-            return node
+            return mangle(node, self.main_module_hash, self.mangle_names)
         elif isinstance(node, nodes.Field):
             base = self.clarify_node(node.base)
             if isinstance(base, nodes.BuiltinType) and (
                     base.value == nodes.BuiltinType.optional.value):
-                return nodes.OptionalTypeConstructor(node.field)
-            return nodes.Field(node.line, base, node.field)
+                return nodes.OptionalTypeConstructor(node.field.member)
+            return nodes.Field(node.line, base, self.clarify_node(node.field))
         elif isinstance(node, nodes.FunctionCall):
             function_path = self.clarify_node(node.function_path)
             args = self.clarify_node(node.args)
