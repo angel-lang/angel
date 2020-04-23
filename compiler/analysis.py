@@ -64,6 +64,11 @@ class Analyzer(unittest.TestCase):
         }
 
         self.builtin_interface_dispatcher = {
+            nodes.BuiltinType.object_.value: entries.InterfaceEntry(
+                line=0, name=nodes.Name(nodes.BuiltinType.object_.value),
+                params=[], parent_interfaces=[], fields={}, methods={}, inherited_fields={}, inherited_methods={}
+            ),
+
             nodes.BuiltinType.arithmetic_object.value: entries.InterfaceEntry(
                 line=0, name=nodes.Name(nodes.BuiltinType.arithmetic_object.value),
                 params=[], parent_interfaces=[

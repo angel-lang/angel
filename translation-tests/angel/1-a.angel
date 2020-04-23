@@ -225,7 +225,7 @@ struct Person is Cool:
         print(self.beautifulValue)
 
 // Builtin interfaces
-struct V is ArithmeticObject:
+struct V is ArithmeticObject, Object:
     first: I8
     second: I8
 

@@ -167,6 +167,7 @@ class BuiltinType(Type, enum.Enum):
     void = "Void"
     self_ = "Self"
 
+    object_ = "Object"
     convertible_to_string = "ConvertibleToString"
     addable = "Addable"
     subtractable = "Subtractable"
@@ -198,7 +199,7 @@ class BuiltinType(Type, enum.Enum):
     def abstract_interfaces(cls) -> t.List[str]:
         return [
             BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
-            BuiltinType.divisible.value, BuiltinType.arithmetic_object.value
+            BuiltinType.divisible.value, BuiltinType.arithmetic_object.value, BuiltinType.object_.value
         ]
 
     @property
