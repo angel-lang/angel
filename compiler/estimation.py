@@ -111,6 +111,9 @@ class Evaluator(unittest.TestCase):
             nodes.Operator.eq_eq.value: lambda x, y: dispatch(eq_dispatcher, (type(x), type(y)), x, y),
             nodes.Operator.lt.value: lambda x, y: dispatch(lt_dispatcher, (type(x), type(y)), x, y),
             nodes.Operator.gt.value: lambda x, y: dispatch(gt_dispatcher, (type(x), type(y)), x, y),
+
+            nodes.Operator.and_.value: self.estimate_binary_expression_and,
+            nodes.Operator.or_.value: self.estimate_binary_expression_or,
         }
 
         self.estimate_field_dispatcher = {
@@ -599,7 +602,18 @@ class Evaluator(unittest.TestCase):
         else:
             assert 0, f"Cannot estimate method call with estimated method {method}"
 
+    def estimate_binary_expression_and(self, left: enodes.Expression, right: enodes.Expression) -> enodes.Bool:
+        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
+        return enodes.Bool(left.value and right.value)
+
+    def estimate_binary_expression_or(self, left: enodes.Expression, right: enodes.Expression) -> enodes.Bool:
+        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
+        return enodes.Bool(left.value or right.value)
+
     def estimate_binary_expression(self, expression: nodes.BinaryExpression) -> enodes.Expression:
+        if expression.operator.value == nodes.Operator.is_.value:
+            assert isinstance(expression.right, nodes.BuiltinType) and expression.right == nodes.BuiltinType.object_
+            return enodes.Bool(True)
         left = self.estimate_expression(expression.left)
         right = self.estimate_expression(expression.right)
         if expression.operator.value == nodes.Operator.neq.value:

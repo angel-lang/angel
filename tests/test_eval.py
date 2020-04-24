@@ -77,7 +77,7 @@ class TestEval(unittest.TestCase):
 
     def test_bool_expression_literal(self):
         result, output = self.eval([
-            'print(2 == 2)',
+            'print(2 == 2 and I8 is Object)',
         ])
         self.assertEqual(output, ["True"])
 

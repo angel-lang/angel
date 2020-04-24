@@ -748,6 +748,8 @@ class TypeChecker(unittest.TestCase):
     def infer_type_from_binary_expression(
             self, value: nodes.BinaryExpression, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
+        if value.operator.value == nodes.Operator.is_.value:
+            return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
         left_result = self.infer_type(value.left, mapping=mapping)
         result = self.infer_type(value.right, left_result.type, mapping=mapping)
         if value.operator.value in nodes.Operator.comparison_operators_names():

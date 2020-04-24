@@ -369,6 +369,9 @@ class Translator(unittest.TestCase):
         return cpp_nodes.Deref(inner_value)
 
     def translate_binary_expression(self, value: nodes.BinaryExpression) -> cpp_nodes.Expression:
+        if value.operator.value == nodes.Operator.is_.value:
+            assert isinstance(value.right, nodes.BuiltinType) and value.right.value == nodes.BuiltinType.object_.value
+            return cpp_nodes.BoolLiteral.true
         left = self.translate_expression(value.left)
         assert left is not None
         right = self.translate_expression(value.right)
@@ -390,7 +393,14 @@ class Translator(unittest.TestCase):
                 )
             )
             return tmp1
-        return cpp_nodes.BinaryExpression(left, cpp_nodes.Operator(value.operator.value), right)
+        if value.operator in nodes.Operator.higher_order_boolean_operators():
+            operator = {
+                nodes.Operator.and_.value: cpp_nodes.Operator.and_,
+                nodes.Operator.or_.value: cpp_nodes.Operator.or_
+            }[value.operator.value]
+        else:
+            operator = cpp_nodes.Operator(value.operator.value)
+        return cpp_nodes.BinaryExpression(left, operator, right)
 
     def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
         def add_node(node: cpp_nodes.Node):

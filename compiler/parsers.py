@@ -24,6 +24,11 @@ OPERATOR_PRIORITY = {
     nodes.Operator.gt_eq.value: 3,
     nodes.Operator.lt.value: 3,
     nodes.Operator.gt.value: 3,
+
+    nodes.Operator.and_.value: 4,
+    nodes.Operator.or_.value: 4,
+
+    nodes.Operator.is_.value: 5,
 }
 
 
@@ -707,7 +712,13 @@ class Parser:
         return build_binary_expression(left, got_op, right)
 
     def parse_expression(self) -> t.Optional[nodes.Expression]:
-        return self.parse_expression_comparison()
+        return self.parse_boolean_expression()
+
+    def parse_boolean_expression(self) -> t.Optional[nodes.Expression]:
+        return self.parse_binary_expression(
+            self.parse_expression_comparison, nodes.Operator.higher_order_boolean_operators(),
+            self.parse_boolean_expression
+        )
 
     def parse_expression_comparison(self) -> t.Optional[nodes.Expression]:
         return self.parse_binary_expression(

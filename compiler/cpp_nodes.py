@@ -38,6 +38,9 @@ class StdModule(enum.Enum):
 
 
 class Operator(enum.Enum):
+    and_ = "&&"
+    or_ = "||"
+
     increment = "++"
     decrement = "--"
 

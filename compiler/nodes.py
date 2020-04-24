@@ -315,6 +315,7 @@ class Operator(enum.Enum):
     not_ = "not"
     and_ = "and"
     or_ = "or"
+    is_ = "is"
 
     lt_eq = "<="
     gt_eq = ">="
@@ -334,6 +335,10 @@ class Operator(enum.Enum):
     sub = "-"
     mul = "*"
     div = "/"
+
+    @classmethod
+    def higher_order_boolean_operators(cls):
+        return [Operator.and_, Operator.or_, Operator.is_]
 
     @classmethod
     def comparison_operators(cls):
