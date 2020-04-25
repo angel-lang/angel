@@ -126,6 +126,22 @@ class V {
     return V(this->first / other.first, this->second / other.second);
   }
 };
+class Vec {
+ public:
+  std::int_fast8_t x;
+  std::int_fast8_t y;
+  Vec(std::int_fast8_t x, std::int_fast8_t y) {
+    this->x = x;
+    this->y = y;
+  }
+  std::string toString() {
+    return "(" + std::to_string(this->x) + ", " + std::to_string(this->y) + ")";
+  }
+};
+std::ostream& operator<<(std::ostream& _arg1, Vec& _arg2) {
+  _arg1 << _arg2.toString();
+  return _arg1;
+}
 int main() {
   std::int_fast8_t constantWithEverything = 1;
   std::int_fast8_t constantWithoutType = 1;
@@ -246,6 +262,8 @@ int main() {
   v4.report();
   v5.report();
   v6.report();
+  __print(Vec(1, 2));
+  __print(Vec(1, 2).toString());
   std::vector<std::int_fast8_t> __tmp_6 = {1, 2, 3};
   for (std::vector<std::int_fast8_t>::iterator __tmp_7 = __tmp_6.begin();
        __tmp_7 != __tmp_6.end(); ++__tmp_7) {

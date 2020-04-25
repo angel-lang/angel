@@ -197,7 +197,7 @@ class Evaluator(unittest.TestCase):
 
     def estimate_struct_declaration(self, declaration: nodes.StructDeclaration) -> None:
         # list(...) for mypy
-        self.env.add_struct(declaration.line, declaration.name, declaration.parameters)
+        self.env.add_struct(declaration.line, declaration.name, declaration.parameters, declaration.interfaces)
         self.env.inc_nesting(declaration.name)
         self.estimate_ast(list(declaration.private_fields))
         self.estimate_ast(list(declaration.public_fields))
@@ -507,7 +507,15 @@ class Evaluator(unittest.TestCase):
             assert isinstance(struct_entry, entries.StructEntry)
             return self.match_init_declaration(function, list(struct_entry.init_declarations.values()), call.args)
         assert isinstance(function, enodes.Function)
-        return self.match_function_body(function, call.args)
+        args = call.args
+        if function.name == nodes.BuiltinFunc.print.value:
+            arg_type = self.infer_type(args[0])
+            args = [
+                nodes.Cast(
+                    call.args[0], nodes.BuiltinType.string, is_builtin=isinstance(arg_type, nodes.BuiltinType)
+                )
+            ]
+        return self.match_function_body(function, args)
 
     def match_algebraic_constructor_init(
         self, algebraic_constructor: enodes.AlgebraicConstructor, init_declarations: t.List[entries.InitEntry],
@@ -633,9 +641,28 @@ class Evaluator(unittest.TestCase):
     def estimate_cast(self, cast: nodes.Cast) -> enodes.Expression:
         value = self.estimate_expression(cast.value)
         assert isinstance(cast.to_type, nodes.BuiltinType)
-        assert isinstance(value, (enodes.Int, enodes.Float))
         if cast.to_type.value == nodes.BuiltinType.string.value:
+            if isinstance(value, enodes.Instance):
+                entry = self.env.get(value.type)
+                assert isinstance(entry, entries.StructEntry)
+                method_entry = entry.methods[
+                    mangle(nodes.Name(nodes.SpecialMethods.as_.value), self.main_module_hash, self.mangle_names).member
+                ]
+                result = self.match_function_body(
+                    enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
+                    args=[], args_estimated=[], self_estimated=value, self_type=value.type
+                )
+                assert result
+                return result
+            elif isinstance(value, enodes.String):
+                return value
+            elif isinstance(value, enodes.Char):
+                return enodes.String(value.value)
+            elif isinstance(value, (enodes.Bool, enodes.Dict, enodes.Vector)):
+                return enodes.String(value.to_code())
+            assert isinstance(value, (enodes.Int, enodes.Float)), type(value)
             return enodes.String(str(value.value))
+        assert isinstance(value, (enodes.Int, enodes.Float)), type(value)
         return enodes.Int(int(value.value), cast.to_type)
 
     def estimate_optional_some_call(self, call: nodes.OptionalSomeCall) -> enodes.Expression:

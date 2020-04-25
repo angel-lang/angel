@@ -235,6 +235,9 @@ struct Person is Beautiful:
         print(self.beautifulValue)
 ```
 
+### Object
+Every type (struct, interface, algebraic data type) in Angel implements `Object` interface.
+
 ### Operator overloading
 To overload `+` operator, struct must implement `Addable` interface. `Self` is the implementor's type.
 ```
@@ -252,6 +255,33 @@ struct V is Addable:
         return V(self.first + other.first, self.second + other.second)
 
 let v = V(1, 2) + V(3, 4)
+```
+
+### Type conversions
+To convert type `A` to type `B`:
+```
+struct A:
+    // some code
+
+    fun as -> B:
+        return B()
+
+let b = A() as B    // calls `as` method
+```
+
+For example:
+```
+struct Vec is ConvertibleToString:
+    x: I8
+    y: I8
+
+    fun as -> String:
+        return "(" + self.x as String + ", " + self.y as String + ")"
+
+
+// prints the same
+print(Vec(1, 2))
+print(Vec(1, 2) as String)
 ```
 
 ## Reading Input and Writing Output

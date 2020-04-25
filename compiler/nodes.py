@@ -96,9 +96,10 @@ class Name(Type, AssignmentLeft):
     unmangled: str = ''
 
     def to_code(self, indentation_level: int = 0) -> str:
+        member = self.unmangled or self.member
         if self.module:
-            return f"{self.module}#{self.member}"
-        return self.member
+            return f"{self.module}#{member}"
+        return member
 
 
 @dataclass
@@ -169,6 +170,7 @@ class BuiltinType(Type, enum.Enum):
 
     object_ = "Object"
     convertible_to_string = "ConvertibleToString"
+    convertible_to_i16 = "ConvertibleToI16"
     addable = "Addable"
     subtractable = "Subtractable"
     multipliable = "Multipliable"
@@ -199,12 +201,17 @@ class BuiltinType(Type, enum.Enum):
     def abstract_interfaces(cls) -> t.List[str]:
         return [
             BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
-            BuiltinType.divisible.value, BuiltinType.arithmetic_object.value, BuiltinType.object_.value
+            BuiltinType.divisible.value, BuiltinType.arithmetic_object.value, BuiltinType.object_.value,
+            BuiltinType.convertible_to_string.value
         ]
 
     @property
     def is_abstract_interface(self):
         return self.value in self.abstract_interfaces()
+
+    @property
+    def is_interface(self):
+        return self.is_abstract_interface
 
     @property
     def is_finite_int_type(self):
@@ -222,6 +229,7 @@ class BuiltinType(Type, enum.Enum):
     def as_convertible_interface(self):
         return {
             BuiltinType.string.value: BuiltinType.convertible_to_string,
+            BuiltinType.i16.value: BuiltinType.convertible_to_i16,
         }[self.value]
 
     def get_range(self) -> str:
@@ -251,11 +259,11 @@ class BuiltinType(Type, enum.Enum):
         return {
             BuiltinType.i8.value: [
                 BuiltinType.i8.value, BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
-                BuiltinType.convertible_to_string.value
+                BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
             ],
             BuiltinType.i16.value: [
                 BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
-                BuiltinType.convertible_to_string.value
+                BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
             ],
             BuiltinType.i32.value: [
                 BuiltinType.i32.value, BuiltinType.i64.value, BuiltinType.convertible_to_string.value
@@ -264,7 +272,7 @@ class BuiltinType(Type, enum.Enum):
 
             BuiltinType.u8.value: [
                 BuiltinType.u8.value, BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
-                BuiltinType.convertible_to_string.value
+                BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
             ],
             BuiltinType.u16.value: [
                 BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
@@ -357,6 +365,8 @@ class Operator(enum.Enum):
 
 
 class SpecialMethods(enum.Enum):
+    as_ = "as"
+
     eq = "__eq__"
     lt = "__lt__"
     gt = "__gt__"
@@ -381,6 +391,7 @@ class BinaryExpression(Expression):
 class Cast(Expression):
     value: Expression
     to_type: Type
+    is_builtin: bool = True
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"({self.to_type.to_code()})({self.value.to_code()})"

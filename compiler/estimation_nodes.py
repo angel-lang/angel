@@ -115,6 +115,7 @@ class Function(Expression):
     args: nodes.Arguments
     return_type: nodes.Type
     specification: t.Union[t.Callable[..., Expression], nodes.AST]
+    name: t.Optional[str] = None
 
     def to_code(self) -> str:
         return f"Function(({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()})"

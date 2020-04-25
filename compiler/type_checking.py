@@ -5,6 +5,7 @@ from decimal import Decimal
 from itertools import zip_longest
 
 from . import nodes, errors, environment, environment_entries as entries
+from .constants import builtin_interfaces
 from .utils import dispatch, TYPES, EXPRS, apply_mapping
 
 
@@ -477,7 +478,9 @@ class TypeChecker(unittest.TestCase):
         self, cast: nodes.Cast, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         if isinstance(cast.to_type, nodes.BuiltinType):
-            self.infer_type(cast.value, cast.to_type.as_convertible_interface)
+            value_result = self.infer_type(cast.value)
+            self.unify_types(value_result.type, cast.to_type.as_convertible_interface, mapping)
+            cast.is_builtin = isinstance(value_result.type, nodes.BuiltinType)
             return to_inference_result(self.unify_types(cast.to_type, supertype, mapping))
         raise NotImplementedError
 
@@ -839,7 +842,13 @@ class TypeChecker(unittest.TestCase):
             assert self.env.parents
             parent = self.env.parents[-1]
             return self.unify_types(subtype, parent, mapping)
-        return self.unification_failed(subtype, supertype, mapping)
+        if not supertype.is_interface:
+            return self.unification_failed(subtype, supertype, mapping)
+        subtype_entry = self.env.get(subtype)
+        assert isinstance(subtype_entry, entries.StructEntry)
+        if not self.is_operator(subtype_entry.implemented_interfaces, supertype):
+            return self.unification_failed(subtype, supertype, mapping)
+        return UnificationResult(supertype, mapping)
 
     def unification_template_supertype_success(
         self, subtype: nodes.Type, supertype: nodes.TemplateType, mapping: Mapping
@@ -1030,6 +1039,19 @@ class TypeChecker(unittest.TestCase):
         if fail is not None:
             raise errors.AngelTypeError(fail.message, self.code, list(subtypes))
         raise errors.AngelTypeError("no subtypes to unify", self.code, list(subtypes))
+
+    def is_operator(self, implemented_interfaces: nodes.Interfaces, interface: nodes.BuiltinType) -> bool:
+        def get_interface(interface: nodes.BuiltinType) -> entries.InterfaceEntry:
+            return builtin_interfaces[interface.value]
+
+        for implemented_interface in implemented_interfaces:
+            assert isinstance(implemented_interface, nodes.BuiltinType)
+            if implemented_interface == interface:
+                return True
+            entry = get_interface(implemented_interface)
+            if self.is_operator(entry.parent_interfaces, interface):
+                return True
+        return False
 
     def basic_type_error(self, subtype: nodes.Type, supertype: nodes.Type) -> errors.AngelTypeError:
         return errors.AngelTypeError(

@@ -5,6 +5,7 @@ from itertools import zip_longest
 from . import (
     nodes, estimation, type_checking, environment, estimation_nodes as enodes, errors, environment_entries as entries
 )
+from .constants import builtin_interfaces
 from .utils import mangle, dispatch, NODES, ASSIGNMENTS
 
 
@@ -63,73 +64,6 @@ class Analyzer(unittest.TestCase):
             entries.StructEntry: self.check_struct_interface_implementation
         }
 
-        self.builtin_interface_dispatcher = {
-            nodes.BuiltinType.object_.value: entries.InterfaceEntry(
-                line=0, name=nodes.Name(nodes.BuiltinType.object_.value),
-                params=[], parent_interfaces=[], fields={}, methods={}, inherited_fields={}, inherited_methods={}
-            ),
-
-            nodes.BuiltinType.arithmetic_object.value: entries.InterfaceEntry(
-                line=0, name=nodes.Name(nodes.BuiltinType.arithmetic_object.value),
-                params=[], parent_interfaces=[
-                    nodes.BuiltinType.addable, nodes.BuiltinType.subtractable, nodes.BuiltinType.multipliable,
-                    nodes.BuiltinType.divisible
-                ], fields={}, methods={}, inherited_fields={}, inherited_methods={}
-            ),
-
-            nodes.BuiltinType.addable.value: entries.InterfaceEntry(
-                line=0, name=nodes.Name(nodes.BuiltinType.addable.value),
-                params=[], parent_interfaces=[],
-                fields={}, methods={
-                    nodes.SpecialMethods.add.value: entries.FunctionEntry(
-                        line=0, name=nodes.Name(nodes.SpecialMethods.add.value),
-                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
-                        return_type=nodes.BuiltinType.self_, body=[]
-                    )
-                },
-                inherited_fields={}, inherited_methods={}
-            ),
-
-            nodes.BuiltinType.subtractable.value: entries.InterfaceEntry(
-                line=0, name=nodes.Name(nodes.BuiltinType.subtractable.value),
-                params=[], parent_interfaces=[],
-                fields={}, methods={
-                    nodes.SpecialMethods.sub.value: entries.FunctionEntry(
-                        line=0, name=nodes.Name(nodes.SpecialMethods.sub.value),
-                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
-                        return_type=nodes.BuiltinType.self_, body=[]
-                    )
-                },
-                inherited_fields={}, inherited_methods={}
-            ),
-
-            nodes.BuiltinType.multipliable.value: entries.InterfaceEntry(
-                line=0, name=nodes.Name(nodes.BuiltinType.multipliable.value),
-                params=[], parent_interfaces=[],
-                fields={}, methods={
-                    nodes.SpecialMethods.mul.value: entries.FunctionEntry(
-                        line=0, name=nodes.Name(nodes.SpecialMethods.mul.value),
-                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
-                        return_type=nodes.BuiltinType.self_, body=[]
-                    )
-                },
-                inherited_fields={}, inherited_methods={}
-            ),
-
-            nodes.BuiltinType.divisible.value: entries.InterfaceEntry(
-                line=0, name=nodes.Name(nodes.BuiltinType.divisible.value),
-                params=[], parent_interfaces=[],
-                fields={}, methods={
-                    nodes.SpecialMethods.div.value: entries.FunctionEntry(
-                        line=0, name=nodes.Name(nodes.SpecialMethods.div.value),
-                        args=[nodes.Argument('other', nodes.BuiltinType.self_)],
-                        return_type=nodes.BuiltinType.self_, body=[]
-                    )
-                },
-                inherited_fields={}, inherited_methods={}
-            )
-        }
-
     def analyze_ast(self, ast: nodes.AST) -> nodes.AST:
         return [self.analyze_node(node) for node in ast]
 
@@ -178,7 +112,7 @@ class Analyzer(unittest.TestCase):
         return nodes.FunctionDeclaration(declaration.line, declaration.name, args, return_type, body)
 
     def analyze_struct_declaration(self, declaration: nodes.StructDeclaration) -> nodes.StructDeclaration:
-        self.env.add_struct(declaration.line, declaration.name, declaration.parameters)
+        self.env.add_struct(declaration.line, declaration.name, declaration.parameters, declaration.interfaces)
         self.env.inc_nesting(declaration.name)
         self.env.add_parameters(declaration.line, declaration.parameters)
         # list(...) for mypy
@@ -567,7 +501,7 @@ class Analyzer(unittest.TestCase):
         return errors.Code(self.lines[line - 1], line)
 
     def get_builtin_interface_entry(self, interface: nodes.BuiltinType) -> entries.InterfaceEntry:
-        entry = self.builtin_interface_dispatcher[interface.value]
+        entry = builtin_interfaces[interface.value]
         inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, entries.Entry]] = {}
         inherited_methods: t.Dict[str, t.Tuple[nodes.Interface, entries.FunctionEntry]] = {}
         for parent_interface in entry.parent_interfaces:

@@ -83,6 +83,7 @@ class StdName(Type, Expression, enum.Enum):
     get = "get"
     to_string = "to_string"
 
+    ostream = "ostream"
     cout = "cout"
     cin = "cin"
     endl = "endl"
@@ -215,6 +216,14 @@ class FunctionType(Type):
 class Auto(Type):
     def to_code(self) -> str:
         return "auto"
+
+
+@dataclass
+class Addr(Type):
+    value: Type
+
+    def to_code(self) -> str:
+        return f"{self.value.to_code()}&"
 
 
 @dataclass

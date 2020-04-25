@@ -111,12 +111,12 @@ class Environment:
             type_ = nodes.AlgebraicType(parent, [], type_)
         return type_
 
-    def add_struct(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
+    def add_struct(self, line: int, name: nodes.Name, params: nodes.Parameters, interfaces: nodes.Interfaces) -> None:
         if self.parents:
             self.add_algebraic_constructor(line, name, params)
         else:
             self.space[self.nesting_level][name.member] = entries.StructEntry(
-                line, name, params, fields={}, init_declarations={}, methods={}
+                line, name, params, interfaces, fields={}, init_declarations={}, methods={}
             )
 
     def add_algebraic_constructor(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
@@ -124,7 +124,7 @@ class Environment:
         entry = self[self.parents[-1].member]
         assert isinstance(entry, entries.AlgebraicEntry)
         entry.constructors[name.member] = entries.StructEntry(
-            line, name, params, fields={}, init_declarations={}, methods={}
+            line, name, params, implemented_interfaces=[], fields={}, init_declarations={}, methods={}
         )
 
     def add_algebraic(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:

@@ -47,6 +47,7 @@ def algebraic_method_name(algebraic: nodes.Name, method: nodes.Name) -> str:
 
 class Translator(unittest.TestCase):
     top_nodes: cpp_nodes.AST
+    top_nodes_end: cpp_nodes.AST
     main_function_body: cpp_nodes.AST
     nodes_buffer: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
@@ -230,7 +231,9 @@ class Translator(unittest.TestCase):
         to_type = self.translate_type(value.to_type)
         expr = self.translate_expression(value.value)
         if isinstance(to_type, cpp_nodes.StdName) and to_type.value == cpp_nodes.StdName.string.value:
-            return cpp_nodes.FunctionCall(cpp_nodes.StdName.to_string, [expr])
+            if value.is_builtin:
+                return cpp_nodes.FunctionCall(cpp_nodes.StdName.to_string, [expr])
+            return cpp_nodes.MethodCall(expr, 'toString', [])
         return cpp_nodes.Cast(expr, to_type)
 
     def translate_field(self, field: nodes.Field) -> cpp_nodes.Expression:
@@ -416,6 +419,7 @@ class Translator(unittest.TestCase):
 
         self.includes = {}
         self.top_nodes = []
+        self.top_nodes_end = []
         self.main_function_body = []
         self.nodes_buffer = []
         self.tmp_count = 0
@@ -428,7 +432,7 @@ class Translator(unittest.TestCase):
             return_type=cpp_nodes.PrimitiveTypes.int, name="main", args=[], body=self.main_function_body + [return0]
         )
         return (
-            t.cast(cpp_nodes.AST, list(self.includes.values())) + self.top_nodes + [main_function]
+            t.cast(cpp_nodes.AST, list(self.includes.values())) + self.top_nodes + self.top_nodes_end + [main_function]
         )
 
     def translate_body(self, ast: nodes.AST) -> cpp_nodes.AST:
@@ -459,7 +463,28 @@ class Translator(unittest.TestCase):
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
 
     def translate_special_method(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
-        node.name = nodes.Name('operator' + SPECIAL_METHOD_TO_OPERATOR[node.name.unmangled or node.name.member])
+        real_name = node.name.unmangled or node.name.member
+        if real_name == nodes.SpecialMethods.as_.value:
+            assert isinstance(node.return_type, nodes.BuiltinType) and node.return_type == nodes.BuiltinType.string
+            printing_override_args = [
+                cpp_nodes.Argument(cpp_nodes.Addr(cpp_nodes.StdName.ostream), '_arg1'),
+                cpp_nodes.Argument(cpp_nodes.Addr(cpp_nodes.Id(self.struct_name)), '_arg2')
+            ]
+            printing_override = cpp_nodes.FunctionDeclaration(
+                cpp_nodes.Addr(cpp_nodes.StdName.ostream), 'operator<<', printing_override_args, body=[
+                    cpp_nodes.Semicolon(
+                        cpp_nodes.BinaryExpression(
+                            cpp_nodes.Id('_arg1'), cpp_nodes.Operator.lshift,
+                            cpp_nodes.MethodCall(cpp_nodes.Id('_arg2'), 'toString', [])
+                        )
+                    ),
+                    cpp_nodes.Return(cpp_nodes.Id('_arg1'))
+                ]
+            )
+            self.top_nodes_end.append(printing_override)
+            node.name = nodes.Name('toString')
+            return self.translate_method_declaration(node)
+        node.name = nodes.Name('operator' + SPECIAL_METHOD_TO_OPERATOR[real_name])
         return self.translate_method_declaration(node)
 
     def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.Node:

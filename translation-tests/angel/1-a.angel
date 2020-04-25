@@ -256,6 +256,19 @@ v5.report()
 v6.report()
 
 
+struct Vec is ConvertibleToString:
+    x: I8
+    y: I8
+
+    fun as -> String:
+        return "(" + self.x as String + ", " + self.y as String + ")"
+
+
+print(Vec(1, 2))
+print(Vec(1, 2) as String)
+
+
+
 // For loop
 //// Vector
 for element in [1, 2, 3]:

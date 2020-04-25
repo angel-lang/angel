@@ -466,7 +466,7 @@ class Parser:
                 method_declaration = nodes.MethodDeclaration(
                     node.line, node.name, node.args, node.return_type, node.body
                 )
-                if node.name.member.startswith("__"):
+                if node.name.member.startswith("__") or node.name.member == "as":
                     special_methods.append(method_declaration)
                 elif node.name.member.startswith("_"):
                     private_methods.append(method_declaration)

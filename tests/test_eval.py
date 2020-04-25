@@ -343,6 +343,21 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ["3 4", "-1 0", "2 4", "0 1"])
 
+    def test_convertible_to_string_impl(self):
+        code = [
+            'struct Vec is ConvertibleToString:',
+            '    x: I8',
+            '    y: I8',
+
+            '    fun as -> String:',
+            '        return "(" + self.x as String + ", " + self.y as String + ")"',
+
+            'print(Vec(1, 2))',
+            'print(Vec(1, 2) as String)',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['(1, 2)', '(1, 2)'])
+
     def test_color_algebraic(self):
         code = [
             'algebraic Color:',

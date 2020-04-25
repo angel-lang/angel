@@ -19,7 +19,7 @@ def read_repl(prompt: enodes.String) -> enodes.String:
 builtin_funcs = {
     nodes.BuiltinFunc.print.value: enodes.Function(
         [nodes.Argument("value", nodes.BuiltinType.convertible_to_string)], nodes.BuiltinType.void,
-        specification=print_repl
+        specification=print_repl, name=nodes.BuiltinFunc.print.value
     ),
     nodes.BuiltinFunc.read.value: enodes.Function(
         [nodes.Argument("prompt", nodes.BuiltinType.string)], nodes.BuiltinType.string, specification=read_repl

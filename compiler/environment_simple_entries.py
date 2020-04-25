@@ -27,6 +27,7 @@ class InitEntry(Entry):
 class StructEntry(Entry):
     name: nodes.Name
     params: nodes.Parameters
+    implemented_interfaces: nodes.Interfaces
     fields: t.Dict[str, Entry]
     init_declarations: t.Dict[str, InitEntry]
     methods: t.Dict[str, FunctionEntry]
