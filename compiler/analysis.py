@@ -44,6 +44,7 @@ class Analyzer(unittest.TestCase):
             nodes.VariableDeclaration: self.analyze_variable_declaration,
             nodes.FunctionDeclaration: self.analyze_function_declaration,
             nodes.StructDeclaration: self.analyze_struct_declaration,
+            nodes.ExtensionDeclaration: self.analyze_extension_declaration,
             nodes.AlgebraicDeclaration: self.analyze_algebraic_declaration,
             nodes.InterfaceDeclaration: self.analyze_interface_declaration,
             nodes.FieldDeclaration: self.analyze_field_declaration,
@@ -130,6 +131,23 @@ class Analyzer(unittest.TestCase):
         return nodes.StructDeclaration(
             declaration.line, declaration.name, declaration.parameters, declaration.interfaces, private_fields,
             public_fields, init_declarations, private_methods, public_methods, special_methods
+        )
+
+    def analyze_extension_declaration(self, declaration: nodes.ExtensionDeclaration) -> nodes.ExtensionDeclaration:
+        entry = self.env.get(declaration.name)
+        assert isinstance(entry, entries.StructEntry)
+        entry.implemented_interfaces += declaration.interfaces
+        self.env.inc_nesting(declaration.name)
+        self.env.add_parameters(declaration.line, declaration.parameters)
+        # list(...) for mypy
+        private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
+        public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
+        special_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.special_methods)))
+        self.check_interface_implementations(declaration.interfaces, declaration.name)
+        self.env.dec_nesting(declaration.name)
+        return nodes.ExtensionDeclaration(
+            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, private_methods,
+            public_methods, special_methods
         )
 
     def analyze_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> nodes.AlgebraicDeclaration:

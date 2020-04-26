@@ -139,6 +139,7 @@ class Evaluator(unittest.TestCase):
             nodes.InitDeclaration: self.estimate_init_declaration,
             nodes.MethodDeclaration: self.estimate_method_declaration,
             nodes.StructDeclaration: self.estimate_struct_declaration,
+            nodes.ExtensionDeclaration: self.estimate_extension_declaration,
             nodes.AlgebraicDeclaration: self.estimate_algebraic_declaration,
             nodes.InterfaceDeclaration: self.estimate_interface_declaration,
             nodes.FunctionCall: self.estimate_expression,
@@ -202,6 +203,14 @@ class Evaluator(unittest.TestCase):
         self.estimate_ast(list(declaration.private_fields))
         self.estimate_ast(list(declaration.public_fields))
         self.estimate_ast(list(declaration.init_declarations))
+        self.estimate_ast(list(declaration.private_methods))
+        self.estimate_ast(list(declaration.public_methods))
+        self.estimate_ast(list(declaration.special_methods))
+        self.env.dec_nesting(declaration.name)
+
+    def estimate_extension_declaration(self, declaration: nodes.ExtensionDeclaration) -> None:
+        # list(...) for mypy
+        self.env.inc_nesting(declaration.name)
         self.estimate_ast(list(declaration.private_methods))
         self.estimate_ast(list(declaration.public_methods))
         self.estimate_ast(list(declaration.special_methods))

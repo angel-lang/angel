@@ -424,15 +424,36 @@ class Translator(unittest.TestCase):
         self.nodes_buffer = []
         self.tmp_count = 0
 
-        for node in self.translate_body(ast):
-            add_node(node)
+        to_be_translated = {}
+
+        for node in ast:
+            if isinstance(node, (
+                    nodes.StructDeclaration, nodes.AlgebraicDeclaration, nodes.InterfaceDeclaration,
+                    nodes.FunctionDeclaration)):
+                to_be_translated[node.name.member] = node
+            elif isinstance(node, nodes.ExtensionDeclaration):
+                entry = to_be_translated[node.name.member]
+                assert isinstance(entry, nodes.StructDeclaration)
+                entry.interfaces += node.interfaces
+                entry.private_methods += node.private_methods
+                entry.public_methods += node.public_methods
+                entry.special_methods += node.special_methods
+            else:
+                translated_list = self.translate_body([node])
+                for n in translated_list:
+                    add_node(n)
+
+        structs = []
+        for struct in self.translate_body(list(to_be_translated.values())):
+            structs.append(struct)
 
         return0 = cpp_nodes.Return(cpp_nodes.IntegerLiteral("0"))
         main_function = cpp_nodes.FunctionDeclaration(
             return_type=cpp_nodes.PrimitiveTypes.int, name="main", args=[], body=self.main_function_body + [return0]
         )
         return (
-            t.cast(cpp_nodes.AST, list(self.includes.values())) + self.top_nodes + self.top_nodes_end + [main_function]
+            t.cast(cpp_nodes.AST, list(self.includes.values())) + structs + self.top_nodes +
+            self.top_nodes_end + [main_function]
         )
 
     def translate_body(self, ast: nodes.AST) -> cpp_nodes.AST:
@@ -765,7 +786,10 @@ class Translator(unittest.TestCase):
     def test(self):
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.type_dispatcher.keys()))
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
-        self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))
+        self.assertEqual(
+            NODES.difference([nodes.ExtensionDeclaration.__name__]),
+            set(subclass.__name__ for subclass in self.node_dispatcher.keys())
+        )
 
         builtin_funcs = set(func.value for func in nodes.BuiltinFunc)
         self.assertEqual(builtin_funcs, set(self.translate_builtin_function_dispatcher.keys()))

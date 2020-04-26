@@ -184,6 +184,21 @@ struct Stack(A):
 let stack = Stack([1, 2, 3])
 ```
 
+## Extensions
+You can split struct declarations into small extensions.
+```
+struct Vec:
+    x: I8
+    y: I8
+
+
+extension Vec is ConvertibleToString:
+    fun as -> String:
+        return "(" + self.x as String + ", " + self.y as String + ")"
+```
+
+You can define methods and new constructors (not yet) in extensions. Fields cannot be declared in extensions.
+
 ## Algebraic Data Types
 ```
 algebraic Number:

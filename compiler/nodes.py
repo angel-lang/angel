@@ -819,6 +819,38 @@ class StructDeclaration(Node):
 
 
 @dataclass
+class ExtensionDeclaration(Node):
+    name: Name
+    parameters: Parameters
+    interfaces: Interfaces
+    private_methods: t.List[MethodDeclaration]
+    public_methods: t.List[MethodDeclaration]
+    special_methods: t.List[MethodDeclaration]
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        if self.interfaces:
+            interfaces = ' is ' + ', '.join(interface.to_code() for interface in self.interfaces)
+        else:
+            interfaces = ''
+
+        if self.parameters:
+            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+        else:
+            parameters = ''
+
+        private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
+        public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
+
+        if not private_methods and not public_methods:
+            return INDENTATION * indentation_level + f"extension {self.name.to_code()}{parameters}{interfaces}"
+
+        body = (
+            private_methods + "\n" + public_methods
+        )
+        return INDENTATION * indentation_level + f"extemsion {self.name.to_code()}{parameters}{interfaces}:\n{body}"
+
+
+@dataclass
 class AlgebraicDeclaration(Node):
     name: Name
     parameters: Parameters
