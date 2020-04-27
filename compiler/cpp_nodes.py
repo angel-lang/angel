@@ -309,8 +309,11 @@ class MethodCall(Node, Expression):
     args: t.List[Expression]
 
     def to_code(self) -> str:
+        base = self.base.to_code()
+        if isinstance(self.base, Cast):
+            base = f'({base})'
         args = ','.join(arg.to_code() for arg in self.args)
-        return f"{self.base.to_code()}.{self.method}({args})"
+        return f"{base}.{self.method}({args})"
 
 
 @dataclass

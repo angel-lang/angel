@@ -477,10 +477,15 @@ class TypeChecker(unittest.TestCase):
     def infer_type_from_cast(
         self, cast: nodes.Cast, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
+        value_result = self.infer_type(cast.value)
         if isinstance(cast.to_type, nodes.BuiltinType):
-            value_result = self.infer_type(cast.value)
             self.unify_types(value_result.type, cast.to_type.as_convertible_interface, mapping)
             cast.is_builtin = isinstance(value_result.type, nodes.BuiltinType)
+            return to_inference_result(self.unify_types(cast.to_type, supertype, mapping))
+        elif isinstance(cast.to_type, nodes.Name) and isinstance(value_result.type, nodes.Name):
+            # TODO: it supports only a cast to itself
+            self.unify_types(value_result.type, cast.to_type, mapping)
+            cast.is_builtin = False
             return to_inference_result(self.unify_types(cast.to_type, supertype, mapping))
         raise NotImplementedError
 
