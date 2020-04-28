@@ -7,10 +7,14 @@ from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS
-from .constants import builtin_funcs, string_fields, vector_fields, dict_fields
+from .constants import builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields
 
 
-EstimatedObjects = namedtuple("EstimatedObjects", ['builtin_funcs', 'string_fields', 'vector_fields', 'dict_fields'])
+EstimatedObjects = namedtuple(
+    "EstimatedObjects", [
+        'builtin_funcs', 'private_builtin_funcs', 'string_fields', 'vector_fields', 'dict_fields'
+    ]
+)
 EstimatedFields = t.Dict[str, t.Union[t.Callable[..., enodes.Expression], enodes.Expression]]
 
 
@@ -39,6 +43,7 @@ class Evaluator(unittest.TestCase):
             nodes.FunctionCall: self.estimate_function_call,
             nodes.MethodCall: self.estimate_method_call,
             nodes.BuiltinFunc: lambda func: self.estimated_objs.builtin_funcs[func.value],
+            nodes.PrivateBuiltinFunc: lambda func: self.estimated_objs.private_builtin_funcs[func.value],
             nodes.ConstantDeclaration: self.estimate_constant_declaration,
 
             nodes.OptionalSomeCall: self.estimate_optional_some_call,
@@ -743,6 +748,6 @@ class Evaluator(unittest.TestCase):
 Estimator = partial(
     Evaluator,
     EstimatedObjects(
-        builtin_funcs=builtin_funcs, string_fields=string_fields, vector_fields=vector_fields, dict_fields=dict_fields
+        builtin_funcs=builtin_funcs, private_builtin_funcs=private_builtin_funcs, string_fields=string_fields, vector_fields=vector_fields, dict_fields=dict_fields
     )
 )

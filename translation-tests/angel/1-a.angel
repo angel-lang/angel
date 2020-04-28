@@ -269,6 +269,8 @@ extension Vec is ConvertibleToString:
 print(Vec(1, 2))
 print(Vec(1, 2) as String)
 print(Vec(1, 2) as Vec as String)
+print([1, 2, 3])
+print(["John", "Mike"])
 
 
 // For loop

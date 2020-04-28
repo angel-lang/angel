@@ -13,6 +13,15 @@ builtin_funcs = {
 }
 
 
+private_builtin_funcs = {
+    nodes.PrivateBuiltinFunc.vector_to_string.value: enodes.Function(
+        [nodes.Argument("value", nodes.VectorType(nodes.BuiltinType.object_))], nodes.BuiltinType.string,
+        specification=lambda value: enodes.DynamicValue(nodes.BuiltinType.string),
+        name=nodes.PrivateBuiltinFunc.vector_to_string.value
+    )
+}
+
+
 builtin_interfaces = {
     nodes.BuiltinType.convertible_to_string.value: entries.InterfaceEntry(
         line=0, name=nodes.Name(nodes.BuiltinType.convertible_to_string.value),

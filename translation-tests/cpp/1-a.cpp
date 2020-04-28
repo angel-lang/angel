@@ -265,6 +265,8 @@ int main() {
   __print(Vec(1, 2));
   __print(Vec(1, 2).toString());
   __print(((Vec)(Vec(1, 2))).toString());
+  __print(__vector_to_string<std::int_fast16_t>({1, 2, 3}));
+  __print(__vector_to_string<std::string>({"John", "Mike"}));
   std::vector<std::int_fast8_t> __tmp_6 = {1, 2, 3};
   for (std::vector<std::int_fast8_t>::iterator __tmp_7 = __tmp_6.begin();
        __tmp_7 != __tmp_6.end(); ++__tmp_7) {

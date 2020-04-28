@@ -260,43 +260,60 @@ class BuiltinType(Type, enum.Enum):
             BuiltinType.i8.value: [
                 BuiltinType.i8.value, BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
                 BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
+                BuiltinType.object_.value
             ],
             BuiltinType.i16.value: [
                 BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
                 BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
+                BuiltinType.object_.value
             ],
             BuiltinType.i32.value: [
-                BuiltinType.i32.value, BuiltinType.i64.value, BuiltinType.convertible_to_string.value
+                BuiltinType.i32.value, BuiltinType.i64.value, BuiltinType.convertible_to_string.value,
+                BuiltinType.object_.value
             ],
-            BuiltinType.i64.value: [BuiltinType.i64.value, BuiltinType.convertible_to_string.value],
+            BuiltinType.i64.value: [
+                BuiltinType.i64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
+            ],
 
             BuiltinType.u8.value: [
                 BuiltinType.u8.value, BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
                 BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
+                BuiltinType.object_.value
             ],
             BuiltinType.u16.value: [
                 BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
-                BuiltinType.convertible_to_string.value
+                BuiltinType.convertible_to_string.value, BuiltinType.object_.value
             ],
             BuiltinType.u32.value: [
-                BuiltinType.u32.value, BuiltinType.u64.value, BuiltinType.convertible_to_string.value
+                BuiltinType.u32.value, BuiltinType.u64.value, BuiltinType.convertible_to_string.value,
+                BuiltinType.object_.value
             ],
-            BuiltinType.u64.value: [BuiltinType.u64.value, BuiltinType.convertible_to_string.value],
+            BuiltinType.u64.value: [
+                BuiltinType.u64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+            ],
 
             BuiltinType.f32.value: [
                 BuiltinType.f32.value, BuiltinType.f64.value, BuiltinType.convertible_to_string.value,
+                BuiltinType.object_.value
             ],
             BuiltinType.f64.value: [
-                BuiltinType.f64.value, BuiltinType.convertible_to_string.value,
+                BuiltinType.f64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
             ],
 
-            BuiltinType.string.value: [BuiltinType.string.value, BuiltinType.convertible_to_string.value],
-            BuiltinType.bool.value: [BuiltinType.bool.value, BuiltinType.convertible_to_string.value],
-            BuiltinType.char.value: [BuiltinType.char.value, BuiltinType.convertible_to_string.value],
+            BuiltinType.string.value: [
+                BuiltinType.string.value, BuiltinType.convertible_to_string.value,
+                BuiltinType.object_.value
+            ],
+            BuiltinType.bool.value: [
+                BuiltinType.bool.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+            ],
+            BuiltinType.char.value: [
+                BuiltinType.char.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+            ],
             BuiltinType.void.value: [BuiltinType.void.value],
             BuiltinType.arithmetic_object.value: [
                 BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
-                BuiltinType.divisible.value
+                BuiltinType.divisible.value, BuiltinType.object_.value
             ]
         }[self.value]
 
@@ -307,6 +324,13 @@ class BuiltinType(Type, enum.Enum):
 class BuiltinFunc(Expression, enum.Enum):
     print = "print"
     read = "read"
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return self.value
+
+
+class PrivateBuiltinFunc(Expression, enum.Enum):
+    vector_to_string = "__vector_to_string"
 
     def to_code(self, indentation_level: int = 0) -> str:
         return self.value

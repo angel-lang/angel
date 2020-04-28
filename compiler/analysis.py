@@ -9,6 +9,11 @@ from .constants import builtin_interfaces
 from .utils import mangle, dispatch, NODES, ASSIGNMENTS
 
 
+def is_8bit_int(typ: nodes.Type) -> bool:
+    return isinstance(
+        typ, nodes.BuiltinType) and typ.value in (nodes.BuiltinType.i8.value, nodes.BuiltinType.u8.value)
+
+
 class Analyzer(unittest.TestCase):
 
     def __init__(
@@ -63,6 +68,10 @@ class Analyzer(unittest.TestCase):
 
         self.check_interface_implementation_dispatcher = {
             entries.StructEntry: self.check_struct_interface_implementation
+        }
+
+        self.builtin_function_dispatcher = {
+            nodes.BuiltinFunc.print.value: self.analyze_print_function_call,
         }
 
     def analyze_ast(self, ast: nodes.AST) -> nodes.AST:
@@ -316,12 +325,19 @@ class Analyzer(unittest.TestCase):
 
     def analyze_builtin_function_call(self, function_call: nodes.FunctionCall) -> nodes.FunctionCall:
         assert isinstance(function_call.function_path, nodes.BuiltinFunc)
+        return dispatch(self.builtin_function_dispatcher, function_call.function_path.value, function_call)
+
+    def analyze_print_function_call(self, function_call: nodes.FunctionCall) -> nodes.FunctionCall:
         self.infer_type(function_call)
         value = function_call.args[0]
         value_type = self.infer_type(value)
-        if isinstance(value_type, nodes.BuiltinType) and value_type.value in (
-                nodes.BuiltinType.i8.value, nodes.BuiltinType.u8.value):
+        if is_8bit_int(value_type):
             value = nodes.Cast(value, nodes.BuiltinType.i16)
+        elif isinstance(value_type, nodes.VectorType):
+            element_type = value_type.subtype
+            if is_8bit_int(element_type):
+                element_type = nodes.BuiltinType.i16
+            value = nodes.FunctionCall(0, nodes.PrivateBuiltinFunc.vector_to_string, [value], [element_type])
         return nodes.FunctionCall(function_call.line, function_call.function_path, [value])
 
     def analyze_function_call(self, function_call: nodes.FunctionCall) -> nodes.FunctionCall:

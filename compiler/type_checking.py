@@ -126,6 +126,7 @@ class TypeChecker(unittest.TestCase):
             nodes.Name: self.infer_type_from_name,
             nodes.SpecialName: self.infer_type_from_special_name,
             nodes.BuiltinFunc: self.infer_type_from_builtin_func,
+            nodes.PrivateBuiltinFunc: self.infer_type_from_private_builtin_func,
             nodes.BinaryExpression: self.infer_type_from_binary_expression,
             nodes.FunctionCall: self.infer_type_from_function_call,
             nodes.MethodCall: self.infer_type_from_method_call,
@@ -354,6 +355,16 @@ class TypeChecker(unittest.TestCase):
                 args=[nodes.Argument('prompt', nodes.BuiltinType.string)],
                 return_type=nodes.BuiltinType.string
             ),
+        }[builtin_func.value], supertype, mapping))
+
+    def infer_type_from_private_builtin_func(
+        self, builtin_func: nodes.PrivateBuiltinFunc, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        return to_inference_result(self.unify_types({
+            nodes.PrivateBuiltinFunc.vector_to_string.value: nodes.FunctionType(
+                args=[nodes.Argument('value', nodes.VectorType(nodes.BuiltinType.object_))],
+                return_type=nodes.BuiltinType.string
+            )
         }[builtin_func.value], supertype, mapping))
 
     def infer_type_from_function_call(

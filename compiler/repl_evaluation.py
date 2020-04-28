@@ -16,6 +16,21 @@ def read_repl(prompt: enodes.String) -> enodes.String:
     return enodes.String(input(prompt.value))
 
 
+def vector_to_string_repl(vector: enodes.Vector) -> enodes.String:
+    elements = []
+    for element in vector.elements:
+        if isinstance(element, enodes.String):
+            value = '"' + element.value + '"'
+        elif isinstance(element, enodes.Int):
+            value = str(element.value)
+        elif isinstance(element, enodes.Vector):
+            value = vector_to_string_repl(element).value
+        else:
+            raise NotImplementedError
+        elements.append(value)
+    return enodes.String(f"[{', '.join(elements)}]")
+
+
 builtin_funcs = {
     nodes.BuiltinFunc.print.value: enodes.Function(
         [nodes.Argument("value", nodes.BuiltinType.convertible_to_string)], nodes.BuiltinType.void,
@@ -23,6 +38,15 @@ builtin_funcs = {
     ),
     nodes.BuiltinFunc.read.value: enodes.Function(
         [nodes.Argument("prompt", nodes.BuiltinType.string)], nodes.BuiltinType.string, specification=read_repl
+    )
+}
+
+
+private_builtin_funcs = {
+    nodes.PrivateBuiltinFunc.vector_to_string.value: enodes.Function(
+        [nodes.Argument("value", nodes.VectorType(nodes.BuiltinType.object_))], nodes.BuiltinType.string,
+        specification=vector_to_string_repl,
+        name=nodes.PrivateBuiltinFunc.vector_to_string.value
     )
 }
 
@@ -76,6 +100,6 @@ dict_fields = {
 REPLEvaluator = partial(
     Evaluator,
     EstimatedObjects(
-        builtin_funcs=builtin_funcs, string_fields=string_fields, vector_fields=vector_fields, dict_fields=dict_fields
+        builtin_funcs=builtin_funcs, private_builtin_funcs=private_builtin_funcs, string_fields=string_fields, vector_fields=vector_fields, dict_fields=dict_fields
     )
 )
