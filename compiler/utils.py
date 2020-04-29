@@ -68,6 +68,7 @@ apply_mapping_dispatcher = {
     nodes.OptionalType: lambda optional_type, mapping: nodes.OptionalType(
         apply_mapping(optional_type.inner_type, mapping)
     ),
+    nodes.RefType: lambda ref_type, mapping: nodes.RefType(apply_mapping(ref_type.value_type, mapping)),
 }
 
 

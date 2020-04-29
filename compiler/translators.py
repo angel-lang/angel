@@ -81,6 +81,7 @@ class Translator(unittest.TestCase):
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.AlgebraicType: self.translate_algebraic_type_method_call,
+            nodes.RefType: lambda _: NotImplementedError,
         }
 
         self.field_dispatcher = {
@@ -94,6 +95,7 @@ class Translator(unittest.TestCase):
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: self.translate_generic_type_field,
             nodes.AlgebraicType: self.translate_algebraic_type_field,
+            nodes.RefType: self.translate_ref_field,
         }
 
         self.subscript_dispatcher = {
@@ -107,6 +109,7 @@ class Translator(unittest.TestCase):
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: lambda _: NotImplementedError,
             nodes.AlgebraicType: lambda _: NotImplementedError,
+            nodes.RefType: lambda _: NotImplementedError,
         }
 
         self.node_dispatcher = {
@@ -145,6 +148,7 @@ class Translator(unittest.TestCase):
             nodes.MethodCall: self.translate_method_call,
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
             nodes.Cast: self.translate_cast,
+            nodes.Ref: self.translate_ref,
             nodes.Field: self.translate_field,
             nodes.Subscript: self.translate_subscript,
             nodes.SpecialName: self.translate_special_name,
@@ -166,6 +170,7 @@ class Translator(unittest.TestCase):
             nodes.StructType: self.translate_struct_type,
             nodes.GenericType: self.translate_generic_type,
             nodes.AlgebraicType: self.translate_algebraic_type,
+            nodes.RefType: self.translate_ref_type,
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(self.type_dispatcher, type(type_), type_)
@@ -237,6 +242,13 @@ class Translator(unittest.TestCase):
             return cpp_nodes.MethodCall(expr, 'toString', [])
         return cpp_nodes.Cast(expr, to_type)
 
+    def translate_ref(self, ref: nodes.Ref) -> cpp_nodes.Expression:
+        assert ref.value_type is not None
+        _, id_ = self.create_tmp(
+            self.translate_type(ref.value_type), value=self.translate_expression(ref.value)
+        )
+        return cpp_nodes.AddrExpression(id_)
+
     def translate_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         assert field.base_type is not None
         return dispatch(self.field_dispatcher, type(field.base_type), field)
@@ -251,6 +263,11 @@ class Translator(unittest.TestCase):
         if isinstance(base, cpp_nodes.SpecialName) and base.value == cpp_nodes.SpecialName.this.value:
             return cpp_nodes.ArrowField(base, field.field.member)
         return cpp_nodes.DotField(base, field.field.member)
+
+    def translate_ref_field(self, field: nodes.Field) -> cpp_nodes.Expression:
+        base = self.translate_expression(field.base)
+        assert (field.field.unmangled or field.field.member) == 'value'
+        return cpp_nodes.Deref(base)
 
     def translate_generic_type_field(self, field: nodes.Field) -> cpp_nodes.Expression:
         base = self.translate_expression(field.base)
@@ -754,6 +771,9 @@ class Translator(unittest.TestCase):
             [cpp_nodes.Id(algebraic_constructor_name(algebraic.base, constructor))
              for constructor in algebraic.constructor_types.values()]
         )
+
+    def translate_ref_type(self, ref_type: nodes.RefType) -> cpp_nodes.Type:
+        return cpp_nodes.Pointer(self.translate_type(ref_type.value_type))
 
     def translate_builtin_type(self, builtin_type: nodes.BuiltinType) -> cpp_nodes.Type:
         if builtin_type.value in nodes.BuiltinType.finite_int_types():

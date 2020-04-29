@@ -40,6 +40,7 @@ class Evaluator(unittest.TestCase):
             nodes.Subscript: self.estimate_subscript,
             nodes.BinaryExpression: self.estimate_binary_expression,
             nodes.Cast: self.estimate_cast,
+            nodes.Ref: self.estimate_ref,
             nodes.FunctionCall: self.estimate_function_call,
             nodes.MethodCall: self.estimate_method_call,
             nodes.BuiltinFunc: lambda func: self.estimated_objs.builtin_funcs[func.value],
@@ -128,6 +129,7 @@ class Evaluator(unittest.TestCase):
             enodes.Instance: self.estimate_instance_field,
             enodes.Algebraic: self.estimate_algebraic_field,
             enodes.AlgebraicConstructorInstance: self.estimate_algebraic_constructor_instance_field,
+            enodes.Ref: self.estimate_ref_field,
         }
 
         self.assignment_dispatcher = {
@@ -264,8 +266,13 @@ class Evaluator(unittest.TestCase):
             assert not field.base.module
             base_entry = self.env[field.base.member]
             assert isinstance(base_entry, entries.VariableEntry)
-            assert isinstance(base_entry.estimated_value, enodes.Instance)
-            base_entry.estimated_value.fields[field.field.member] = estimated_value
+            if isinstance(base_entry.estimated_value, enodes.Instance):
+                base_entry.estimated_value.fields[field.field.member] = estimated_value
+            elif isinstance(base_entry.estimated_value, enodes.Ref):
+                base_entry.estimated_value.initial_expression = value
+                base_entry.estimated_value.value = estimated_value
+            else:
+                assert 0, f"Cannot estimate field assignment {field.to_code()} = {value.to_code()}"
         elif isinstance(field.base, nodes.SpecialName):
             base_entry = self.env[field.base.value]
             assert isinstance(base_entry, entries.VariableEntry)
@@ -488,6 +495,10 @@ class Evaluator(unittest.TestCase):
         method_entry = struct_entry.methods[field.member]
         return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
 
+    def estimate_ref_field(self, ref: enodes.Ref, field: nodes.Name) -> enodes.Expression:
+        assert (field.unmangled or field.member) == 'value'
+        return ref.value
+
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:
         base = self.estimate_expression(field.base)
         return dispatch(self.estimate_field_dispatcher, type(base), base, field.field)
@@ -651,6 +662,10 @@ class Evaluator(unittest.TestCase):
             assert isinstance(result, enodes.Bool)
             return enodes.Bool(not result.value)
         return dispatch(self.binary_operator_dispatcher, expression.operator.value, left, right)
+
+    def estimate_ref(self, ref: nodes.Ref) -> enodes.Expression:
+        current_value = self.estimate_expression(ref.value)
+        return enodes.Ref(current_value, initial_expression=ref.value)
 
     def estimate_cast(self, cast: nodes.Cast) -> enodes.Expression:
         value = self.estimate_expression(cast.value)

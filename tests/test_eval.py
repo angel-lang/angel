@@ -383,6 +383,19 @@ class TestEval(unittest.TestCase):
         result, output = self.eval(code)
         self.assertEqual(output, ['12', 'Big', '5', 'word'])
 
+    def test_ref(self):
+        code = [
+            'var p = ref 1',
+            'var r = p',
+            'print(p.value)',
+            'print(r.value)',
+            'p.value = 2',
+            'print(p.value)',
+            'print(r.value)',
+        ]
+        result, output = self.eval(code)
+        self.assertEqual(output, ['1', '1', '2', '2'])
+
 
 if __name__ == '__main__':
     unittest.main()

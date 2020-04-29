@@ -413,3 +413,15 @@ Or you can use `while let`:
 while let realValue = getRandomOptionalValue():
     print(realValue)
 ```
+
+### Ref type `ref T`
+```
+var p: ref I8 = ref 10
+var r = p
+// p.value == r.value == 10
+
+p.value = 20
+// p.value == r.value == 20
+```
+
+You can acess real value by `value` field.

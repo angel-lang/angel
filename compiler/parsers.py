@@ -701,7 +701,7 @@ class Parser:
         return raw
 
     def parse_type(self) -> t.Optional[nodes.Type]:
-        inner_type = self.parse_type_atom()
+        inner_type = self.parse_type_atom_with_prefixes()
         if inner_type is None:
             return None
         type_trailer = self.parse_type_trailer()
@@ -717,6 +717,15 @@ class Parser:
         if self.parse_raw("?"):
             return OptionalTypeTrailer(self.position.line)
         return None
+
+    def parse_type_atom_with_prefixes(self) -> t.Optional[nodes.Type]:
+        if self.parse_raw('ref'):
+            self.spaces()
+            value_type = self.parse_type()
+            if value_type is None:
+                raise errors.AngelSyntaxError('expected type', self.get_code())
+            return nodes.RefType(value_type)
+        return self.parse_type_atom()
 
     def parse_type_atom(self) -> t.Optional[nodes.Type]:
         for parser in [self.parse_vector_or_dict_type, self.parse_name]:
@@ -789,7 +798,7 @@ class Parser:
         )
 
     def parse_expression_atom_with_trailers(self) -> t.Optional[nodes.Expression]:
-        atom = self.parse_expression_atom()
+        atom = self.parse_expression_atom_with_prefixes()
         if atom is None:
             return None
         trailer = self.parse_trailer()
@@ -806,6 +815,16 @@ class Parser:
                 raise errors.AngelNotImplemented
             trailer = self.parse_trailer()
         return atom
+
+    def parse_expression_atom_with_prefixes(self) -> t.Optional[nodes.Expression]:
+        if self.parse_raw('ref'):
+            self.spaces()
+            # ref 1 + 2 corresponds to (ref 1) + 2
+            value = self.parse_expression_atom_with_trailers()
+            if value is None:
+                raise errors.AngelSyntaxError('expected expression', self.get_code())
+            return nodes.Ref(value)
+        return self.parse_expression_atom()
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
         literal_parsers = [

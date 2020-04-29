@@ -281,3 +281,13 @@ for element in [1, 2, 3]:
 //// String
 for element in "John":
     print(element)
+
+
+// Ref
+let p = ref 1
+let r = p
+print(p.value)
+print(r.value)
+p.value = 2
+print(p.value)
+print(r.value)

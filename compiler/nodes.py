@@ -90,6 +90,14 @@ class TemplateType(Type):
 
 
 @dataclass
+class RefType(Type):
+    value_type: Type
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"ref {self.value_type.to_code()}"
+
+
+@dataclass
 class Name(Type, AssignmentLeft):
     member: str
     module: t.Optional[str] = None
@@ -122,6 +130,15 @@ class Subscript(AssignmentLeft):
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"{self.base.to_code()}[{self.index.to_code()}]"
+
+
+@dataclass
+class Ref(Expression):
+    value: Expression
+    value_type: t.Optional[Type] = None
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"ref {self.value.to_code()}"
 
 
 @dataclass

@@ -227,6 +227,22 @@ class Addr(Type):
 
 
 @dataclass
+class AddrExpression(Expression):
+    value: Expression
+
+    def to_code(self) -> str:
+        return f"&{self.value.to_code()}"
+
+
+@dataclass
+class Pointer(Type):
+    value: Type
+
+    def to_code(self) -> str:
+        return f"{self.value.to_code()}*"
+
+
+@dataclass
 class Deref(Expression):
     value: Expression
 

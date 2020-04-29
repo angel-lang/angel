@@ -279,5 +279,13 @@ int main() {
     char element = *__tmp_9;
     __print(element);
   }
+  std::int_fast8_t __tmp_10 = 1;
+  std::int_fast8_t* p = &__tmp_10;
+  std::int_fast8_t* r = p;
+  __print((std::int_fast16_t)(*p));
+  __print((std::int_fast16_t)(*r));
+  *p = 2;
+  __print((std::int_fast16_t)(*p));
+  __print((std::int_fast16_t)(*r));
   return 0;
 }

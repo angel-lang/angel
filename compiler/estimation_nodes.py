@@ -111,6 +111,15 @@ class DynamicValue(Expression):
 
 
 @dataclass
+class Ref(Expression):
+    value: Expression
+    initial_expression: nodes.Expression
+
+    def to_code(self) -> str:
+        return f"Ref({self.value.to_code()}, initial={self.initial_expression.to_code()})"
+
+
+@dataclass
 class Function(Expression):
     args: nodes.Arguments
     return_type: nodes.Type
