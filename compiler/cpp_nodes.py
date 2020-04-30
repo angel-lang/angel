@@ -134,7 +134,10 @@ class Subscript(Expression):
     index: Expression
 
     def to_code(self) -> str:
-        return f"{self.base.to_code()}[{self.index.to_code()}]"
+        base = self.base.to_code()
+        if isinstance(self.base, Deref):
+            base = f"({base})"
+        return f"{base}[{self.index.to_code()}]"
 
 
 @dataclass

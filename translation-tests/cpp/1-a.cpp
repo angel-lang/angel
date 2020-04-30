@@ -138,6 +138,9 @@ class Vec {
     return "(" + std::to_string(this->x) + ", " + std::to_string(this->y) + ")";
   }
 };
+void change(std::string* r) {
+  *r = "New one";
+}
 std::ostream& operator<<(std::ostream& _arg1, Vec& _arg2) {
   _arg1 << _arg2.toString();
   return _arg1;
@@ -287,5 +290,9 @@ int main() {
   *p = 2;
   __print((std::int_fast16_t)(*p));
   __print((std::int_fast16_t)(*r));
+  std::string __tmp_11 = "Hello";
+  std::string* ps = &__tmp_11;
+  change(ps);
+  __print((*ps)[0]);
   return 0;
 }

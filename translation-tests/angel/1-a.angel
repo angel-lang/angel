@@ -291,3 +291,10 @@ print(r.value)
 p.value = 2
 print(p.value)
 print(r.value)
+
+fun change(r: ref String):
+    r.value = "New one"
+
+let ps = ref "Hello"
+change(ps)
+print(ps.value[0])
