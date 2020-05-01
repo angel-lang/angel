@@ -31,6 +31,9 @@ SPECIAL_METHOD_TO_OPERATOR = {
     nodes.SpecialMethods.sub.value: cpp_nodes.Operator.sub.value,
     nodes.SpecialMethods.mul.value: cpp_nodes.Operator.mul.value,
     nodes.SpecialMethods.div.value: cpp_nodes.Operator.div.value,
+    nodes.SpecialMethods.eq.value: cpp_nodes.Operator.eq_eq.value,
+    nodes.SpecialMethods.lt.value: cpp_nodes.Operator.lt.value,
+    nodes.SpecialMethods.gt.value: cpp_nodes.Operator.gt.value,
 }
 
 
@@ -541,7 +544,7 @@ class Translator(unittest.TestCase):
             self.translate_body(list(node.public_methods)) + special_methods
         parents = []
         for interface in node.interfaces:
-            if not isinstance(interface, nodes.BuiltinType) or not interface.is_abstract_interface:
+            if not isinstance(interface, nodes.BuiltinType) or not interface.is_interface:
                 parents.append((cpp_nodes.AccessModifier.public, self.translate_type(interface)))
         struct_declaration = cpp_nodes.ClassDeclaration(node.name.member, parents, private, public)
         if node.parameters:

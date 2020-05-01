@@ -166,6 +166,14 @@ class OptionalTypeConstructor(Expression, enum.Enum):
 
 
 class BuiltinType(Type, enum.Enum):
+    """How to add a builtin type:
+    1. Add it as a member:
+        type = "Type"
+    2. If it is an interface, add it to the list of interfaces (classmethod) and to builtin_interfaces mapping
+        in constants
+    3. If it is a "Convertible" interface, add it to as_convertible_interface mapping
+    3. Add supertypes of this type to get_builtin_supertypes mapping
+    """
     i8 = "I8"
     i16 = "I16"
     i32 = "I32"
@@ -188,11 +196,15 @@ class BuiltinType(Type, enum.Enum):
     object_ = "Object"
     convertible_to_string = "ConvertibleToString"
     convertible_to_i16 = "ConvertibleToI16"
+
     addable = "Addable"
     subtractable = "Subtractable"
     multipliable = "Multipliable"
     divisible = "Divisible"
     arithmetic_object = "ArithmeticObject"
+
+    eq = "Eq"
+
     iterable = "Iterable"
 
     # These types are mentioned only in expressions.
@@ -215,20 +227,17 @@ class BuiltinType(Type, enum.Enum):
         return [BuiltinType.f32.value, BuiltinType.f64.value]
 
     @classmethod
-    def abstract_interfaces(cls) -> t.List[str]:
+    def interfaces(cls) -> t.List[str]:
         return [
             BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
             BuiltinType.divisible.value, BuiltinType.arithmetic_object.value, BuiltinType.object_.value,
-            BuiltinType.convertible_to_string.value
+            BuiltinType.iterable.value, BuiltinType.eq.value,
+            BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value
         ]
 
     @property
-    def is_abstract_interface(self):
-        return self.value in self.abstract_interfaces()
-
-    @property
     def is_interface(self):
-        return self.is_abstract_interface
+        return self.value in self.interfaces()
 
     @property
     def is_finite_int_type(self):
@@ -331,7 +340,8 @@ class BuiltinType(Type, enum.Enum):
             BuiltinType.arithmetic_object.value: [
                 BuiltinType.addable.value, BuiltinType.subtractable.value, BuiltinType.multipliable.value,
                 BuiltinType.divisible.value, BuiltinType.object_.value
-            ]
+            ],
+            BuiltinType.eq.value: [BuiltinType.object_.value]
         }[self.value]
 
     def to_code(self, indentation_level: int = 0) -> str:
@@ -860,10 +870,21 @@ class StructDeclaration(Node):
 
 
 @dataclass
+class WhereClause:
+    condition: t.Optional[Expression]
+
+    def to_code(self) -> str:
+        if self.condition is None:
+            return ''
+        return f'where {self.condition.to_code()}'
+
+
+@dataclass
 class ExtensionDeclaration(Node):
     name: Name
     parameters: Parameters
     interfaces: Interfaces
+    where_clause: WhereClause
     private_methods: t.List[MethodDeclaration]
     public_methods: t.List[MethodDeclaration]
     special_methods: t.List[MethodDeclaration]
@@ -879,16 +900,17 @@ class ExtensionDeclaration(Node):
         else:
             parameters = ''
 
+        where = self.where_clause.to_code()
         private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
         public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
 
         if not private_methods and not public_methods:
-            return INDENTATION * indentation_level + f"extension {self.name.to_code()}{parameters}{interfaces}"
+            return INDENTATION * indentation_level + f"extension {self.name.to_code()}{parameters}{interfaces}{where}"
 
-        body = (
-            private_methods + "\n" + public_methods
+        body = private_methods + "\n" + public_methods
+        return (
+            INDENTATION * indentation_level + f"extension {self.name.to_code()}{parameters}{interfaces}{where}:\n{body}"
         )
-        return INDENTATION * indentation_level + f"extemsion {self.name.to_code()}{parameters}{interfaces}:\n{body}"
 
 
 @dataclass

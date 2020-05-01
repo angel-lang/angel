@@ -273,7 +273,7 @@ class TypeChecker(unittest.TestCase):
             (nodes.StructType, nodes.AlgebraicType): self.unification_failed,
             (nodes.StructType, nodes.RefType): self.unification_failed,
 
-            (nodes.GenericType, nodes.BuiltinType): self.unification_failed,
+            (nodes.GenericType, nodes.BuiltinType): self.unify_generic_type_with_builtin_type,
             (nodes.GenericType, nodes.VectorType): self.unification_failed,
             (nodes.GenericType, nodes.DictType): self.unification_failed,
             (nodes.GenericType, nodes.TemplateType): self.unification_template_supertype_success,
@@ -902,6 +902,23 @@ class TypeChecker(unittest.TestCase):
         assert self.template_types[supertype.id] is None
         self.template_types[supertype.id] = subtype
         return UnificationResult(subtype, mapping)
+
+    def unify_generic_type_with_builtin_type(
+        self, subtype: nodes.GenericType, supertype: nodes.BuiltinType, mapping: Mapping
+    ) -> UnificationResult:
+        if supertype.value == nodes.BuiltinType.self_.value:
+            assert self.env.parents
+            parent = self.env.parents[-1]
+            try:
+                self.unify_types(subtype.name, parent, mapping)
+            except errors.AngelTypeError:
+                raise self.basic_type_error(subtype, supertype)
+            else:
+                return UnificationResult(subtype, mapping)
+        elif supertype.value == nodes.BuiltinType.object_.value:
+            return UnificationResult(supertype, mapping)
+        else:
+            raise self.basic_type_error(subtype, supertype)
 
     def unify_name_with_builtin_type(
         self, subtype: nodes.Name, supertype: nodes.BuiltinType, mapping: Mapping

@@ -25,20 +25,83 @@ OPERATOR_PRIORITY = {
     nodes.Operator.lt.value: 3,
     nodes.Operator.gt.value: 3,
 
-    nodes.Operator.and_.value: 4,
-    nodes.Operator.or_.value: 4,
+    nodes.Operator.and_.value: 2,
+    nodes.Operator.or_.value: 2,
 
-    nodes.Operator.is_.value: 5,
+    nodes.Operator.is_.value: 4,
 }
 
 
 def build_binary_expression(
         left: nodes.Expression, operator: nodes.Operator, right: nodes.Expression
-) -> nodes.Expression:
-    if isinstance(right, nodes.BinaryExpression) and (
-            OPERATOR_PRIORITY[operator.value] >= OPERATOR_PRIORITY[right.operator.value]):
-        return nodes.BinaryExpression(nodes.BinaryExpression(left, operator, right.left), right.operator, right.right)
-    return nodes.BinaryExpression(left, operator, right)
+) -> nodes.BinaryExpression:
+    op_priority = OPERATOR_PRIORITY[operator.value]
+    if isinstance(left, nodes.BinaryExpression) and isinstance(right, nodes.BinaryExpression):
+        # a + b, +, c + d
+        # a * b, +, c + d
+        # a + c, *, c ** d
+        left_priority = OPERATOR_PRIORITY[left.operator.value]
+        right_priority = OPERATOR_PRIORITY[right.operator.value]
+        if left_priority >= op_priority and right_priority > op_priority:
+            # (a * b) + (c * d)
+            # (a + b) + (c * d)
+            return nodes.BinaryExpression(left, operator, right)
+        elif left_priority >= op_priority and right_priority <= op_priority:
+            # ((a + b) + c) + d
+            # ((a * b) + c) + d
+            # ((a ** b) * c) + d
+            return nodes.BinaryExpression(
+                nodes.BinaryExpression(left, operator, right.left), right.operator, right.right
+            )
+        elif left_priority < op_priority and right_priority == op_priority:
+            # a + ((b * c) * d)
+            return nodes.BinaryExpression(
+                left.left, left.operator, nodes.BinaryExpression(
+                    nodes.BinaryExpression(left.right, operator, right.left),
+                    right.operator, right.right
+                )
+            )
+        elif left_priority < op_priority and right_priority > op_priority:
+            # a + (b * (c ** d))
+            return nodes.BinaryExpression(
+                left.left, left.operator, nodes.BinaryExpression(left.right, operator, right)
+            )
+        elif left_priority < op_priority and right_priority < op_priority:
+            # (a + (b * c)) + d
+            return nodes.BinaryExpression(
+                nodes.BinaryExpression(
+                    left.left, left.operator, nodes.BinaryExpression(left.right, operator, right.left)
+                ), right.operator, right.right
+            )
+        else:
+            assert 0, "UNKNOWN CASE"
+    elif isinstance(left, nodes.BinaryExpression):
+        left_priority = OPERATOR_PRIORITY[left.operator.value]
+        if left_priority < op_priority:
+            # a + (b * c)
+            return nodes.BinaryExpression(
+                left.left, left.operator, nodes.BinaryExpression(left.right, operator, right)
+            )
+        elif left_priority >= op_priority:
+            # (a + b) + c
+            return nodes.BinaryExpression(left, operator, right)
+        else:
+            assert 0, "UNKNOWN CASE"
+    elif isinstance(right, nodes.BinaryExpression):
+        right_priority = OPERATOR_PRIORITY[right.operator.value]
+        if op_priority < right_priority:
+            # a + (b * c)
+            return nodes.BinaryExpression(left, operator, right)
+        elif op_priority >= right_priority:
+            # (a + b) + c
+            return nodes.BinaryExpression(
+                nodes.BinaryExpression(left, operator, right.left),
+                right.operator, right.right
+            )
+        else:
+            assert 0, "UNKNOWN  CASE"
+    else:
+        return nodes.BinaryExpression(left, operator, right)
 
 
 @dataclass
@@ -68,6 +131,11 @@ class CastTrailer(Trailer):
 
 class OptionalTypeTrailer(Trailer):
     pass
+
+
+@dataclass
+class GenericTypeTrailer(Trailer):
+    params: t.List[nodes.Type]
 
 
 @dataclass
@@ -416,14 +484,27 @@ class Parser:
         else:
             self.restore_state(backup_state)
             interfaces = []
+        where_clause = self.parse_where_clause()
         if not self.parse_raw(":"):
-            return self.make_extension_declaration(line, name, parameters, interfaces, [])
+            return self.make_extension_declaration(line, name, parameters, interfaces, where_clause, [])
         self.additional_statement_parsers.append(self.parse_function_declaration)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return self.make_extension_declaration(line, name, parameters, interfaces, body)
+        return self.make_extension_declaration(line, name, parameters, interfaces, where_clause, body)
+
+    def parse_where_clause(self) -> nodes.WhereClause:
+        state = self.backup_state()
+        self.spaces()
+        if not self.parse_raw("where"):
+            self.restore_state(state)
+            return nodes.WhereClause(None)
+        self.spaces()
+        condition = self.parse_expression()
+        if condition is None:
+            raise errors.AngelSyntaxError("expected condition after 'where'", self.get_code())
+        return nodes.WhereClause(condition)
 
     def parse_algebraic_declaration(self) -> t.Optional[nodes.AlgebraicDeclaration]:
         line = self.position.line
@@ -513,7 +594,8 @@ class Parser:
         )
 
     def make_extension_declaration(
-        self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces, body: nodes.AST
+        self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces,
+        where_clause: nodes.WhereClause, body: nodes.AST
     ) -> nodes.ExtensionDeclaration:
         private_methods, public_methods, special_methods = [], [], []
         for node in body:
@@ -530,7 +612,7 @@ class Parser:
             else:
                 raise errors.AngelSyntaxError("expected method declaration", self.get_code(node.line))
         return nodes.ExtensionDeclaration(
-            line, name, parameters, interfaces, private_methods, public_methods, special_methods
+            line, name, parameters, interfaces, where_clause, private_methods, public_methods, special_methods
         )
 
     def make_algebraic_declaration(
@@ -708,6 +790,9 @@ class Parser:
         while type_trailer is not None:
             if isinstance(type_trailer, OptionalTypeTrailer):
                 inner_type = nodes.OptionalType(inner_type)
+            elif isinstance(type_trailer, GenericTypeTrailer):
+                assert isinstance(inner_type, nodes.Name)
+                inner_type = nodes.GenericType(inner_type, type_trailer.params)
             else:
                 raise errors.AngelNotImplemented
             type_trailer = self.parse_type_trailer()
@@ -716,6 +801,9 @@ class Parser:
     def parse_type_trailer(self) -> t.Optional[Trailer]:
         if self.parse_raw("?"):
             return OptionalTypeTrailer(self.position.line)
+        params = self.parse_container('(', ')', ',', element_parser=self.parse_type)
+        if params:
+            return GenericTypeTrailer(self.position.line, params)
         return None
 
     def parse_type_atom_with_prefixes(self) -> t.Optional[nodes.Type]:

@@ -1,3 +1,4 @@
 export PYTHONPATH=:compiler
 python3 tests/test_completeness.py
+python3 tests/test_parser.py
 python3 tests/test_eval.py

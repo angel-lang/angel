@@ -23,6 +23,17 @@ private_builtin_funcs = {
 
 
 builtin_interfaces = {
+    nodes.BuiltinType.eq.value: entries.InterfaceEntry(
+        line=0, name=nodes.Name(nodes.BuiltinType.eq.value),
+        params=[], parent_interfaces=[], fields={}, methods={
+            nodes.SpecialMethods.eq.value: entries.FunctionEntry(
+                line=0, name=nodes.Name(nodes.SpecialMethods.eq.value),
+                args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                return_type=nodes.BuiltinType.bool, body=[]
+            )
+        }, inherited_fields={}, inherited_methods={}
+    ),
+
     nodes.BuiltinType.convertible_to_string.value: entries.InterfaceEntry(
         line=0, name=nodes.Name(nodes.BuiltinType.convertible_to_string.value),
         params=[], parent_interfaces=[], fields={}, methods={

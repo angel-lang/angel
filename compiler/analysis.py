@@ -154,9 +154,10 @@ class Analyzer(unittest.TestCase):
         special_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.special_methods)))
         self.check_interface_implementations(declaration.interfaces, declaration.name)
         self.env.dec_nesting(declaration.name)
+        where_clause = declaration.where_clause
         return nodes.ExtensionDeclaration(
-            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, private_methods,
-            public_methods, special_methods
+            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, where_clause,
+            private_methods, public_methods, special_methods
         )
 
     def analyze_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> nodes.AlgebraicDeclaration:
