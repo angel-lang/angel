@@ -129,7 +129,7 @@ class Analyzer(unittest.TestCase):
         private_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.private_fields)))
         public_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.public_fields)))
         init_declarations = self.generate_default_init(
-            private_fields, public_fields, list(declaration.init_declarations)
+            declaration.line, private_fields, public_fields, list(declaration.init_declarations)
         )
         init_declarations = t.cast(t.List[nodes.InitDeclaration], self.analyze_ast(init_declarations))
         private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
@@ -187,7 +187,9 @@ class Analyzer(unittest.TestCase):
             declaration.line, declaration.name, declaration.parameters, declaration.parent_interfaces, fields, methods
         )
 
-    def generate_default_init(self, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]):
+    def generate_default_init(
+        self, struct_declaration_line: int, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]
+    ):
         if not init_declarations:
             init_declaration_body: nodes.AST = []
             args = []
@@ -195,7 +197,7 @@ class Analyzer(unittest.TestCase):
                 args.append(nodes.Argument(field.name, field.type, field.value))
                 init_declaration_body.append(
                     nodes.Assignment(
-                        0, nodes.Field(0, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.name
+                        field.line, nodes.Field(field.line, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.name
                     )
                 )
             for field in private_fields:
@@ -203,10 +205,10 @@ class Analyzer(unittest.TestCase):
                     raise errors.AngelPrivateFieldsNotInitializedAndNoInit(field.name, self.get_code(field.line))
                 init_declaration_body.append(
                     nodes.Assignment(
-                        0, nodes.Field(0, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.value
+                        field.line, nodes.Field(field.line, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.value
                     )
                 )
-            default_init_declaration = nodes.InitDeclaration(0, args, init_declaration_body)
+            default_init_declaration = nodes.InitDeclaration(struct_declaration_line, args, init_declaration_body)
             return [default_init_declaration] + init_declarations
         return init_declarations
 
@@ -527,7 +529,7 @@ class Analyzer(unittest.TestCase):
         return dispatch(self.change_type_dispatcher, type(left), left, typ)
 
     def estimate_value(self, value: nodes.Expression) -> enodes.Expression:
-        self.estimator.update_context(self.env)
+        self.estimator.update_context(self.env, self.get_code())
         return self.estimator.estimate_expression(value)
 
     def get_code(self, line: int = 0):

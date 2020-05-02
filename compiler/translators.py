@@ -48,6 +48,13 @@ def algebraic_method_name(algebraic: nodes.Name, method: nodes.Name) -> str:
     return algebraic.member + "_m_" + method.member
 
 
+def has_default_constructor(init_declarations: t.List[nodes.InitDeclaration]) -> bool:
+    for decl in init_declarations:
+        if not decl.args:
+            return True
+    return False
+
+
 class Translator(unittest.TestCase):
     top_nodes: cpp_nodes.AST
     top_nodes_end: cpp_nodes.AST
@@ -540,8 +547,14 @@ class Translator(unittest.TestCase):
         special_methods: t.List[cpp_nodes.Node] = [
             self.translate_special_method(method) for method in node.special_methods
         ]
-        public = self.translate_body(list(node.public_fields)) + self.translate_body(list(node.init_declarations)) +\
+        public: t.List[cpp_nodes.Node] = []
+        if not has_default_constructor(node.init_declarations):
+            public.append(cpp_nodes.InitDeclaration(node.name.member, [], []))
+        public.extend(
+            self.translate_body(list(node.public_fields)) +
+            self.translate_body(list(node.init_declarations)) +
             self.translate_body(list(node.public_methods)) + special_methods
+        )
         parents = []
         for interface in node.interfaces:
             if not isinstance(interface, nodes.BuiltinType) or not interface.is_interface:

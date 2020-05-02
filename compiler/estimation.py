@@ -6,7 +6,7 @@ from functools import partial
 from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
-from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS
+from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
 from .constants import builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields
 
 
@@ -546,27 +546,43 @@ class Evaluator(unittest.TestCase):
         self, algebraic_constructor: enodes.AlgebraicConstructor, init_declarations: t.List[entries.InitEntry],
         args: t.List[nodes.Expression]
     ) -> enodes.AlgebraicConstructorInstance:
-        result = self.match_init_declaration(enodes.Struct(algebraic_constructor.constructor), init_declarations, args)
+        result = self.match_init_declaration(enodes.Struct(algebraic_constructor.constructor), init_declarations, args, algebraic=algebraic_constructor.name)
         return enodes.AlgebraicConstructorInstance(algebraic_constructor, result.fields)
 
     def match_init_declaration(
-            self, struct: enodes.Struct, init_declarations: t.List[entries.InitEntry], args: t.List[nodes.Expression]
+        self, struct: enodes.Struct, init_declarations: t.List[entries.InitEntry], args: t.List[nodes.Expression],
+        algebraic: t.Optional[nodes.Name] = None
     ) -> enodes.Instance:
         arguments = [self.estimate_expression(argument) for argument in args]
         matched = True
         expected_major = []
+        if algebraic:
+            struct_entry: entries.Entry = self.env.get_algebraic(
+                nodes.AlgebraicType(algebraic, [], constructor=struct.name)
+            )
+        else:
+            struct_entry = self.env.get(struct.name)
+        assert isinstance(struct_entry, entries.StructEntry)
+
         for init_entry in init_declarations:
+            struct_mapping: t.Dict[str, nodes.Type] = {}
+            for param in struct_entry.params:
+                struct_mapping[param.member] = self.type_checker.create_template_type()
+
             for arg, value in zip_longest(init_entry.args, args):
                 if value is None:
                     value = arg.value
                 if arg is None or value is None:
                     matched = False
                     break
+                arg_type = apply_mapping(arg.type, struct_mapping)
                 try:
-                    self.infer_type(value, arg.type)
-                except errors.AngelTypeError:
+                    self.infer_type(value, arg_type)
+                except errors.AngelTypeError as e:
                     matched = False
                     break
+                else:
+                    arg_type = self.type_checker.replace_template_types(arg_type)
             if not matched:
                 matched = True
                 expected_major.append([arg.type for arg in init_entry.args])
@@ -581,7 +597,7 @@ class Evaluator(unittest.TestCase):
                     value = arg.value
                     estimated = self.estimate_expression(value)
                 assert estimated is not None and value is not None
-                self.env.add_constant(0, arg.name, arg.type, value, estimated)
+                self.env.add_constant(0, arg.name, arg_type, value, estimated)
             self.estimate_ast(init_entry.body)
             self_entry = self.env[nodes.SpecialName.self.value]
             assert isinstance(self_entry, entries.VariableEntry)

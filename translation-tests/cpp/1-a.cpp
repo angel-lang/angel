@@ -28,6 +28,7 @@ class Email {
 };
 class User {
  public:
+  User() {}
   std::string firstName;
   std::string lastName;
   Email email;
@@ -46,6 +47,7 @@ class User {
 template <typename A>
 class Stack {
  public:
+  Stack() {}
   std::vector<A> data;
   Stack(std::vector<A> data) { this->data = data; }
   A push(A element) {
@@ -56,6 +58,7 @@ class Stack {
 };
 class Color_a_Red {
  public:
+  Color_a_Red() {}
   std::int_fast8_t data;
   Color_a_Red(std::int_fast8_t data) { this->data = data; }
   std::string getEstimation() {
@@ -67,11 +70,13 @@ class Color_a_Red {
 };
 class Color_a_Blue {
  public:
+  Color_a_Blue() {}
   std::int_fast8_t data;
   Color_a_Blue(std::int_fast8_t data) { this->data = data; }
 };
 class Color_a_Green {
  public:
+  Color_a_Green() {}
   std::int_fast8_t data;
   Color_a_Green(std::int_fast8_t data) { this->data = data; }
 };
@@ -87,6 +92,7 @@ class Beautiful {
 class Cool : public Beautiful {};
 class Person : public Cool {
  public:
+  Person() {}
   std::string firstName;
   std::string secondName;
   std::uint_fast8_t age;
@@ -104,6 +110,7 @@ class Person : public Cool {
 };
 class V {
  public:
+  V() {}
   std::int_fast8_t first;
   std::int_fast8_t second;
   V(std::int_fast8_t first, std::int_fast8_t second) {
@@ -128,6 +135,7 @@ class V {
 };
 class Vec {
  public:
+  Vec() {}
   std::int_fast8_t x;
   std::int_fast8_t y;
   Vec(std::int_fast8_t x, std::int_fast8_t y) {
