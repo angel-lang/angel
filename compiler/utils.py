@@ -74,3 +74,9 @@ apply_mapping_dispatcher = {
 
 def apply_mapping(raw: nodes.Type, mapping: t.Dict[str, nodes.Type]) -> nodes.Type:
     return dispatch(apply_mapping_dispatcher, type(raw), raw, mapping)
+
+
+def is_user_defined_type(typ: nodes.Type) -> bool:
+    return isinstance(typ, nodes.Name) or (
+        isinstance(typ, nodes.GenericType) and isinstance(typ.name, nodes.Name)
+    )

@@ -1,6 +1,7 @@
 import typing as t
 
 from . import nodes, environment_entries as entries, estimation_nodes as enodes, errors
+from .constants import builtin_interfaces
 
 
 class Environment:
@@ -9,6 +10,7 @@ class Environment:
         self.space = [{}]
         self.nesting_level = 0
         self.parents: t.List[nodes.Name] = []
+        self.where_clauses: t.List[nodes.WhereClause] = []
         self.code = errors.Code()
 
     def __getitem__(self, key) -> t.Optional[entries.Entry]:
@@ -28,6 +30,14 @@ class Environment:
         if entry is None:
             raise errors.AngelNameError(key, self.code)
         return entry
+
+    def get_type(self, key: t.Union[nodes.BuiltinType, nodes.GenericType, nodes.Name]) -> entries.Entry:
+        if isinstance(key, nodes.GenericType):
+            return self.get_type(key.name)
+        elif isinstance(key, nodes.Name):
+            return self.get(key)
+        elif isinstance(key, nodes.BuiltinType):
+            return builtin_interfaces[key.value]
 
     def get_algebraic(self, algebraic: nodes.AlgebraicType) -> t.Union[entries.AlgebraicEntry, entries.StructEntry]:
         """Get entry of algebraic data type or its constructor if algebraic.constructor."""
@@ -61,17 +71,19 @@ class Environment:
             )
 
     def add_function(
-            self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
+        self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
     ) -> None:
         self.space[self.nesting_level][name.member] = entries.FunctionEntry(
             line, name, args, return_type, body=[]
         )
 
     def add_method(
-            self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
+        self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
     ) -> None:
         entry = self._get_parent_type_entry()
-        entry.methods[name.member] = entries.FunctionEntry(line, name, args, return_type, body=[])
+        entry.methods[name.member] = entries.FunctionEntry(
+            line, name, args, return_type, body=[], where_clauses=list(self.where_clauses)
+        )
 
     def add_field(self, line: int, name: nodes.Name, type_: nodes.Type) -> None:
         entry = self._get_parent_type_entry()
@@ -160,7 +172,10 @@ class Environment:
 
     def add_parameters(self, line: int, parameters: nodes.Parameters) -> None:
         for parameter in parameters:
-            self.space[self.nesting_level][parameter.member] = entries.ParameterEntry(line, parameter)
+            interfaces, fields, methods = self.get_required_data_from_where_clauses(parameter)
+            self.space[self.nesting_level][parameter.member] = entries.ParameterEntry(
+                line, parameter, interfaces, fields, methods
+            )
 
     def update_function_body(self, name: nodes.Name, body: nodes.AST) -> None:
         self.space[self.nesting_level][name.member].body = body
@@ -188,3 +203,58 @@ class Environment:
         self.nesting_level -= 1
         if parent:
             self.parents.pop()
+
+    def add_where_clause(self, where_clause: nodes.WhereClause) -> None:
+        self.where_clauses.append(where_clause)
+
+    def remove_where_clause(self) -> None:
+        self.where_clauses.pop()
+
+    def _get_required_data_from_clause(self, name: nodes.Name, condition: nodes.Expression):
+        interfaces, fields, methods = [], {}, {}
+        if isinstance(condition, nodes.BinaryExpression):
+            if condition.operator == nodes.Operator.is_:
+                if condition.left == name:
+                    interfaces.append(condition.right)
+                    assert isinstance(condition.right, (nodes.Name, nodes.BuiltinType, nodes.GenericType))
+                    interface_entry = self.get_type(condition.right)
+                    assert isinstance(interface_entry, entries.InterfaceEntry)
+                    fields.update(interface_entry.fields)
+                    fields.update({
+                        k: field_entry for k, (interface, field_entry) in interface_entry.inherited_fields.items()
+                    })
+                    methods.update(interface_entry.methods)
+                    methods.update({
+                        k: method_entry for k, (interface, method_entry) in interface_entry.inherited_methods.items()
+                    })
+            elif condition.operator == nodes.Operator.and_:
+                sub_interfaces1, sub_fields1, sub_methods1 = self._get_required_data_from_clause(name, condition.left)
+                sub_interfaces2, sub_fields2, sub_methods2 = self._get_required_data_from_clause(
+                    name, condition.right
+                )
+                interfaces.extend(sub_interfaces1)
+                interfaces.extend(sub_interfaces2)
+                fields.update(sub_fields1)
+                fields.update(sub_fields2)
+                methods.update(sub_methods1)
+                methods.update(sub_methods2)
+            else:
+                assert 0, f"Cannot get required data from binary expression {condition}"
+        else:
+            assert 0, f"Cannot get required data from where clause {condition}"
+        return interfaces, fields, methods
+
+    def get_required_data_from_where_clauses(
+        self, name: nodes.Name
+    ) -> t.Tuple[nodes.Interfaces, t.Dict[str, entries.Entry], t.Dict[str, entries.FunctionEntry]]:
+        interfaces: nodes.Interfaces = []
+        fields: t.Dict[str, entries.Entry] = {}
+        methods: t.Dict[str, entries.FunctionEntry] = {}
+        for clause in self.where_clauses:
+            if not clause.condition:
+                continue
+            sub_interfaces, sub_fields, sub_methods = self._get_required_data_from_clause(name, clause.condition)
+            interfaces.extend(sub_interfaces)
+            fields.update(sub_fields)
+            methods.update(sub_methods)
+        return interfaces, fields, methods

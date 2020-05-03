@@ -30,6 +30,7 @@ class Evaluator(unittest.TestCase):
         self.main_module_hash = main_module_hash
         self.mangle_names = mangle_names
         self.type_checker = type_checking.TypeChecker()
+        self.type_checker.estimator = self
 
         self.estimated_objs = estimated_objs
 

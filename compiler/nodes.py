@@ -286,55 +286,60 @@ class BuiltinType(Type, enum.Enum):
             BuiltinType.i8.value: [
                 BuiltinType.i8.value, BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
                 BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
-                BuiltinType.object_.value
+                BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.i16.value: [
                 BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
                 BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
-                BuiltinType.object_.value
+                BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.i32.value: [
                 BuiltinType.i32.value, BuiltinType.i64.value, BuiltinType.convertible_to_string.value,
-                BuiltinType.object_.value
+                BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.i64.value: [
                 BuiltinType.i64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
+                BuiltinType.eq.value
             ],
 
             BuiltinType.u8.value: [
                 BuiltinType.u8.value, BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
                 BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
-                BuiltinType.object_.value
+                BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.u16.value: [
                 BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
-                BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+                BuiltinType.convertible_to_string.value, BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.u32.value: [
                 BuiltinType.u32.value, BuiltinType.u64.value, BuiltinType.convertible_to_string.value,
-                BuiltinType.object_.value
+                BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.u64.value: [
-                BuiltinType.u64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+                BuiltinType.u64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
+                BuiltinType.eq.value
             ],
 
             BuiltinType.f32.value: [
                 BuiltinType.f32.value, BuiltinType.f64.value, BuiltinType.convertible_to_string.value,
-                BuiltinType.object_.value
+                BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.f64.value: [
-                BuiltinType.f64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+                BuiltinType.f64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
+                BuiltinType.eq.value
             ],
 
             BuiltinType.string.value: [
                 BuiltinType.string.value, BuiltinType.convertible_to_string.value,
-                BuiltinType.object_.value
+                BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.bool.value: [
-                BuiltinType.bool.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+                BuiltinType.bool.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
+                BuiltinType.eq.value
             ],
             BuiltinType.char.value: [
-                BuiltinType.char.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value
+                BuiltinType.char.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
+                BuiltinType.eq.value
             ],
             BuiltinType.void.value: [BuiltinType.void.value],
             BuiltinType.arithmetic_object.value: [
@@ -426,6 +431,12 @@ class SpecialMethods(enum.Enum):
     sub = "__sub__"
     mul = "__mul__"
     div = "__div__"
+
+    @classmethod
+    def from_operator(cls, operator: Operator):
+        return {
+            Operator.eq_eq.value: SpecialMethods.eq,
+        }[operator.value]
 
 
 @dataclass

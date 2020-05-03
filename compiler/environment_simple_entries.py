@@ -1,5 +1,5 @@
 import typing as t
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import nodes
 
@@ -15,6 +15,7 @@ class FunctionEntry(Entry):
     args: t.List[nodes.Argument]
     return_type: nodes.Type
     body: nodes.AST
+    where_clauses: t.List[nodes.WhereClause] = field(default_factory=list)
 
 
 @dataclass
@@ -55,3 +56,6 @@ class InterfaceEntry(Entry):
 @dataclass
 class ParameterEntry(Entry):
     name: nodes.Name
+    parent_interfaces: nodes.Interfaces
+    fields: t.Dict[str, Entry]
+    methods: t.Dict[str, FunctionEntry]

@@ -31,6 +31,7 @@ class Analyzer(unittest.TestCase):
 
         self.type_checker = type_checking.TypeChecker()
         self.estimator = estimation.Estimator(main_module_hash, mangle_names)
+        self.type_checker.estimator = self.estimator
 
         self.assignment_dispatcher = {
             nodes.Name: self.check_name_reassignment,
@@ -147,12 +148,14 @@ class Analyzer(unittest.TestCase):
         assert isinstance(entry, entries.StructEntry)
         entry.implemented_interfaces += declaration.interfaces
         self.env.inc_nesting(declaration.name)
+        self.env.add_where_clause(declaration.where_clause)
         self.env.add_parameters(declaration.line, declaration.parameters)
         # list(...) for mypy
         private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
         public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
         special_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.special_methods)))
         self.check_interface_implementations(declaration.interfaces, declaration.name)
+        self.env.remove_where_clause()
         self.env.dec_nesting(declaration.name)
         where_clause = declaration.where_clause
         return nodes.ExtensionDeclaration(

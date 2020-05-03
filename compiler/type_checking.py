@@ -6,7 +6,7 @@ from itertools import zip_longest
 
 from . import nodes, errors, environment, environment_entries as entries
 from .constants import builtin_interfaces
-from .utils import dispatch, TYPES, EXPRS, apply_mapping
+from .utils import dispatch, TYPES, EXPRS, apply_mapping, is_user_defined_type
 
 
 Mapping = t.Dict[str, nodes.Type]
@@ -75,6 +75,7 @@ class TypeChecker(unittest.TestCase):
         super().__init__()
         self.env: environment.Environment = environment.Environment()
         self.code: errors.Code = errors.Code("", 0)
+        self.estimator = None
 
         self.template_types = []
         self.template_type_id = -1
@@ -817,18 +818,32 @@ class TypeChecker(unittest.TestCase):
         )
 
     def infer_type_from_binary_expression(
-            self, value: nodes.BinaryExpression, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, value: nodes.BinaryExpression, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         if value.operator.value == nodes.Operator.is_.value:
             return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
         left_result = self.infer_type(value.left, mapping=mapping)
-        result = self.infer_type(value.right, left_result.type, mapping=mapping)
         if value.operator.value in nodes.Operator.comparison_operators_names():
+            if is_user_defined_type(left_result.type):
+                left_type_entry = self.env.get_type(left_result.type)
+                assert isinstance(left_type_entry, (entries.StructEntry, entries.ParameterEntry))
+                method_name = nodes.SpecialMethods.from_operator(value.operator).value
+                method_entry = left_type_entry.methods.get(method_name)
+                if method_entry is None:
+                    raise errors.AngelFieldError(value.left, left_result.type, method_name, self.code)
+                if isinstance(left_result.type, nodes.GenericType):
+                    mapping = self.basic_struct_mapping(left_result.type)
+                self.satisfy_where_clauses(method_entry.where_clauses, mapping)
+                # TODO: design sandbox for type checking: Self can map to different types (nested)
+                self.infer_type(value.right, supertype=None, mapping=left_result.mapping)
+                return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+            self.infer_type(value.right, left_result.type, mapping=mapping)
             return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+        result = self.infer_type(value.right, left_result.type, mapping=mapping)
         return to_inference_result(self.unify_types(result.type, supertype, mapping))
 
     def infer_type_from_read_function_call(
-            self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         return to_inference_result(self.unify_types(nodes.BuiltinType.string, supertype, mapping))
 
@@ -1166,7 +1181,7 @@ class TypeChecker(unittest.TestCase):
     def entry_possible_param(self, name: nodes.Name) -> entries.Entry:
         result = self.env[name.member]
         if result is None:
-            return entries.ParameterEntry(0, name)
+            return entries.ParameterEntry(0, name, parent_interfaces=[], fields={}, methods={})
         return result
 
     def replace_template_types(self, from_type: nodes.Type) -> nodes.Type:
@@ -1174,6 +1189,43 @@ class TypeChecker(unittest.TestCase):
 
     def replace_template_types_template_type(self, template_type: nodes.TemplateType) -> nodes.Type:
         return self.template_types[template_type.id] or template_type
+
+    def eval_is(self, subtype: nodes.Type, supertype: nodes.Type, mapping: Mapping) -> bool:
+        try:
+            self.unify_types(subtype, supertype, mapping)
+        except errors.AngelTypeError:
+            return False
+        else:
+            return True
+
+    def eval_where_clause(self, clause: nodes.Expression, mapping: Mapping) -> bool:
+        if isinstance(clause, nodes.BinaryExpression):
+            if clause.operator == nodes.Operator.is_:
+                assert isinstance(clause.left, nodes.Type)
+                assert isinstance(clause.right, nodes.Type)
+                left_type = apply_mapping(clause.left, mapping)
+                right_type = apply_mapping(clause.right, mapping)
+                return self.eval_is(left_type, right_type, mapping)
+            else:
+                assert 0, f"Cannot eval not 'is' expression"
+        else:
+            assert 0, f"Cannot eval where clause {clause}"
+
+    def satisfy_where_clauses(self, where_clauses: t.List[nodes.WhereClause], mapping: Mapping):
+        for clause in where_clauses:
+            condition = clause.condition
+            if not condition:
+                continue
+            elif isinstance(condition, nodes.BinaryExpression):
+                if condition.operator == nodes.Operator.and_:
+                    left = self.eval_where_clause(condition.left, mapping)
+                    right = self.eval_where_clause(condition.right, mapping)
+                    if not (left and right):
+                        raise errors.AngelUnsatisfiedWhereClause(condition, self.code)
+                else:
+                    assert 0, f"Cannot satisfy where clause (binary expression) {condition.operator}"
+            else:
+                assert 0, f"Cannot satisfy where clause with {condition} clause"
 
     def test(self):
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.type_inference_dispatcher.keys()))

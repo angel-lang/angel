@@ -199,6 +199,19 @@ class AngelTypeError(AngelError):
 
 
 @dataclass
+class AngelUnsatisfiedWhereClause(AngelError):
+    clause: nodes.Expression
+    code: Code
+
+    def __str__(self):
+        return "\n".join((
+            f"Unsatisfied Clause Error: unsatisfied {self.clause.to_code()}",
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelWrongArguments(AngelError):
     expected: str
     code: Code
