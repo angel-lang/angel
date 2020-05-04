@@ -149,6 +149,26 @@ class Vec {
 void change(std::string* r) {
   *r = "New one";
 }
+template <typename A, typename B>
+class MyPair {
+ public:
+  MyPair() {}
+  A x;
+  B y;
+  MyPair(A x, B y) {
+    this->x = x;
+    this->y = y;
+  }
+  bool operator==(MyPair<A, B> other) {
+    return this->x == other.x && this->y == other.y;
+  }
+};
+class C {
+ public:
+  C() {}
+  std::string value;
+  C(std::string value) { this->value = value; }
+};
 std::ostream& operator<<(std::ostream& _arg1, Vec& _arg2) {
   _arg1 << _arg2.toString();
   return _arg1;
@@ -302,5 +322,10 @@ int main() {
   std::string* ps = &__tmp_11;
   change(ps);
   __print((*ps)[0]);
+  MyPair<std::int_fast8_t, std::string> myPair1 =
+      MyPair<std::int_fast8_t, std::string>(1, "John");
+  MyPair<std::int_fast8_t, C> myPair2 =
+      MyPair<std::int_fast8_t, C>(2, C("John"));
+  __print(myPair1 == myPair1);
   return 0;
 }

@@ -298,3 +298,25 @@ fun change(r: ref String):
 let ps = ref "Hello"
 change(ps)
 print(ps.value[0])
+
+
+// Where clause in structs
+struct MyPair(A, B):
+    x: A
+    y: B
+
+
+extension MyPair(A, B) is Eq
+where A is Eq and B is Eq:
+    fun __eq__(other: MyPair(A, B)) -> Bool:
+        return self.x == other.x and self.y == other.y
+
+
+struct C:
+    value: String
+
+
+let myPair1 = MyPair(1, "John")
+let myPair2 = MyPair(2, C("John"))
+print(myPair1 == myPair1)
+//print(myPair2 == myPair2)
