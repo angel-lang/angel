@@ -195,7 +195,14 @@ class BuiltinType(Type, enum.Enum):
 
     object_ = "Object"
     convertible_to_string = "ConvertibleToString"
+    convertible_to_i8 = "ConvertibleToI8"
     convertible_to_i16 = "ConvertibleToI16"
+    convertible_to_i32 = "ConvertibleToI32"
+    convertible_to_i64 = "ConvertibleToI64"
+    convertible_to_u8 = "ConvertibleToU8"
+    convertible_to_u16 = "ConvertibleToU16"
+    convertible_to_u32 = "ConvertibleToU32"
+    convertible_to_u64 = "ConvertibleToU64"
 
     addable = "Addable"
     subtractable = "Subtractable"
@@ -255,7 +262,14 @@ class BuiltinType(Type, enum.Enum):
     def as_convertible_interface(self):
         return {
             BuiltinType.string.value: BuiltinType.convertible_to_string,
+            BuiltinType.i8.value: BuiltinType.convertible_to_i8,
             BuiltinType.i16.value: BuiltinType.convertible_to_i16,
+            BuiltinType.i32.value: BuiltinType.convertible_to_i32,
+            BuiltinType.i64.value: BuiltinType.convertible_to_i64,
+            BuiltinType.u8.value: BuiltinType.convertible_to_u8,
+            BuiltinType.u16.value: BuiltinType.convertible_to_u16,
+            BuiltinType.u32.value: BuiltinType.convertible_to_u32,
+            BuiltinType.u64.value: BuiltinType.convertible_to_u64,
         }[self.value]
 
     def get_range(self) -> str:
@@ -285,39 +299,52 @@ class BuiltinType(Type, enum.Enum):
         return {
             BuiltinType.i8.value: [
                 BuiltinType.i8.value, BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
-                BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
+                BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i8.value,
+                BuiltinType.convertible_to_i16.value, BuiltinType.convertible_to_i32.value,
+                BuiltinType.convertible_to_i64.value,
                 BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.i16.value: [
                 BuiltinType.i16.value, BuiltinType.i32.value, BuiltinType.i64.value,
-                BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
+                BuiltinType.convertible_to_string.value,
+                BuiltinType.convertible_to_i16.value, BuiltinType.convertible_to_i32.value,
+                BuiltinType.convertible_to_i64.value,
                 BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.i32.value: [
                 BuiltinType.i32.value, BuiltinType.i64.value, BuiltinType.convertible_to_string.value,
+                BuiltinType.convertible_to_i32.value, BuiltinType.convertible_to_i64.value,
                 BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.i64.value: [
                 BuiltinType.i64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
-                BuiltinType.eq.value
+                BuiltinType.eq.value, BuiltinType.convertible_to_i64.value,
             ],
 
             BuiltinType.u8.value: [
                 BuiltinType.u8.value, BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
                 BuiltinType.convertible_to_string.value, BuiltinType.convertible_to_i16.value,
+                BuiltinType.convertible_to_i32.value, BuiltinType.convertible_to_i64.value,
+                BuiltinType.convertible_to_u8.value, BuiltinType.convertible_to_u16.value,
+                BuiltinType.convertible_to_u32.value, BuiltinType.convertible_to_u64.value,
                 BuiltinType.object_.value, BuiltinType.eq.value
             ],
             BuiltinType.u16.value: [
                 BuiltinType.u16.value, BuiltinType.u32.value, BuiltinType.u64.value,
-                BuiltinType.convertible_to_string.value, BuiltinType.object_.value, BuiltinType.eq.value
+                BuiltinType.convertible_to_string.value, BuiltinType.object_.value, BuiltinType.eq.value,
+                BuiltinType.convertible_to_i32.value, BuiltinType.convertible_to_i64.value,
+                BuiltinType.convertible_to_u16.value,
+                BuiltinType.convertible_to_u32.value, BuiltinType.convertible_to_u64.value,
             ],
             BuiltinType.u32.value: [
                 BuiltinType.u32.value, BuiltinType.u64.value, BuiltinType.convertible_to_string.value,
-                BuiltinType.object_.value, BuiltinType.eq.value
+                BuiltinType.object_.value, BuiltinType.eq.value,
+                BuiltinType.convertible_to_i64.value, BuiltinType.convertible_to_u32.value,
+                BuiltinType.convertible_to_u64.value,
             ],
             BuiltinType.u64.value: [
                 BuiltinType.u64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
-                BuiltinType.eq.value
+                BuiltinType.eq.value, BuiltinType.convertible_to_u64.value
             ],
 
             BuiltinType.f32.value: [
