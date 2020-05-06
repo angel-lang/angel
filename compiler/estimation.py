@@ -42,6 +42,7 @@ class Evaluator(unittest.TestCase):
             nodes.BinaryExpression: self.estimate_binary_expression,
             nodes.Cast: self.estimate_cast,
             nodes.Ref: self.estimate_ref,
+            nodes.Parentheses: lambda expr: self.estimate_expression(expr.value),
             nodes.FunctionCall: self.estimate_function_call,
             nodes.MethodCall: self.estimate_method_call,
             nodes.BuiltinFunc: lambda func: self.estimated_objs.builtin_funcs[func.value],

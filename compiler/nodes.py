@@ -142,6 +142,14 @@ class Ref(Expression):
 
 
 @dataclass
+class Parentheses(Expression):
+    value: Expression
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"({self.value.to_code()})"
+
+
+@dataclass
 class OptionalSomeValue(Expression):
     value: Expression
 

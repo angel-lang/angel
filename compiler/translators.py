@@ -159,6 +159,7 @@ class Translator(unittest.TestCase):
             nodes.Name: lambda value: cpp_nodes.Id(value.member),
             nodes.Cast: self.translate_cast,
             nodes.Ref: self.translate_ref,
+            nodes.Parentheses: lambda value: cpp_nodes.Parentheses(self.translate_expression(value.value)),
             nodes.Field: self.translate_field,
             nodes.Subscript: self.translate_subscript,
             nodes.SpecialName: self.translate_special_name,

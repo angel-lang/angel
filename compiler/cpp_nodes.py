@@ -197,6 +197,14 @@ class Id(Type, Expression):
 
 
 @dataclass
+class Parentheses(Expression):
+    value: Expression
+
+    def to_code(self) -> str:
+        return '(' + self.value.to_code() + ')'
+
+
+@dataclass
 class GenericType(Type):
     parent: Type
     parameters: t.List[Type]

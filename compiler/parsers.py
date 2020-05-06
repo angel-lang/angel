@@ -912,6 +912,14 @@ class Parser:
             if value is None:
                 raise errors.AngelSyntaxError('expected expression', self.get_code())
             return nodes.Ref(value)
+        elif self.parse_raw('('):
+            self.spaces()
+            expr = self.parse_expression()
+            if not expr:
+                raise errors.AngelSyntaxError('expected expression', self.get_code())
+            if not self.parse_raw(')'):
+                raise errors.AngelSyntaxError("expected ')'", self.get_code())
+            return nodes.Parentheses(expr)
         return self.parse_expression_atom()
 
     def parse_expression_atom(self) -> t.Optional[nodes.Expression]:
