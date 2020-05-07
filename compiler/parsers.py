@@ -362,8 +362,14 @@ class Parser:
         name = self.parse_name()
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
+        params: t.Optional[nodes.Parameters] = self.parse_container(
+            open_container="<", close_container=">", element_separator=",", element_parser=self.parse_name
+        )
+        if params is None:
+            params = []
         args: t.Optional[nodes.Arguments] = self.parse_container(
-            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_argument)
+            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_argument
+        )
         if args is None:
             args = []
         self.spaces()
@@ -377,13 +383,13 @@ class Parser:
         if not self.parse_raw(":"):
             if body_required:
                 raise errors.AngelSyntaxError("expected ':'", self.get_code())
-            return nodes.FunctionDeclaration(line, name, args, return_type, [])
+            return nodes.FunctionDeclaration(line, name, params, args, return_type, [])
         self.additional_statement_parsers.append(self.parse_return_statement)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return nodes.FunctionDeclaration(line, name, args, return_type, body)
+        return nodes.FunctionDeclaration(line, name, params, args, return_type, body)
 
     def parse_return_statement(self) -> t.Optional[nodes.Return]:
         line = self.position.line

@@ -169,6 +169,10 @@ class C {
   std::string value;
   C(std::string value) { this->value = value; }
 };
+template <typename A>
+A pass(A value) {
+  return value;
+}
 std::ostream& operator<<(std::ostream& _arg1, Vec& _arg2) {
   _arg1 << _arg2.toString();
   return _arg1;
@@ -327,5 +331,6 @@ int main() {
   MyPair<std::int_fast8_t, C> myPair2 =
       MyPair<std::int_fast8_t, C>(2, C("John"));
   __print(myPair1 == myPair1);
+  __print(pass("value"));
   return 0;
 }

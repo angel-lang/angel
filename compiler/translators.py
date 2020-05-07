@@ -500,13 +500,16 @@ class Translator(unittest.TestCase):
                 result.append(translated)
         return result
 
-    def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.FunctionDeclaration:
+    def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.Node:
         return_type = self.translate_type(node.return_type)
         args = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.args]
         self.env.inc_nesting()
         body = self.translate_body(node.body)
         self.env.dec_nesting()
-        return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
+        func_decl = cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
+        if node.params:
+            return cpp_nodes.Template([self.translate_type(param) for param in node.params], func_decl)
+        return func_decl
 
     def translate_method_declaration(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
         return_type = self.translate_type(node.return_type)
@@ -596,8 +599,8 @@ class Translator(unittest.TestCase):
         for method in node.private_methods + node.public_methods:
             funcs.append(
                 nodes.FunctionDeclaration(
-                    method.line, nodes.Name(algebraic_method_name(node.name, method.name)), [self_arg] + method.args,
-                    method.return_type, method.body
+                    method.line, nodes.Name(algebraic_method_name(node.name, method.name)), [],
+                    [self_arg] + method.args, method.return_type, method.body
                 )
             )
         methods = self.translate_body(funcs)

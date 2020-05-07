@@ -12,6 +12,7 @@ class Entry:
 @dataclass
 class FunctionEntry(Entry):
     name: nodes.Name
+    params: nodes.Parameters
     args: t.List[nodes.Argument]
     return_type: nodes.Type
     body: nodes.AST

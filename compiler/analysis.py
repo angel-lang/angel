@@ -111,8 +111,9 @@ class Analyzer(unittest.TestCase):
     def analyze_function_declaration(self, declaration: nodes.FunctionDeclaration) -> nodes.FunctionDeclaration:
         args = [nodes.Argument(arg.name, self.check_type(arg.type)) for arg in declaration.args]
         return_type = self.check_type(declaration.return_type)
-        self.env.add_function(declaration.line, declaration.name, args, return_type)
+        self.env.add_function(declaration.line, declaration.name, declaration.params, args, return_type)
         self.env.inc_nesting()
+        self.env.add_parameters(declaration.line, declaration.params)
         self.function_return_types.append(return_type)
         for arg in args:
             self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
@@ -120,7 +121,9 @@ class Analyzer(unittest.TestCase):
         self.function_return_types.pop()
         self.env.dec_nesting()
         self.env.update_function_body(declaration.name, body)
-        return nodes.FunctionDeclaration(declaration.line, declaration.name, args, return_type, body)
+        return nodes.FunctionDeclaration(
+            declaration.line, declaration.name, declaration.params, args, return_type, body
+        )
 
     def analyze_struct_declaration(self, declaration: nodes.StructDeclaration) -> nodes.StructDeclaration:
         self.env.add_struct(declaration.line, declaration.name, declaration.parameters, declaration.interfaces)

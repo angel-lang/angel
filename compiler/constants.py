@@ -28,7 +28,7 @@ builtin_interfaces = {
         params=[], parent_interfaces=[], fields={}, methods={
             nodes.SpecialMethods.eq.value: entries.FunctionEntry(
                 line=0, name=nodes.Name(nodes.SpecialMethods.eq.value),
-                args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                params=[], args=[nodes.Argument('other', nodes.BuiltinType.self_)],
                 return_type=nodes.BuiltinType.bool, body=[]
             )
         }, inherited_fields={}, inherited_methods={}
@@ -39,7 +39,7 @@ builtin_interfaces = {
         params=[], parent_interfaces=[], fields={}, methods={
             nodes.SpecialMethods.as_.value: entries.FunctionEntry(
                 line=0, name=nodes.Name(nodes.SpecialMethods.as_.value),
-                args=[], return_type=nodes.BuiltinType.string, body=[]
+                params=[], args=[], return_type=nodes.BuiltinType.string, body=[]
             )
         }, inherited_fields={}, inherited_methods={}
     ),
@@ -63,7 +63,7 @@ builtin_interfaces = {
         fields={}, methods={
             nodes.SpecialMethods.add.value: entries.FunctionEntry(
                 line=0, name=nodes.Name(nodes.SpecialMethods.add.value),
-                args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                params=[], args=[nodes.Argument('other', nodes.BuiltinType.self_)],
                 return_type=nodes.BuiltinType.self_, body=[]
             )
         },
@@ -76,7 +76,7 @@ builtin_interfaces = {
         fields={}, methods={
             nodes.SpecialMethods.sub.value: entries.FunctionEntry(
                 line=0, name=nodes.Name(nodes.SpecialMethods.sub.value),
-                args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                params=[], args=[nodes.Argument('other', nodes.BuiltinType.self_)],
                 return_type=nodes.BuiltinType.self_, body=[]
             )
         },
@@ -89,7 +89,7 @@ builtin_interfaces = {
         fields={}, methods={
             nodes.SpecialMethods.mul.value: entries.FunctionEntry(
                 line=0, name=nodes.Name(nodes.SpecialMethods.mul.value),
-                args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                params=[], args=[nodes.Argument('other', nodes.BuiltinType.self_)],
                 return_type=nodes.BuiltinType.self_, body=[]
             )
         },
@@ -102,7 +102,7 @@ builtin_interfaces = {
         fields={}, methods={
             nodes.SpecialMethods.div.value: entries.FunctionEntry(
                 line=0, name=nodes.Name(nodes.SpecialMethods.div.value),
-                args=[nodes.Argument('other', nodes.BuiltinType.self_)],
+                params=[], args=[nodes.Argument('other', nodes.BuiltinType.self_)],
                 return_type=nodes.BuiltinType.self_, body=[]
             )
         },

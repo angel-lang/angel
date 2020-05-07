@@ -320,3 +320,9 @@ let myPair1 = MyPair(1, "John")
 let myPair2 = MyPair(2, C("John"))
 print(myPair1 == myPair1)
 //print(myPair2 == myPair2)
+
+
+fun pass<A>(value: A) -> A:
+    return value
+
+print(pass("value"))

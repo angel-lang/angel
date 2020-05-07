@@ -194,7 +194,9 @@ class Evaluator(unittest.TestCase):
         )
 
     def estimate_function_declaration(self, declaration: nodes.FunctionDeclaration) -> None:
-        self.env.add_function(declaration.line, declaration.name, declaration.args, declaration.return_type)
+        self.env.add_function(
+            declaration.line, declaration.name, declaration.params, declaration.args, declaration.return_type
+        )
         self.env.update_function_body(declaration.name, declaration.body)
 
     def estimate_method_declaration(self, declaration: nodes.MethodDeclaration) -> None:

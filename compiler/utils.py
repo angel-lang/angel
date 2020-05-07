@@ -46,7 +46,7 @@ ASSIGNMENTS = get_all_subclasses(nodes.AssignmentLeft)
 apply_mapping_dispatcher = {
     nodes.Name: lambda name, mapping: mapping.get(name.member, name),
     nodes.FunctionType: lambda func, mapping: nodes.FunctionType(
-        [nodes.Argument(arg.name, apply_mapping(arg.type, mapping), arg.value) for arg in func.args],
+        func.params, [nodes.Argument(arg.name, apply_mapping(arg.type, mapping), arg.value) for arg in func.args],
         apply_mapping(func.return_type, mapping), func.is_algebraic_method
     ),
     nodes.BuiltinType: lambda builtin, mapping: builtin,

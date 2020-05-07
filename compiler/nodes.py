@@ -750,6 +750,7 @@ Interfaces = t.List[Interface]
 
 @dataclass
 class FunctionType(Type):
+    params: Parameters
     args: Arguments
     return_type: Type
     is_algebraic_method: bool = False
@@ -792,7 +793,7 @@ class StringFields(enum.Enum):
     def as_type(self) -> Type:
         return {
             StringFields.split.value: FunctionType(
-                [Argument("by", BuiltinType.char)], return_type=VectorType(BuiltinType.string)
+                [], [Argument("by", BuiltinType.char)], return_type=VectorType(BuiltinType.string)
             ),
             StringFields.length.value: BuiltinType.u64,
         }[self.value]
@@ -805,7 +806,9 @@ class VectorFields(enum.Enum):
     def as_type(self, element_type: Type) -> Type:
         from .utils import apply_mapping
         return apply_mapping({
-            VectorFields.append.value: FunctionType([Argument('element', Name('A'))], return_type=Name('A')),
+            VectorFields.append.value: FunctionType(
+                [], [Argument('element', Name('A'))], return_type=Name('A')
+            ),
             VectorFields.length.value: BuiltinType.u64,
         }[self.value], mapping={'A': element_type})
 
@@ -822,14 +825,19 @@ class DictFields(enum.Enum):
 @dataclass
 class FunctionDeclaration(Node):
     name: Name
+    params: Parameters
     args: Arguments
     return_type: Type
     body: AST
 
     def to_code(self, indentation_level: int = 0) -> str:
         body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
+        if self.params:
+            params = f"<{', '.join(param.to_code() for param in self.params)}>"
+        else:
+            params = ""
         args = ', '.join(arg.to_code() for arg in self.args)
-        code = f"fun {self.name.to_code()}({args}) -> {self.return_type.to_code()}:\n{body}"
+        code = f"fun {self.name.to_code()}{params}({args}) -> {self.return_type.to_code()}:\n{body}"
         return INDENTATION * indentation_level + code
 
 
