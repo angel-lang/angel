@@ -6,6 +6,7 @@ from . import (
     nodes, estimation, type_checking, environment, estimation_nodes as enodes, errors, environment_entries as entries
 )
 from .constants import builtin_interfaces
+from .context import CompilationContext
 from .utils import mangle, dispatch, NODES, ASSIGNMENTS
 
 
@@ -17,20 +18,16 @@ def is_8bit_int(typ: nodes.Type) -> bool:
 class Analyzer(unittest.TestCase):
 
     def __init__(
-        self, lines: t.List[str], main_module_hash: str, mangle_names: bool = True,
-        env: t.Optional[environment.Environment] = None,
+        self, context: CompilationContext, env: t.Optional[environment.Environment] = None,
     ):
         super().__init__()
         self.env = env or environment.Environment()
-        self.lines = lines
+        self.context = context
         self.line = 0
         self.function_return_types: t.List[nodes.Type] = []
 
-        self.main_module_hash = main_module_hash
-        self.mangle_names = mangle_names
-
         self.type_checker = type_checking.TypeChecker()
-        self.estimator = estimation.Estimator(main_module_hash, mangle_names)
+        self.estimator = estimation.Estimator(context)
         self.type_checker.estimator = self.estimator
 
         self.assignment_dispatcher = {
@@ -382,10 +379,7 @@ class Analyzer(unittest.TestCase):
         for field_name, field_entry in interface_entry.fields.items():
             assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
             found = struct_entry.fields.get(
-                field_name,
-                struct_entry.fields.get(
-                    mangle(nodes.Name(field_name), self.main_module_hash, self.mangle_names).member
-                )
+                field_name, struct_entry.fields.get(mangle(nodes.Name(field_name), self.context).member)
             )
             if not found:
                 raise errors.AngelMissingInterfaceMember(
@@ -401,10 +395,7 @@ class Analyzer(unittest.TestCase):
         for field_name, (inherited_from, field_entry) in interface_entry.inherited_fields.items():
             assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
             found = struct_entry.fields.get(
-                field_name,
-                struct_entry.fields.get(
-                    mangle(nodes.Name(field_name), self.main_module_hash, self.mangle_names).member
-                )
+                field_name, struct_entry.fields.get(mangle(nodes.Name(field_name), self.context).member)
             )
             if not found:
                 raise errors.AngelMissingInterfaceMember(
@@ -420,10 +411,7 @@ class Analyzer(unittest.TestCase):
 
         for method_name, method_entry in interface_entry.methods.items():
             found_method: t.Optional[entries.FunctionEntry] = struct_entry.methods.get(
-                method_name,
-                struct_entry.methods.get(
-                    mangle(nodes.Name(method_name), self.main_module_hash, self.mangle_names).member
-                )
+                method_name, struct_entry.methods.get(mangle(nodes.Name(method_name), self.context).member)
             )
             if not found_method:
                 raise errors.AngelMissingInterfaceMember(
@@ -433,10 +421,7 @@ class Analyzer(unittest.TestCase):
 
         for method_name, (inherited_from, method_entry) in interface_entry.inherited_methods.items():
             found_method = struct_entry.methods.get(
-                method_name,
-                struct_entry.methods.get(
-                    mangle(nodes.Name(method_name), self.main_module_hash, self.mangle_names).member
-                )
+                method_name, struct_entry.methods.get(mangle(nodes.Name(method_name), self.context).member)
             )
             if not found_method:
                 raise errors.AngelMissingInterfaceMember(
@@ -540,8 +525,8 @@ class Analyzer(unittest.TestCase):
 
     def get_code(self, line: int = 0):
         if not line:
-            return errors.Code(self.lines[self.line - 1], self.line)
-        return errors.Code(self.lines[line - 1], line)
+            return errors.Code(self.context.code_lines[self.line - 1], self.line)
+        return errors.Code(self.context.code_lines[line - 1], line)
 
     def get_builtin_interface_entry(self, interface: nodes.BuiltinType) -> entries.InterfaceEntry:
         entry = builtin_interfaces[interface.value]

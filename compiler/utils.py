@@ -2,6 +2,7 @@ import typing as t
 import hashlib
 
 from . import errors, nodes
+from .context import CompilationContext
 
 
 def dispatch(dispatcher, key, *args):
@@ -17,11 +18,11 @@ def get_hash(string: str) -> str:
     return md5.hexdigest()[:6]
 
 
-def mangle(name: nodes.Name, hash_: str, mangle_names: bool = True) -> nodes.Name:
+def mangle(name: nodes.Name, context: CompilationContext) -> nodes.Name:
     if name.module:
         raise NotImplementedError
-    if mangle_names:
-        return nodes.Name("_".join(["angel", hash_, name.member]), unmangled=name.member)
+    if context.mangle_names:
+        return nodes.Name("_".join(["angel", context.main_file_hash, name.member]), unmangled=name.member)
     return name
 
 

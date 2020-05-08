@@ -7,6 +7,7 @@ from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
+from .context import CompilationContext
 from .constants import builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields
 
 
@@ -20,15 +21,14 @@ EstimatedFields = t.Dict[str, t.Union[t.Callable[..., enodes.Expression], enodes
 
 class Evaluator(unittest.TestCase):
     def __init__(
-        self, estimated_objs: EstimatedObjects, main_module_hash: str,
-        mangle_names: bool = True, env: t.Optional[environment.Environment] = None
+        self, estimated_objs: EstimatedObjects,
+        context: CompilationContext, env: t.Optional[environment.Environment] = None
     ) -> None:
         super().__init__()
         self.env = env or environment.Environment()
         self.code = errors.Code()
         self.repl_tmp_count = 0
-        self.main_module_hash = main_module_hash
-        self.mangle_names = mangle_names
+        self.context = context
         self.type_checker = type_checking.TypeChecker()
         self.type_checker.estimator = self
 
@@ -409,9 +409,7 @@ class Evaluator(unittest.TestCase):
         assert x.type == y.type
         entry = self.env.get(x.type)
         assert isinstance(entry, entries.StructEntry)
-        method_entry = entry.methods[
-            mangle(nodes.Name(method_name.value), self.main_module_hash, self.mangle_names).member
-        ]
+        method_entry = entry.methods[mangle(nodes.Name(method_name.value), self.context).member]
         result = self.match_function_body(
             enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
             args=[], args_estimated=[y], self_estimated=x, self_type=x.type
@@ -694,9 +692,7 @@ class Evaluator(unittest.TestCase):
             if isinstance(value, enodes.Instance):
                 entry = self.env.get(value.type)
                 assert isinstance(entry, entries.StructEntry)
-                method_entry = entry.methods[
-                    mangle(nodes.Name(nodes.SpecialMethods.as_.value), self.main_module_hash, self.mangle_names).member
-                ]
+                method_entry = entry.methods[mangle(nodes.Name(nodes.SpecialMethods.as_.value), self.context).member]
                 result = self.match_function_body(
                     enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
                     args=[], args_estimated=[], self_estimated=value, self_type=value.type

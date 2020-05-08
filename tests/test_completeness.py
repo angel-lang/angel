@@ -1,14 +1,16 @@
 import unittest
 
 from compiler import type_checking, estimation, repl_evaluation, analysis, translators, utils
+from compiler.context import CompilationContext
 
 
 class TestCompleteness(unittest.TestCase):
     def setUp(self) -> None:
-        self.analyzer = analysis.Analyzer([], '', mangle_names=False)
+        context = CompilationContext(code_lines=[], main_file_hash='', mangle_names=False)
+        self.analyzer = analysis.Analyzer(context)
         self.type_checker = type_checking.TypeChecker()
-        self.estimator: estimation.Evaluator = estimation.Estimator('', mangle_names=False)
-        self.repl_evaluator: estimation.Evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False)
+        self.estimator: estimation.Evaluator = estimation.Estimator(context)
+        self.repl_evaluator: estimation.Evaluator = repl_evaluation.REPLEvaluator(context)
         self.translator = translators.Translator()
 
     def test_all(self):
