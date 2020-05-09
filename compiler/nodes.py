@@ -582,8 +582,8 @@ class MethodCall(Node, Expression):
     is_algebraic_method: bool = False
 
     def __init__(
-            self, line: int, instance_path: Expression, method: Name, args: t.List[Expression],
-            instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
+        self, line: int, instance_path: Expression, method: Name, args: t.List[Expression],
+        instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
     ):
         self.line = line
         self.instance_path = instance_path

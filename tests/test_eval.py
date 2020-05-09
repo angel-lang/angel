@@ -16,7 +16,7 @@ class TestEval(unittest.TestCase):
         return repl_evaluator.env
 
     def eval(
-            self, lines: t.List[str], inp: t.Optional[str] = None, env: t.Optional[environment.Environment] = None
+        self, lines: t.List[str], inp: t.Optional[str] = None, env: t.Optional[environment.Environment] = None
     ) -> t.Tuple[t.Any, t.List[str]]:
         output = []
 

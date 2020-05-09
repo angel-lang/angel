@@ -344,7 +344,7 @@ class Evaluator(unittest.TestCase):
         return None
 
     def desugar_if_let(
-            self, condition: nodes.Expression, body: nodes.AST
+        self, condition: nodes.Expression, body: nodes.AST
     ) -> t.Tuple[nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
         assignment = None
         if isinstance(condition, nodes.ConstantDeclaration):

@@ -193,7 +193,7 @@ class Parser:
         return nodes.ConstantDeclaration(line, name, type_, value)
 
     def parse_constant_and_variable_common(
-            self
+        self
     ) -> t.Tuple[nodes.Name, t.Optional[nodes.Type], t.Optional[nodes.Expression]]:
         self.spaces()
         name = self.parse_name()
@@ -761,8 +761,8 @@ class Parser:
         return result
 
     def parse_container(
-            self, open_container: str, close_container: str, element_separator: str,
-            element_parser: t.Callable[[], t.Any]
+        self, open_container: str, close_container: str, element_separator: str,
+        element_parser: t.Callable[[], t.Any]
     ) -> t.Optional[t.List[t.Any]]:
         if not self.parse_raw(open_container):
             return None
@@ -999,7 +999,7 @@ class Parser:
         return nodes.DictLiteral(keys, values)
 
     def parse_vector_or_dict_element(
-            self
+        self
     ) -> t.Optional[t.Union[nodes.Expression, t.Tuple[nodes.Expression, nodes.Expression]]]:
         key = self.parse_expression()
         if key is None:

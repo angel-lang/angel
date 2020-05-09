@@ -74,24 +74,112 @@ class TypeChecker(unittest.TestCase):
     def __init__(self):
         super().__init__()
         self.env: environment.Environment = environment.Environment()
-        self.code: errors.Code = errors.Code("", 0)
+        self.code: errors.Code = errors.Code()
         self.estimator = None
 
         self.template_types = []
         self.template_type_id = -1
 
+        # value.field where value is of builtin type
         self.infer_type_from_field_of_builtin_type_dispatcher = {
             nodes.BuiltinType.string.value: lambda field, mapping, supertype: to_inference_result(
                 self.unify_types(
                     nodes.StringFields(field.field.unmangled or field.field.member).as_type, supertype, mapping
                 )
-            )
+            ),
+            # TODO: think about Self type interpretation (add to env; how about nested checkings with diff mappings?)
+            nodes.BuiltinType.self_.value: lambda f, m, s: NotImplementedError,
+
+            nodes.BuiltinType.char.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.optional.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.bool.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.void.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.i8.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.i16.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.i32.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.i64.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.u8.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.u16.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.u32.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.u64.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.f32.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.f64.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.convertible_to_i8.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.convertible_to_i16.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.convertible_to_i32.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.convertible_to_i64.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.convertible_to_u8.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.convertible_to_u16.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.convertible_to_u32.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.convertible_to_u64.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.convertible_to_string.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.addable.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.subtractable.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.multipliable.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.divisible.value: self.error_builtin_type_does_not_support_field,
+            nodes.BuiltinType.arithmetic_object.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.eq.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.iterable.value: self.error_builtin_type_does_not_support_field,
+
+            nodes.BuiltinType.object_.value: self.error_builtin_type_does_not_support_field,
         }
 
+        # value[index] where value is of builtin type
         self.infer_type_from_subscript_of_builtin_type_dispatcher = {
-            nodes.BuiltinType.string.value: self.infer_type_from_string_builtin_type_subscript
+            nodes.BuiltinType.string.value: self.infer_type_from_string_builtin_type_subscript,
+
+            # TODO: think about Self type interpretation (add to env; how about nested checkings with diff mappings?)
+            nodes.BuiltinType.self_.value: lambda sub, m, sup: NotImplementedError,
+
+            nodes.BuiltinType.char.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.optional.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.bool.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.void.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.i8.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.i16.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.i32.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.i64.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.u8.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.u16.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.u32.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.u64.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.f32.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.f64.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.convertible_to_i8.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.convertible_to_i16.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.convertible_to_i32.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.convertible_to_i64.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.convertible_to_u8.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.convertible_to_u16.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.convertible_to_u32.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.convertible_to_u64.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.convertible_to_string.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.addable.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.subtractable.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.multipliable.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.divisible.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.arithmetic_object.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.eq.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.iterable.value: self.error_builtin_type_does_not_support_subscript,
+
+            nodes.BuiltinType.object_.value: self.error_builtin_type_does_not_support_subscript,
         }
 
+        # value.field where value is of type (key)
         self.infer_type_from_field_dispatcher = {
             nodes.BuiltinType: lambda base_type, field, mapping, supertype: dispatch(
                 self.infer_type_from_field_of_builtin_type_dispatcher, base_type.value, field, mapping, supertype
@@ -108,6 +196,7 @@ class TypeChecker(unittest.TestCase):
             nodes.RefType: self.infer_field_of_ref_type,
         }
 
+        # value[index] where value is of type (key)
         self.infer_type_from_subscript_dispatcher = {
             nodes.BuiltinType: lambda base_type, subscript, mapping, supertype: dispatch(
                 self.infer_type_from_subscript_of_builtin_type_dispatcher, base_type.value, subscript,
@@ -343,12 +432,12 @@ class TypeChecker(unittest.TestCase):
         }
 
     def infer_type(
-            self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None, mapping: t.Optional[Mapping] = None
+        self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None, mapping: t.Optional[Mapping] = None
     ) -> InferenceResult:
         return dispatch(self.type_inference_dispatcher, type(value), value, supertype, mapping or {})
 
     def infer_type_from_name(
-            self, name: nodes.Name, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, name: nodes.Name, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         entry = self.env.get(name)
         if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
@@ -375,12 +464,12 @@ class TypeChecker(unittest.TestCase):
             assert 0, f"Type inference from name can't handle {type(entry)}"
 
     def infer_type_from_special_name(
-            self, special_name: nodes.SpecialName, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, special_name: nodes.SpecialName, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         return self.infer_type_from_name(nodes.Name(special_name.value), supertype, mapping)
 
     def infer_type_from_builtin_func(
-            self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         return to_inference_result(self.unify_types({
             nodes.BuiltinFunc.print.value: nodes.FunctionType(
@@ -404,7 +493,7 @@ class TypeChecker(unittest.TestCase):
         }[builtin_func.value], supertype, mapping))
 
     def infer_type_from_function_call(
-            self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         function_result = self.infer_type(call.function_path)
         function_type = function_result.type
@@ -426,8 +515,8 @@ class TypeChecker(unittest.TestCase):
         raise errors.AngelNoncallableCall(call.function_path, self.code)
 
     def match_init_declaration(
-            self, struct_type: nodes.StructType, init_declarations: t.List[entries.InitEntry],
-            args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, struct_type: nodes.StructType, init_declarations: t.List[entries.InitEntry],
+        args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         matched = True
         expected_major = []
@@ -462,8 +551,8 @@ class TypeChecker(unittest.TestCase):
         raise errors.AngelWrongArguments(expected, self.code, args)
 
     def match_with_function_type(
-            self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
-            mapping: Mapping
+        self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
+        mapping: Mapping
     ) -> InferenceResult:
         for param in function_type.params:
             mapping[param.member] = self.create_template_type()
@@ -548,7 +637,7 @@ class TypeChecker(unittest.TestCase):
         )
 
     def infer_type_from_subscript(
-            self, subscript: nodes.Subscript, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, subscript: nodes.Subscript, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         base_result = self.infer_type(subscript.base)
         subscript.base_type = base_result.type
@@ -769,7 +858,7 @@ class TypeChecker(unittest.TestCase):
             return to_inference_result(result)
 
     def infer_type_from_decimal_literal(
-            self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         possible_types = get_possible_float_types_base_on_value(value.value)
         try:
@@ -789,7 +878,7 @@ class TypeChecker(unittest.TestCase):
             return to_inference_result(result)
 
     def infer_type_from_vector_literal(
-            self, value: nodes.VectorLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, value: nodes.VectorLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         element_result: UnificationResult = UnificationResult(self.create_template_type(), {})
         for element in value.elements:
@@ -804,7 +893,7 @@ class TypeChecker(unittest.TestCase):
         return to_inference_result(self.unify_types(subtype, supertype, mapping))
 
     def infer_type_from_dict_literal(
-            self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         key_result: UnificationResult = UnificationResult(self.create_template_type(), {})
         value_result: UnificationResult = UnificationResult(self.create_template_type(), {})
@@ -856,19 +945,19 @@ class TypeChecker(unittest.TestCase):
         return to_inference_result(self.unify_types(nodes.BuiltinType.string, supertype, mapping))
 
     def infer_type_from_optional_type_constructor(
-            self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         inner_type = self.create_template_type()
         return to_inference_result(self.unify_types(nodes.OptionalType(inner_type), supertype, mapping))
 
     def infer_type_from_optional_some_call(
-            self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         inner_result = self.infer_type(value.value)
         return to_inference_result(self.unify_types(nodes.OptionalType(inner_result.type), supertype, mapping))
 
     def infer_type_from_optional_some_value(
-            self, value: nodes.OptionalSomeValue, _: t.Optional[nodes.Type], mapping: Mapping
+        self, value: nodes.OptionalSomeValue, _: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         optional_result = self.infer_type(value.value, mapping=mapping)
         assert isinstance(optional_result.type, nodes.OptionalType)
@@ -876,7 +965,7 @@ class TypeChecker(unittest.TestCase):
         return InferenceResult(optional_result.type.inner_type, mapping)
 
     def unify_types(
-            self, subtype: nodes.Type, supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, subtype: nodes.Type, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> UnificationResult:
         subtype = apply_mapping(subtype, mapping)
         if supertype is None:
@@ -1126,7 +1215,7 @@ class TypeChecker(unittest.TestCase):
         )
 
     def unify_dict_types(
-            self, subtype: nodes.DictType, supertype: nodes.DictType, mapping: Mapping
+        self, subtype: nodes.DictType, supertype: nodes.DictType, mapping: Mapping
     ) -> UnificationResult:
         try:
             key_result = self.unify_types(subtype.key_type, supertype.key_type, mapping=mapping)
@@ -1139,7 +1228,7 @@ class TypeChecker(unittest.TestCase):
         raise self.basic_type_error(subtype, supertype)
 
     def unify_template_types(
-            self, subtype: nodes.TemplateType, supertype: nodes.TemplateType, mapping: Mapping
+        self, subtype: nodes.TemplateType, supertype: nodes.TemplateType, mapping: Mapping
     ) -> UnificationResult:
         real_type = self.template_types[subtype.id] or self.template_types[supertype.id]
         self.template_types[subtype.id] = real_type
@@ -1147,7 +1236,7 @@ class TypeChecker(unittest.TestCase):
         return UnificationResult(real_type or subtype, mapping)
 
     def unify_list_types(
-            self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type], mapping: Mapping
+        self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> UnificationResult:
         fail = None
         for subtype in subtypes:
@@ -1238,6 +1327,18 @@ class TypeChecker(unittest.TestCase):
             else:
                 assert 0, f"Cannot satisfy where clause with {condition} clause"
 
+    def error_builtin_type_does_not_support_field(
+        self, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ):
+        assert field.base_type is not None
+        raise errors.AngelFieldError(field.base, field.base_type, field.field.to_code(), self.code)
+
+    def error_builtin_type_does_not_support_subscript(
+        self, subscript: nodes.Subscript, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ):
+        assert subscript.base_type is not None
+        raise errors.AngelSubscriptError(subscript.base, subscript.base_type, subscript.index, self.code)
+
     def test(self):
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.type_inference_dispatcher.keys()))
         type_pairs = set()
@@ -1250,3 +1351,7 @@ class TypeChecker(unittest.TestCase):
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.infer_type_from_field_dispatcher.keys()))
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.infer_type_from_subscript_dispatcher.keys()))
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.replace_template_types_dispatcher.keys()))
+
+        all_builtin_types = set(typ.value for typ in nodes.BuiltinType)
+        self.assertEqual(all_builtin_types, set(self.infer_type_from_field_of_builtin_type_dispatcher.keys()))
+        self.assertEqual(all_builtin_types, set(self.infer_type_from_subscript_of_builtin_type_dispatcher.keys()))

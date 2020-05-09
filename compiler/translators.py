@@ -714,7 +714,7 @@ class Translator(unittest.TestCase):
         return cpp_nodes.If(condition, body, else_ifs, else_)
 
     def desugar_if_condition(
-            self, condition: nodes.Expression, body: nodes.AST
+        self, condition: nodes.Expression, body: nodes.AST
     ) -> t.Tuple[cpp_nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
         if isinstance(condition, nodes.ConstantDeclaration):
             assert condition.value is not None
@@ -814,7 +814,7 @@ class Translator(unittest.TestCase):
         return cpp_nodes.Id(tmp_name)
 
     def create_tmp(
-            self, type_: cpp_nodes.Type, value: t.Optional[cpp_nodes.Expression] = None
+        self, type_: cpp_nodes.Type, value: t.Optional[cpp_nodes.Expression] = None
     ) -> t.Tuple[nodes.Name, cpp_nodes.Id]:
         tmp_name = self.create_tmp_name()
         self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name.value, value=value))
