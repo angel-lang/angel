@@ -212,6 +212,29 @@ class AngelUnsatisfiedWhereClause(AngelError):
 
 
 @dataclass
+class AngelMultipleDispatchError(AngelError):
+    func_path: nodes.Expression
+    funcs: t.List[nodes.FunctionType]
+    got_args: t.List[nodes.Type]
+    supertype: t.Optional[nodes.Type]
+    code: Code
+
+    def __str__(self):
+        args = ', '.join(arg.to_code() for arg in self.got_args)
+        impls = '\n'.join(func.to_code() for func in self.funcs)
+        if self.supertype:
+            return_type = f" and returns {self.supertype.to_code()}"
+        else:
+            return_type = ""
+        return "\n".join((
+            f"Multiple Dispatch Error: there is no {self.func_path.to_code()} that expects ({args}){return_type}.",
+            f"but there are implementations:\n{impls}",
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelWrongArguments(AngelError):
     expected: str
     code: Code

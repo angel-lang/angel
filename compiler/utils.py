@@ -50,6 +50,9 @@ apply_mapping_dispatcher = {
         func.params, [nodes.Argument(arg.name, apply_mapping(arg.type, mapping), arg.value) for arg in func.args],
         apply_mapping(func.return_type, mapping), func.is_algebraic_method
     ),
+    nodes.MultipleDispatch: lambda multid, mapping: nodes.MultipleDispatch(
+        [t.cast(nodes.FunctionType, apply_mapping(func, mapping)) for func in multid.funcs]
+    ),
     nodes.BuiltinType: lambda builtin, mapping: builtin,
     nodes.TemplateType: lambda template, mapping: template,
     nodes.StructType: lambda struct, mapping: nodes.StructType(
