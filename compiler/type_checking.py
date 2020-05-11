@@ -461,7 +461,8 @@ class TypeChecker(unittest.TestCase):
             nodes.FunctionType: lambda func_type: nodes.FunctionType(
                 func_type.params,
                 [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.args],
-                self.replace_template_types(func_type.return_type), func_type.is_algebraic_method
+                self.replace_template_types(func_type.return_type), is_algebraic_method=func_type.is_algebraic_method,
+                constraints=func_type.constraints
             ),
             nodes.MultipleDispatch: lambda multid: nodes.MultipleDispatch(
                 [self.replace_template_types(func) for func in multid.funcs]
@@ -606,8 +607,11 @@ class TypeChecker(unittest.TestCase):
 
     def match_with_function_type(
         self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
-        mapping: Mapping
+        mapping: Mapping, self_value: t.Optional[nodes.Expression] = None, self_type: t.Optional[nodes.Type] = None
     ) -> InferenceResult:
+        if function_type.constraints:
+            # TODO: satisfy constraints
+            pass
         for param in function_type.params:
             mapping[param.member] = self.create_template_type()
         for arg, value in zip_longest(function_type.args, args):
@@ -677,7 +681,9 @@ class TypeChecker(unittest.TestCase):
         supertype: t.Optional[nodes.Type]
     ) -> InferenceResult:
         call.is_algebraic_method = method_type.is_algebraic_method
-        return self.match_with_function_type(method_type, call.args, supertype, mapping)
+        return self.match_with_function_type(
+            method_type, call.args, supertype, mapping, self_value=call.instance_path, self_type=call.instance_type
+        )
 
     def _infer_type_from_method_call__error(
         self, method_type: nodes.Type, call: nodes.MethodCall, mapping: Mapping, supertype: t.Optional[nodes.Type]
@@ -800,7 +806,7 @@ class TypeChecker(unittest.TestCase):
                 is_algebraic_method = True
             return to_inference_result(
                 self.unify_types(
-                    nodes.FunctionType([], method_entry.args, method_entry.return_type, is_algebraic_method),
+                    nodes.FunctionType([], method_entry.args, method_entry.return_type, is_algebraic_method=is_algebraic_method),
                     supertype, mapping
                 )
             )
@@ -1192,9 +1198,11 @@ class TypeChecker(unittest.TestCase):
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
         else:
+            constraints = list(set(subtype.constraints + supertype.constraints))
             return UnificationResult(
                 nodes.FunctionType(
-                    subtype.params, arguments, return_result.type, is_algebraic_method=subtype.is_algebraic_method
+                    subtype.params, arguments, return_result.type, is_algebraic_method=subtype.is_algebraic_method,
+                    constraints=constraints
                 ),
                 return_result.mapping
             )

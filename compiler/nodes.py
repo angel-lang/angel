@@ -759,6 +759,7 @@ class FunctionType(Type):
     args: Arguments
     return_type: Type
     is_algebraic_method: bool = False
+    constraints: t.List[Expression] = field(default_factory=list)
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()}"
@@ -814,6 +815,16 @@ class I8Fields(enum.Enum):
             I8Fields.add.value: MultipleDispatch([
                 FunctionType([], [Argument("other", BuiltinType.f32)], BuiltinType.f64),
 
+                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.i8, is_algebraic_method=False, constraints=[
+                    BinaryExpression(
+                        BinaryExpression(Name("self"), Operator.add, Name("other")), Operator.gt_eq,
+                        IntegerLiteral("-128")
+                    ),
+                    BinaryExpression(
+                        BinaryExpression(Name("self"), Operator.add, Name("other")), Operator.lt_eq,
+                        IntegerLiteral("127")
+                    ),
+                ]),
                 FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.i16),
                 FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.i32),
                 FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.i64),

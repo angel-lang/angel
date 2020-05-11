@@ -48,7 +48,7 @@ apply_mapping_dispatcher = {
     nodes.Name: lambda name, mapping: mapping.get(name.member, name),
     nodes.FunctionType: lambda func, mapping: nodes.FunctionType(
         func.params, [nodes.Argument(arg.name, apply_mapping(arg.type, mapping), arg.value) for arg in func.args],
-        apply_mapping(func.return_type, mapping), func.is_algebraic_method
+        apply_mapping(func.return_type, mapping), func.is_algebraic_method, func.constraints
     ),
     nodes.MultipleDispatch: lambda multid, mapping: nodes.MultipleDispatch(
         [t.cast(nodes.FunctionType, apply_mapping(func, mapping)) for func in multid.funcs]
