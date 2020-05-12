@@ -132,6 +132,7 @@ class Evaluator(unittest.TestCase):
             enodes.Algebraic: self.estimate_algebraic_field,
             enodes.AlgebraicConstructorInstance: self.estimate_algebraic_constructor_instance_field,
             enodes.Ref: self.estimate_ref_field,
+            enodes.DynamicValue: self.estimate_field__dynamic_field,
         }
 
         self.assignment_dispatcher = {
@@ -448,7 +449,7 @@ class Evaluator(unittest.TestCase):
         # Estimation is performed after name checking.
         assert entry is not None
         if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
-            assert entry.estimated_value is not None
+            assert entry.estimated_value is not None, f"WTF: {name.to_code()}"
             return entry.estimated_value
         elif isinstance(entry, entries.FunctionEntry):
             return enodes.Function(entry.args, entry.return_type, specification=entry.body)
@@ -500,6 +501,13 @@ class Evaluator(unittest.TestCase):
     def estimate_ref_field(self, ref: enodes.Ref, field: nodes.Name) -> enodes.Expression:
         assert (field.unmangled or field.member) == 'value'
         return ref.value
+
+    def estimate_field__dynamic_field(
+        self, dynamic_value: enodes.DynamicValue, field: nodes.Name
+    ) -> enodes.Expression:
+        # get field's type and return dynamic value of this type
+        # TODO: write static field type getter
+        assert 0
 
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:
         base = self.estimate_expression(field.base)

@@ -4,7 +4,7 @@ from collections import namedtuple
 from decimal import Decimal
 from itertools import zip_longest
 
-from . import nodes, errors, environment, environment_entries as entries
+from . import nodes, errors, environment, environment_entries as entries, estimation_nodes as enodes
 from .constants import builtin_interfaces
 from .utils import dispatch, TYPES, EXPRS, apply_mapping, is_user_defined_type
 
@@ -486,6 +486,29 @@ class TypeChecker(unittest.TestCase):
             nodes.RefType: lambda ref_type: nodes.RefType(self.replace_template_types(ref_type.value_type))
         }
 
+        self.satisfy_binary_expression_dispatcher = {
+            nodes.Operator.and_.value: self.satisfy_and_binary_expression,
+            nodes.Operator.or_.value: self.satisfy_or_binary_expression,
+            nodes.Operator.gt_eq.value: lambda expression, mapping: self.satisfy_or_binary_expression(
+                nodes.BinaryExpression(
+                    nodes.BinaryExpression(expression.left, nodes.Operator.eq_eq, expression.right), nodes.Operator.or_,
+                    nodes.BinaryExpression(expression.left, nodes.Operator.gt, expression.right)
+                ), mapping
+            ),
+            nodes.Operator.lt_eq.value: lambda expression, mapping: self.satisfy_or_binary_expression(
+                nodes.BinaryExpression(
+                    nodes.BinaryExpression(expression.left, nodes.Operator.eq_eq, expression.right), nodes.Operator.or_,
+                    nodes.BinaryExpression(expression.left, nodes.Operator.lt, expression.right)
+                ), mapping
+            ),
+        }
+
+        self.satisfy_where_clauses_dispatcher = {
+            nodes.BinaryExpression: lambda expression, mapping: dispatch(
+                self.satisfy_binary_expression_dispatcher, expression.operator.value, expression, mapping
+            ),
+        }
+
     def infer_type(
         self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None, mapping: t.Optional[Mapping] = None
     ) -> InferenceResult:
@@ -609,9 +632,19 @@ class TypeChecker(unittest.TestCase):
         self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
         mapping: Mapping, self_value: t.Optional[nodes.Expression] = None, self_type: t.Optional[nodes.Type] = None
     ) -> InferenceResult:
-        if function_type.constraints:
-            # TODO: satisfy constraints
-            pass
+        if self_value:
+            assert self_type
+            self.env.add_variable(
+                0, nodes.Name(nodes.SpecialName.self.value), self_type, value=self_value,
+                estimated_value=self.estimate_expression(self_value)
+            )
+        for arg, value in zip(function_type.args, args):
+            self.env.add_constant(
+                0, arg.name, arg.type, value, estimated_value=self.estimate_expression(value)
+            )
+        self.satisfy_where_clauses(
+            [nodes.WhereClause(constraint) for constraint in function_type.constraints], mapping
+        )
         for param in function_type.params:
             mapping[param.member] = self.create_template_type()
         for arg, value in zip_longest(function_type.args, args):
@@ -1366,42 +1399,31 @@ class TypeChecker(unittest.TestCase):
     def replace_template_types_template_type(self, template_type: nodes.TemplateType) -> nodes.Type:
         return self.template_types[template_type.id] or template_type
 
-    def eval_is(self, subtype: nodes.Type, supertype: nodes.Type, mapping: Mapping) -> bool:
-        try:
-            self.unify_types(subtype, supertype, mapping)
-        except errors.AngelTypeError:
-            return False
-        else:
-            return True
+    def satisfy_and_binary_expression(self, binary_expression: nodes.BinaryExpression, mapping: Mapping):
+        left = self.estimate_expression(binary_expression.left)
+        right = self.estimate_expression(binary_expression.right)
+        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
+        if not (left.value and right.value):
+            raise errors.AngelUnsatisfiedWhereClause(binary_expression, self.code)
 
-    def eval_where_clause(self, clause: nodes.Expression, mapping: Mapping) -> bool:
-        if isinstance(clause, nodes.BinaryExpression):
-            if clause.operator == nodes.Operator.is_:
-                assert isinstance(clause.left, nodes.Type)
-                assert isinstance(clause.right, nodes.Type)
-                left_type = apply_mapping(clause.left, mapping)
-                right_type = apply_mapping(clause.right, mapping)
-                return self.eval_is(left_type, right_type, mapping)
-            else:
-                assert 0, f"Cannot eval not 'is' expression"
-        else:
-            assert 0, f"Cannot eval where clause {clause}"
+    def satisfy_or_binary_expression(self, binary_expression: nodes.BinaryExpression, mapping: Mapping):
+        left = self.estimate_expression(binary_expression.left)
+        right = self.estimate_expression(binary_expression.right)
+        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
+        if not (left.value or right.value):
+            raise errors.AngelUnsatisfiedWhereClause(binary_expression, self.code)
 
     def satisfy_where_clauses(self, where_clauses: t.List[nodes.WhereClause], mapping: Mapping):
         for clause in where_clauses:
             condition = clause.condition
             if not condition:
                 continue
-            elif isinstance(condition, nodes.BinaryExpression):
-                if condition.operator == nodes.Operator.and_:
-                    left = self.eval_where_clause(condition.left, mapping)
-                    right = self.eval_where_clause(condition.right, mapping)
-                    if not (left and right):
-                        raise errors.AngelUnsatisfiedWhereClause(condition, self.code)
-                else:
-                    assert 0, f"Cannot satisfy where clause (binary expression) {condition.operator}"
-            else:
-                assert 0, f"Cannot satisfy where clause with {condition} clause"
+            dispatch(self.satisfy_where_clauses_dispatcher, type(condition), condition, mapping)
+
+    def estimate_expression(self, expression: nodes.Expression) -> enodes.Expression:
+        assert self.estimator
+        self.estimator.update_context(self.env, self.code)
+        return self.estimator.estimate_expression(expression)
 
     def error_builtin_type_does_not_support_field(
         self, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]

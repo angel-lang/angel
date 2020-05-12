@@ -97,7 +97,10 @@ class Environment:
             func = self.add_variable
         else:
             func = self.add_constant
-        func(line, nodes.Name(nodes.SpecialName.self.value), type_, value=None)
+        func(
+            line, nodes.Name(nodes.SpecialName.self.value), type_, value=None,
+            estimated_value=enodes.DynamicValue(type_)
+        )
 
     def add_init_declaration(self, line: int, args: nodes.Arguments) -> None:
         entry = self._get_parent_type_entry()

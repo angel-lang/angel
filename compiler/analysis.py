@@ -113,7 +113,10 @@ class Analyzer(unittest.TestCase):
         self.env.add_parameters(declaration.line, declaration.params)
         self.function_return_types.append(return_type)
         for arg in args:
-            self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
+            self.env.add_constant(
+                declaration.line, arg.name, arg.type, value=None,
+                estimated_value=enodes.DynamicValue(arg.type)
+            )
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
         self.env.dec_nesting()
@@ -237,7 +240,9 @@ class Analyzer(unittest.TestCase):
         self.function_return_types.append(return_type)
         self.env.add_self(declaration.line)
         for arg in args:
-            self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
+            self.env.add_constant(
+                declaration.line, arg.name, arg.type, value=None, estimated_value=enodes.DynamicValue(arg.type)
+            )
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
         self.env.dec_nesting()
