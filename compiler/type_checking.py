@@ -4,7 +4,7 @@ from collections import namedtuple
 from decimal import Decimal
 from itertools import zip_longest
 
-from . import nodes, errors, environment, environment_entries as entries, estimation_nodes as enodes
+from . import nodes, errors, environment, environment_entries as entries
 from .constants import builtin_interfaces
 from .utils import dispatch, TYPES, EXPRS, apply_mapping, is_user_defined_type
 
@@ -74,168 +74,55 @@ class TypeChecker(unittest.TestCase):
     def __init__(self):
         super().__init__()
         self.env: environment.Environment = environment.Environment()
-        self.code: errors.Code = errors.Code()
+        self.code: errors.Code = errors.Code("", 0)
         self.estimator = None
 
         self.template_types = []
         self.template_type_id = -1
 
-        # value.field where value is of builtin type
         self.infer_type_from_field_of_builtin_type_dispatcher = {
             nodes.BuiltinType.string.value: lambda field, mapping, supertype: to_inference_result(
                 self.unify_types(
-                    nodes.StringFields(field.field.to_code()).as_type, supertype, mapping
+                    nodes.StringFields(field.field.unmangled or field.field.member).as_type, supertype, mapping
                 )
-            ),
-            # TODO: think about Self type interpretation (add to env; how about nested checkings with diff mappings?)
-            nodes.BuiltinType.self_.value: lambda f, m, s: NotImplementedError,
-
-            nodes.BuiltinType.char.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.optional.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.bool.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.void.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.i8.value: lambda field, mapping, supertype: to_inference_result(
-                self.unify_types(
-                    nodes.I8Fields(field.field.to_code()).as_type, supertype, mapping
-                )
-            ),
-            nodes.BuiltinType.i16.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.i32.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.i64.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.u8.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.u16.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.u32.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.u64.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.f32.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.f64.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.convertible_to_i8.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.convertible_to_i16.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.convertible_to_i32.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.convertible_to_i64.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.convertible_to_u8.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.convertible_to_u16.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.convertible_to_u32.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.convertible_to_u64.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.convertible_to_string.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.addable.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.subtractable.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.multipliable.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.divisible.value: self.error_builtin_type_does_not_support_field,
-            nodes.BuiltinType.arithmetic_object.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.eq.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.iterable.value: self.error_builtin_type_does_not_support_field,
-
-            nodes.BuiltinType.object_.value: self.error_builtin_type_does_not_support_field,
+            )
         }
 
-        # value[index] where value is of builtin type
         self.infer_type_from_subscript_of_builtin_type_dispatcher = {
-            nodes.BuiltinType.string.value: self.infer_type_from_string_builtin_type_subscript,
-
-            # TODO: think about Self type interpretation (add to env; how about nested checkings with diff mappings?)
-            nodes.BuiltinType.self_.value: lambda sub, m, sup: NotImplementedError,
-
-            nodes.BuiltinType.char.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.optional.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.bool.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.void.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.i8.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.i16.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.i32.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.i64.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.u8.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.u16.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.u32.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.u64.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.f32.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.f64.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.convertible_to_i8.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.convertible_to_i16.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.convertible_to_i32.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.convertible_to_i64.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.convertible_to_u8.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.convertible_to_u16.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.convertible_to_u32.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.convertible_to_u64.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.convertible_to_string.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.addable.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.subtractable.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.multipliable.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.divisible.value: self.error_builtin_type_does_not_support_subscript,
-            nodes.BuiltinType.arithmetic_object.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.eq.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.iterable.value: self.error_builtin_type_does_not_support_subscript,
-
-            nodes.BuiltinType.object_.value: self.error_builtin_type_does_not_support_subscript,
+            nodes.BuiltinType.string.value: self.infer_type_from_string_builtin_type_subscript
         }
 
-        # instance.method(args) where instance.method is of type (key)
-        self.infer_type_from_method_call_dispatcher_by_method_type = {
-            nodes.BuiltinType: self._infer_type_from_method_call__error,
-            nodes.Name: self._infer_type_from_method_call__error,
-            nodes.TemplateType: self._infer_type_from_method_call__error,
-            nodes.DictType: self._infer_type_from_method_call__error,
-            nodes.VectorType: self._infer_type_from_method_call__error,
-            nodes.OptionalType: self._infer_type_from_method_call__error,
-            nodes.StructType: self._infer_type_from_method_call__error,
-            nodes.GenericType: self._infer_type_from_method_call__error,
-            nodes.RefType: self._infer_type_from_method_call__error,
-            nodes.FunctionType: self.infer_type_from_method_call__method_type__function_type,
-            nodes.MultipleDispatch: self.infer_type_from_method_call__method_type__multiple_dispatch,
-            nodes.AlgebraicType: lambda method_type, call, mapping, supertype: to_inference_result(
-                self.unify_types(method_type, supertype, mapping)
-            ),
-        }
-
-        # value.field where value is of type (key)
         self.infer_type_from_field_dispatcher = {
             nodes.BuiltinType: lambda base_type, field, mapping, supertype: dispatch(
                 self.infer_type_from_field_of_builtin_type_dispatcher, base_type.value, field, mapping, supertype
             ),
-            nodes.FunctionType: self.error_type_does_not_support_field,
-            nodes.MultipleDispatch: self.error_type_does_not_support_field,
+            nodes.FunctionType: self.infer_field_of_function_type,
             nodes.Name: self.infer_field_of_name_type,
-            nodes.TemplateType: self.error_type_does_not_support_field,
+            nodes.TemplateType: self.infer_field_of_template_type,
             nodes.DictType: self.infer_field_of_dict_type,
             nodes.VectorType: self.infer_field_of_vector_type,
-            nodes.OptionalType: self.error_type_does_not_support_field,
-            nodes.StructType: self.error_type_does_not_support_field,
+            nodes.OptionalType: self.infer_field_of_optional_type,
+            nodes.StructType: self.infer_field_of_struct_type,
             nodes.GenericType: self.infer_field_of_generic_type,
             nodes.AlgebraicType: self.infer_field_of_algebraic_type,
             nodes.RefType: self.infer_field_of_ref_type,
         }
 
-        # value[index] where value is of type (key)
         self.infer_type_from_subscript_dispatcher = {
             nodes.BuiltinType: lambda base_type, subscript, mapping, supertype: dispatch(
                 self.infer_type_from_subscript_of_builtin_type_dispatcher, base_type.value, subscript,
                 mapping, supertype
             ),
-            nodes.FunctionType: self.error_type_does_not_support_subscript,
-            nodes.MultipleDispatch: self.error_type_does_not_support_subscript,
-            nodes.Name: self.error_type_does_not_support_subscript,
-            nodes.TemplateType: self.error_type_does_not_support_subscript,
+            nodes.FunctionType: self.infer_subscript_of_function_type,
+            nodes.Name: self.infer_subscript_of_name_type,
+            nodes.TemplateType: self.infer_subscript_of_template_type,
             nodes.DictType: self.infer_subscript_of_dict_type,
             nodes.VectorType: self.infer_subscript_of_vector_type,
-            nodes.OptionalType: self.error_type_does_not_support_subscript,
-            nodes.StructType: self.error_type_does_not_support_subscript,
-            nodes.GenericType: self.error_type_does_not_support_subscript,
-            nodes.AlgebraicType: self.error_type_does_not_support_subscript,
-            nodes.RefType: self.error_type_does_not_support_subscript,
+            nodes.OptionalType: self.infer_subscript_of_optional_type,
+            nodes.StructType: self.infer_subscript_of_struct_type,
+            nodes.GenericType: self.infer_subscript_of_generic_type,
+            nodes.AlgebraicType: self.infer_subscript_of_algebraic_type,
+            nodes.RefType: self.infer_subscript_of_ref_type,
         }
 
         self.type_inference_dispatcher = {
@@ -288,7 +175,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.GenericType, nodes.GenericType): self.unify_generic_types,
             (nodes.AlgebraicType, nodes.AlgebraicType): self.unify_algebraic_types,
             (nodes.RefType, nodes.RefType): self.unify_ref_types,
-            (nodes.MultipleDispatch, nodes.MultipleDispatch): self.unify_multiple_dispatches,
 
             (nodes.BuiltinType, nodes.VectorType): self.unification_failed,
             (nodes.BuiltinType, nodes.DictType): self.unification_failed,
@@ -300,7 +186,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.BuiltinType, nodes.GenericType): self.unify_builtin_type_with_generic_type,
             (nodes.BuiltinType, nodes.AlgebraicType): self.unification_failed,
             (nodes.BuiltinType, nodes.RefType): self.unification_failed,
-            (nodes.BuiltinType, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.VectorType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
                 UnificationResult(supertype, mapping)
@@ -316,7 +201,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.VectorType, nodes.GenericType): self.unify_vector_with_generic_type,
             (nodes.VectorType, nodes.AlgebraicType): self.unification_failed,
             (nodes.VectorType, nodes.RefType): self.unification_failed,
-            (nodes.VectorType, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.TemplateType, nodes.BuiltinType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.VectorType): self.unification_template_subtype_success,
@@ -329,7 +213,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.TemplateType, nodes.GenericType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.AlgebraicType): self.unification_template_subtype_success,
             (nodes.TemplateType, nodes.RefType): self.unification_template_subtype_success,
-            (nodes.TemplateType, nodes.MultipleDispatch): self.unification_template_subtype_success,
 
             (nodes.DictType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
                 UnificationResult(supertype, mapping)
@@ -345,7 +228,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.DictType, nodes.GenericType): self.unification_failed,
             (nodes.DictType, nodes.AlgebraicType): self.unification_failed,
             (nodes.DictType, nodes.RefType): self.unification_failed,
-            (nodes.DictType, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.OptionalType, nodes.BuiltinType): lambda subtype, supertype, mapping: (
                 UnificationResult(supertype, mapping)
@@ -361,7 +243,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.OptionalType, nodes.GenericType): self.unification_failed,
             (nodes.OptionalType, nodes.AlgebraicType): self.unification_failed,
             (nodes.OptionalType, nodes.RefType): self.unification_failed,
-            (nodes.OptionalType, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.FunctionType, nodes.BuiltinType): self.unification_failed,
             (nodes.FunctionType, nodes.VectorType): self.unification_failed,
@@ -373,7 +254,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.FunctionType, nodes.GenericType): self.unification_failed,
             (nodes.FunctionType, nodes.AlgebraicType): self.unification_failed,
             (nodes.FunctionType, nodes.RefType): self.unification_failed,
-            (nodes.FunctionType, nodes.MultipleDispatch): self.unify_function_type_with_multiple_dispatch,
 
             (nodes.Name, nodes.BuiltinType): self.unify_name_with_builtin_type,
             (nodes.Name, nodes.VectorType): self.unification_failed,
@@ -385,7 +265,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.Name, nodes.GenericType): self.unification_failed,
             (nodes.Name, nodes.AlgebraicType): self.unification_failed,
             (nodes.Name, nodes.RefType): self.unification_failed,
-            (nodes.Name, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.StructType, nodes.BuiltinType): self.unification_failed,
             (nodes.StructType, nodes.VectorType): self.unification_failed,
@@ -397,7 +276,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.StructType, nodes.Name): self.unify_type_with_name,
             (nodes.StructType, nodes.AlgebraicType): self.unification_failed,
             (nodes.StructType, nodes.RefType): self.unification_failed,
-            (nodes.StructType, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.GenericType, nodes.BuiltinType): self.unify_generic_type_with_builtin_type,
             (nodes.GenericType, nodes.VectorType): self.unification_failed,
@@ -409,7 +287,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.GenericType, nodes.Name): self.unify_type_with_name,
             (nodes.GenericType, nodes.AlgebraicType): self.unification_failed,
             (nodes.GenericType, nodes.RefType): self.unification_failed,
-            (nodes.GenericType, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.AlgebraicType, nodes.BuiltinType): self.unification_failed,
             (nodes.AlgebraicType, nodes.VectorType): self.unification_failed,
@@ -421,7 +298,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.AlgebraicType, nodes.Name): self.unify_algebraic_type_with_name,
             (nodes.AlgebraicType, nodes.GenericType): self.unification_failed,
             (nodes.AlgebraicType, nodes.RefType): self.unification_failed,
-            (nodes.AlgebraicType, nodes.MultipleDispatch): self.unification_failed,
 
             (nodes.RefType, nodes.BuiltinType): lambda sub, sup, mapping: (
                 UnificationResult(sup, mapping) if sup == nodes.BuiltinType.object_
@@ -436,22 +312,6 @@ class TypeChecker(unittest.TestCase):
             (nodes.RefType, nodes.Name): self.unify_type_with_name,
             (nodes.RefType, nodes.GenericType): self.unification_failed,
             (nodes.RefType, nodes.AlgebraicType): self.unification_failed,
-            (nodes.RefType, nodes.MultipleDispatch): self.unification_failed,
-
-            (nodes.MultipleDispatch, nodes.BuiltinType): lambda sub, sup, mapping: (
-                UnificationResult(sup, mapping) if sup == nodes.BuiltinType.object_
-                else self.unification_failed
-            ),
-            (nodes.MultipleDispatch, nodes.VectorType): self.unification_failed,
-            (nodes.MultipleDispatch, nodes.DictType): self.unification_failed,
-            (nodes.MultipleDispatch, nodes.TemplateType): self.unification_template_supertype_success,
-            (nodes.MultipleDispatch, nodes.OptionalType): self.unification_failed,
-            (nodes.MultipleDispatch, nodes.FunctionType): self.unification_failed,
-            (nodes.MultipleDispatch, nodes.StructType): self.unification_failed,
-            (nodes.MultipleDispatch, nodes.Name): self.unify_type_with_name,
-            (nodes.MultipleDispatch, nodes.GenericType): self.unification_failed,
-            (nodes.MultipleDispatch, nodes.AlgebraicType): self.unification_failed,
-            (nodes.MultipleDispatch, nodes.RefType): self.unification_failed,
         }
 
         self.replace_template_types_dispatcher = {
@@ -461,11 +321,7 @@ class TypeChecker(unittest.TestCase):
             nodes.FunctionType: lambda func_type: nodes.FunctionType(
                 func_type.params,
                 [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.args],
-                self.replace_template_types(func_type.return_type), is_algebraic_method=func_type.is_algebraic_method,
-                constraints=func_type.constraints
-            ),
-            nodes.MultipleDispatch: lambda multid: nodes.MultipleDispatch(
-                [self.replace_template_types(func) for func in multid.funcs]
+                self.replace_template_types(func_type.return_type), func_type.is_algebraic_method
             ),
             nodes.DictType: lambda dict_type: nodes.DictType(self.replace_template_types(dict_type.key_type),
                                                              self.replace_template_types(dict_type.value_type)),
@@ -486,36 +342,13 @@ class TypeChecker(unittest.TestCase):
             nodes.RefType: lambda ref_type: nodes.RefType(self.replace_template_types(ref_type.value_type))
         }
 
-        self.satisfy_binary_expression_dispatcher = {
-            nodes.Operator.and_.value: self.satisfy_and_binary_expression,
-            nodes.Operator.or_.value: self.satisfy_or_binary_expression,
-            nodes.Operator.gt_eq.value: lambda expression, mapping: self.satisfy_or_binary_expression(
-                nodes.BinaryExpression(
-                    nodes.BinaryExpression(expression.left, nodes.Operator.eq_eq, expression.right), nodes.Operator.or_,
-                    nodes.BinaryExpression(expression.left, nodes.Operator.gt, expression.right)
-                ), mapping
-            ),
-            nodes.Operator.lt_eq.value: lambda expression, mapping: self.satisfy_or_binary_expression(
-                nodes.BinaryExpression(
-                    nodes.BinaryExpression(expression.left, nodes.Operator.eq_eq, expression.right), nodes.Operator.or_,
-                    nodes.BinaryExpression(expression.left, nodes.Operator.lt, expression.right)
-                ), mapping
-            ),
-        }
-
-        self.satisfy_where_clauses_dispatcher = {
-            nodes.BinaryExpression: lambda expression, mapping: dispatch(
-                self.satisfy_binary_expression_dispatcher, expression.operator.value, expression, mapping
-            ),
-        }
-
     def infer_type(
-        self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None, mapping: t.Optional[Mapping] = None
+            self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None, mapping: t.Optional[Mapping] = None
     ) -> InferenceResult:
         return dispatch(self.type_inference_dispatcher, type(value), value, supertype, mapping or {})
 
     def infer_type_from_name(
-        self, name: nodes.Name, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, name: nodes.Name, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         entry = self.env.get(name)
         if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
@@ -542,12 +375,12 @@ class TypeChecker(unittest.TestCase):
             assert 0, f"Type inference from name can't handle {type(entry)}"
 
     def infer_type_from_special_name(
-        self, special_name: nodes.SpecialName, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, special_name: nodes.SpecialName, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         return self.infer_type_from_name(nodes.Name(special_name.value), supertype, mapping)
 
     def infer_type_from_builtin_func(
-        self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, builtin_func: nodes.BuiltinFunc, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         return to_inference_result(self.unify_types({
             nodes.BuiltinFunc.print.value: nodes.FunctionType(
@@ -571,7 +404,7 @@ class TypeChecker(unittest.TestCase):
         }[builtin_func.value], supertype, mapping))
 
     def infer_type_from_function_call(
-        self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         function_result = self.infer_type(call.function_path)
         function_type = function_result.type
@@ -593,8 +426,8 @@ class TypeChecker(unittest.TestCase):
         raise errors.AngelNoncallableCall(call.function_path, self.code)
 
     def match_init_declaration(
-        self, struct_type: nodes.StructType, init_declarations: t.List[entries.InitEntry],
-        args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, struct_type: nodes.StructType, init_declarations: t.List[entries.InitEntry],
+            args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         matched = True
         expected_major = []
@@ -629,22 +462,9 @@ class TypeChecker(unittest.TestCase):
         raise errors.AngelWrongArguments(expected, self.code, args)
 
     def match_with_function_type(
-        self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
-        mapping: Mapping, self_value: t.Optional[nodes.Expression] = None, self_type: t.Optional[nodes.Type] = None
+            self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
+            mapping: Mapping
     ) -> InferenceResult:
-        if self_value:
-            assert self_type
-            self.env.add_variable(
-                0, nodes.Name(nodes.SpecialName.self.value), self_type, value=self_value,
-                estimated_value=self.estimate_expression(self_value)
-            )
-        for arg, value in zip(function_type.args, args):
-            self.env.add_constant(
-                0, arg.name, arg.type, value, estimated_value=self.estimate_expression(value)
-            )
-        self.satisfy_where_clauses(
-            [nodes.WhereClause(constraint) for constraint in function_type.constraints], mapping
-        )
         for param in function_type.params:
             mapping[param.member] = self.create_template_type()
         for arg, value in zip_longest(function_type.args, args):
@@ -682,47 +502,17 @@ class TypeChecker(unittest.TestCase):
         method_result = self.infer_type_from_field(
             nodes.Field(call.line, call.instance_path, call.method), supertype=None, mapping=mapping
         )
-        instance_result = self.infer_type(call.instance_path, mapping=mapping)
-        call.instance_type = instance_result.type
-        return dispatch(
-            self.infer_type_from_method_call_dispatcher_by_method_type, type(method_result.type), method_result.type,
-            call, mapping, supertype
-        )
-
-    def infer_type_from_method_call__method_type__multiple_dispatch(
-        self, method_type: nodes.MultipleDispatch, call: nodes.MethodCall, mapping: Mapping,
-        supertype: t.Optional[nodes.Type]
-    ) -> InferenceResult:
-        for func in method_type.funcs:
-            try:
-                result = self.infer_type_from_method_call__method_type__function_type(
-                    func, call, mapping, supertype
-                )
-            except errors.AngelTypeError:
-                pass
-            else:
-                return result
-        arg_types = [self.infer_type(arg).type for arg in call.args]
-        raise errors.AngelMultipleDispatchError(
-            # cast is a crutch :)
-            nodes.Field(call.line, t.cast(nodes.Expression, call.instance_type), call.method),
-            method_type.funcs, arg_types, supertype, self.code
-        )
-
-    def infer_type_from_method_call__method_type__function_type(
-        self, method_type: nodes.FunctionType, call: nodes.MethodCall, mapping: Mapping,
-        supertype: t.Optional[nodes.Type]
-    ) -> InferenceResult:
-        call.is_algebraic_method = method_type.is_algebraic_method
-        return self.match_with_function_type(
-            method_type, call.args, supertype, mapping, self_value=call.instance_path, self_type=call.instance_type
-        )
-
-    def _infer_type_from_method_call__error(
-        self, method_type: nodes.Type, call: nodes.MethodCall, mapping: Mapping, supertype: t.Optional[nodes.Type]
-    ) -> InferenceResult:
-        assert call.instance_type is not None
-        raise errors.AngelFieldError(call.instance_path, call.instance_type, call.method.to_code(), self.code)
+        if isinstance(method_result.type, nodes.FunctionType):
+            instance_result = self.infer_type(call.instance_path, mapping=mapping)
+            call.instance_type = instance_result.type
+            call.is_algebraic_method = method_result.type.is_algebraic_method
+            return self.match_with_function_type(method_result.type, call.args, supertype, mapping)
+        elif isinstance(method_result.type, nodes.AlgebraicType) and method_result.type.constructor:
+            instance_result = self.infer_type(call.instance_path, mapping=mapping)
+            call.instance_type = instance_result.type
+            return to_inference_result(self.unify_types(method_result.type, supertype, mapping))
+        else:
+            assert 0, f"Cannot infer type from method call with type {method_result.type}"
 
     def infer_type_from_field(
         self, field: nodes.Field, supertype: t.Optional[nodes.Type], mapping: Mapping
@@ -758,7 +548,7 @@ class TypeChecker(unittest.TestCase):
         )
 
     def infer_type_from_subscript(
-        self, subscript: nodes.Subscript, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, subscript: nodes.Subscript, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         base_result = self.infer_type(subscript.base)
         subscript.base_type = base_result.type
@@ -766,6 +556,17 @@ class TypeChecker(unittest.TestCase):
             self.infer_type_from_subscript_dispatcher, type(subscript.base_type), subscript.base_type, subscript,
             mapping, supertype
         )
+
+    def infer_field_of_function_type(
+        self, base_type: nodes.FunctionType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
+
+    def infer_field_of_struct_type(
+        self, base_type: nodes.StructType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        # Only instance fields are supported.
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
 
     def infer_field_of_generic_type(
         self, base_type: nodes.GenericType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
@@ -839,7 +640,7 @@ class TypeChecker(unittest.TestCase):
                 is_algebraic_method = True
             return to_inference_result(
                 self.unify_types(
-                    nodes.FunctionType([], method_entry.args, method_entry.return_type, is_algebraic_method=is_algebraic_method),
+                    nodes.FunctionType([], method_entry.args, method_entry.return_type, is_algebraic_method),
                     supertype, mapping
                 )
             )
@@ -847,6 +648,11 @@ class TypeChecker(unittest.TestCase):
             return to_inference_result(self.unify_types(field_entry.type, supertype, mapping))
         else:
             assert 0, f"Cannot infer type from field with entry {field_entry}"
+
+    def infer_field_of_template_type(
+        self, base_type: nodes.TemplateType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
 
     def infer_field_of_dict_type(
         self, base_type: nodes.DictType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
@@ -869,6 +675,41 @@ class TypeChecker(unittest.TestCase):
             )
         )
 
+    def infer_field_of_optional_type(
+        self, base_type: nodes.OptionalType, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
+
+    def infer_subscript_of_algebraic_type(
+        self, base_type: nodes.AlgebraicType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+
+    def infer_subscript_of_ref_type(
+        self, base_type: nodes.RefType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+
+    def infer_subscript_of_function_type(
+        self, base_type: nodes.FunctionType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+
+    def infer_subscript_of_struct_type(
+        self, base_type: nodes.StructType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+
+    def infer_subscript_of_optional_type(
+        self, base_type: nodes.OptionalType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+
     def infer_subscript_of_vector_type(
         self, base_type: nodes.VectorType, subscript: nodes.Subscript, mapping: Mapping,
         supertype: t.Optional[nodes.Type]
@@ -882,6 +723,18 @@ class TypeChecker(unittest.TestCase):
     ) -> InferenceResult:
         self.infer_type(subscript.index, base_type.key_type)
         return to_inference_result(self.unify_types(base_type.value_type, supertype, mapping))
+
+    def infer_subscript_of_template_type(
+        self, base_type: nodes.TemplateType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
+
+    def infer_subscript_of_generic_type(
+        self, base_type: nodes.GenericType, subscript: nodes.Subscript, mapping: Mapping,
+        supertype: t.Optional[nodes.Type]
+    ) -> InferenceResult:
+        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
 
     def infer_type_from_string_builtin_type_subscript(
         self, subscript: nodes.Subscript, mapping: Mapping, supertype: t.Optional[nodes.Type]
@@ -916,7 +769,7 @@ class TypeChecker(unittest.TestCase):
             return to_inference_result(result)
 
     def infer_type_from_decimal_literal(
-        self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, value: nodes.DecimalLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         possible_types = get_possible_float_types_base_on_value(value.value)
         try:
@@ -936,7 +789,7 @@ class TypeChecker(unittest.TestCase):
             return to_inference_result(result)
 
     def infer_type_from_vector_literal(
-        self, value: nodes.VectorLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, value: nodes.VectorLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         element_result: UnificationResult = UnificationResult(self.create_template_type(), {})
         for element in value.elements:
@@ -951,7 +804,7 @@ class TypeChecker(unittest.TestCase):
         return to_inference_result(self.unify_types(subtype, supertype, mapping))
 
     def infer_type_from_dict_literal(
-        self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, value: nodes.DictLiteral, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         key_result: UnificationResult = UnificationResult(self.create_template_type(), {})
         value_result: UnificationResult = UnificationResult(self.create_template_type(), {})
@@ -975,53 +828,27 @@ class TypeChecker(unittest.TestCase):
     def infer_type_from_binary_expression(
         self, value: nodes.BinaryExpression, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
-        # left op right
-        # LT   +  RT
-        # Lt.method(other: RT) -> ? (result)
-        # for all types:
-        #     for all methods: -> generic
-        #         for all other types
-        #
         if value.operator.value == nodes.Operator.is_.value:
             return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
-        elif value.operator in nodes.Operator.higher_order_boolean_operators():
-            self.infer_type(value.left, supertype=nodes.BuiltinType.bool, mapping=mapping)
-            self.infer_type(value.right, supertype=nodes.BuiltinType.bool, mapping=mapping)
-            return InferenceResult(nodes.BuiltinType.bool, mapping)
-        elif value.operator.value in (nodes.Operator.lt_eq.value, nodes.Operator.gt_eq.value):
-            return self.infer_type_from_binary_expression(
-                nodes.BinaryExpression(
-                    nodes.BinaryExpression(
-                        value.left, nodes.Operator(value.operator.value[0]), value.right
-                    ), nodes.Operator.or_, nodes.BinaryExpression(
-                        value.left, nodes.Operator.eq_eq, value.right
-                    )
-                ), supertype, mapping
-            )
-        # TODO: check corresponding interface implementation
-        method_name = nodes.Name(nodes.SpecialMethods.from_operator(value.operator).value)
-        call = nodes.MethodCall(0, value.left, method_name, [value.right])
-        # Where clauses are checked in infer_type for method calls
-        return self.infer_type_from_method_call(call, supertype, mapping)
-        #
-        # if value.operator.value in nodes.Operator.comparison_operators_names():
-        #     if is_user_defined_type(left_result.type):
-        #         left_type_entry = self.env.get_type(left_result.type)
-        #         assert isinstance(left_type_entry, (entries.StructEntry, entries.ParameterEntry))
-        #         method_name = nodes.SpecialMethods.from_operator(value.operator).value
-        #         method_entry = left_type_entry.methods.get(method_name)
-        #         if method_entry is None:
-        #             raise errors.AngelFieldError(value.left, left_result.type, method_name, self.code)
-        #         if isinstance(left_result.type, nodes.GenericType):
-        #             mapping = self.basic_struct_mapping(left_result.type)
-        #         self.satisfy_where_clauses(method_entry.where_clauses, mapping)
-        #         # TODO: design sandbox for type checking: Self can map to different types (nested)
-        #         self.infer_type(value.right, supertype=None, mapping=left_result.mapping)
-        #         return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
-        #     self.infer_type(value.right, left_result.type, mapping=mapping)
-        #     return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
-        # result = self.infer_type(value.right, left_result.type, mapping=mapping)
-        # return to_inference_result(self.unify_types(result.type, supertype, mapping))
+        left_result = self.infer_type(value.left, mapping=mapping)
+        if value.operator.value in nodes.Operator.comparison_operators_names():
+            if is_user_defined_type(left_result.type):
+                left_type_entry = self.env.get_type(left_result.type)
+                assert isinstance(left_type_entry, (entries.StructEntry, entries.ParameterEntry))
+                method_name = nodes.SpecialMethods.from_operator(value.operator).value
+                method_entry = left_type_entry.methods.get(method_name)
+                if method_entry is None:
+                    raise errors.AngelFieldError(value.left, left_result.type, method_name, self.code)
+                if isinstance(left_result.type, nodes.GenericType):
+                    mapping = self.basic_struct_mapping(left_result.type)
+                self.satisfy_where_clauses(method_entry.where_clauses, mapping)
+                # TODO: design sandbox for type checking: Self can map to different types (nested)
+                self.infer_type(value.right, supertype=None, mapping=left_result.mapping)
+                return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+            self.infer_type(value.right, left_result.type, mapping=mapping)
+            return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+        result = self.infer_type(value.right, left_result.type, mapping=mapping)
+        return to_inference_result(self.unify_types(result.type, supertype, mapping))
 
     def infer_type_from_read_function_call(
         self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
@@ -1029,19 +856,19 @@ class TypeChecker(unittest.TestCase):
         return to_inference_result(self.unify_types(nodes.BuiltinType.string, supertype, mapping))
 
     def infer_type_from_optional_type_constructor(
-        self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, _: nodes.OptionalTypeConstructor, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         inner_type = self.create_template_type()
         return to_inference_result(self.unify_types(nodes.OptionalType(inner_type), supertype, mapping))
 
     def infer_type_from_optional_some_call(
-        self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, value: nodes.OptionalSomeCall, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         inner_result = self.infer_type(value.value)
         return to_inference_result(self.unify_types(nodes.OptionalType(inner_result.type), supertype, mapping))
 
     def infer_type_from_optional_some_value(
-        self, value: nodes.OptionalSomeValue, _: t.Optional[nodes.Type], mapping: Mapping
+            self, value: nodes.OptionalSomeValue, _: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         optional_result = self.infer_type(value.value, mapping=mapping)
         assert isinstance(optional_result.type, nodes.OptionalType)
@@ -1049,7 +876,7 @@ class TypeChecker(unittest.TestCase):
         return InferenceResult(optional_result.type.inner_type, mapping)
 
     def unify_types(
-        self, subtype: nodes.Type, supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, subtype: nodes.Type, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> UnificationResult:
         subtype = apply_mapping(subtype, mapping)
         if supertype is None:
@@ -1191,29 +1018,6 @@ class TypeChecker(unittest.TestCase):
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
 
-    def unify_function_type_with_multiple_dispatch(
-        self, subtype: nodes.FunctionType, supertype: nodes.MultipleDispatch, mapping: Mapping
-    ) -> UnificationResult:
-        for func in supertype.funcs:
-            try:
-                result = self.unify_function_types(subtype, func, mapping)
-            except errors.AngelTypeError:
-                pass
-            else:
-                return result
-        raise self.basic_type_error(subtype, supertype)
-
-    def unify_multiple_dispatches(
-        self, subtype: nodes.MultipleDispatch, supertype: nodes.MultipleDispatch, mapping: Mapping
-    ) -> UnificationResult:
-        for sub_func in subtype.funcs:
-            for sup_func in supertype.funcs:
-                try:
-                    self.unify_function_types(sub_func, sup_func, mapping)
-                except errors.AngelTypeError:
-                    raise self.basic_type_error(subtype, supertype)
-        return UnificationResult(supertype, mapping)
-
     def unify_function_types(
         self, subtype: nodes.FunctionType, supertype: nodes.FunctionType, mapping: Mapping
     ) -> UnificationResult:
@@ -1231,11 +1035,9 @@ class TypeChecker(unittest.TestCase):
         except errors.AngelTypeError:
             raise self.basic_type_error(subtype, supertype)
         else:
-            constraints = list(set(subtype.constraints + supertype.constraints))
             return UnificationResult(
                 nodes.FunctionType(
-                    subtype.params, arguments, return_result.type, is_algebraic_method=subtype.is_algebraic_method,
-                    constraints=constraints
+                    subtype.params, arguments, return_result.type, is_algebraic_method=subtype.is_algebraic_method
                 ),
                 return_result.mapping
             )
@@ -1324,7 +1126,7 @@ class TypeChecker(unittest.TestCase):
         )
 
     def unify_dict_types(
-        self, subtype: nodes.DictType, supertype: nodes.DictType, mapping: Mapping
+            self, subtype: nodes.DictType, supertype: nodes.DictType, mapping: Mapping
     ) -> UnificationResult:
         try:
             key_result = self.unify_types(subtype.key_type, supertype.key_type, mapping=mapping)
@@ -1337,7 +1139,7 @@ class TypeChecker(unittest.TestCase):
         raise self.basic_type_error(subtype, supertype)
 
     def unify_template_types(
-        self, subtype: nodes.TemplateType, supertype: nodes.TemplateType, mapping: Mapping
+            self, subtype: nodes.TemplateType, supertype: nodes.TemplateType, mapping: Mapping
     ) -> UnificationResult:
         real_type = self.template_types[subtype.id] or self.template_types[supertype.id]
         self.template_types[subtype.id] = real_type
@@ -1345,7 +1147,7 @@ class TypeChecker(unittest.TestCase):
         return UnificationResult(real_type or subtype, mapping)
 
     def unify_list_types(
-        self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type], mapping: Mapping
+            self, subtypes: t.Sequence[nodes.Type], supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> UnificationResult:
         fail = None
         for subtype in subtypes:
@@ -1399,53 +1201,42 @@ class TypeChecker(unittest.TestCase):
     def replace_template_types_template_type(self, template_type: nodes.TemplateType) -> nodes.Type:
         return self.template_types[template_type.id] or template_type
 
-    def satisfy_and_binary_expression(self, binary_expression: nodes.BinaryExpression, mapping: Mapping):
-        left = self.estimate_expression(binary_expression.left)
-        right = self.estimate_expression(binary_expression.right)
-        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
-        if not (left.value and right.value):
-            raise errors.AngelUnsatisfiedWhereClause(binary_expression, self.code)
+    def eval_is(self, subtype: nodes.Type, supertype: nodes.Type, mapping: Mapping) -> bool:
+        try:
+            self.unify_types(subtype, supertype, mapping)
+        except errors.AngelTypeError:
+            return False
+        else:
+            return True
 
-    def satisfy_or_binary_expression(self, binary_expression: nodes.BinaryExpression, mapping: Mapping):
-        left = self.estimate_expression(binary_expression.left)
-        right = self.estimate_expression(binary_expression.right)
-        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
-        if not (left.value or right.value):
-            raise errors.AngelUnsatisfiedWhereClause(binary_expression, self.code)
+    def eval_where_clause(self, clause: nodes.Expression, mapping: Mapping) -> bool:
+        if isinstance(clause, nodes.BinaryExpression):
+            if clause.operator == nodes.Operator.is_:
+                assert isinstance(clause.left, nodes.Type)
+                assert isinstance(clause.right, nodes.Type)
+                left_type = apply_mapping(clause.left, mapping)
+                right_type = apply_mapping(clause.right, mapping)
+                return self.eval_is(left_type, right_type, mapping)
+            else:
+                assert 0, f"Cannot eval not 'is' expression"
+        else:
+            assert 0, f"Cannot eval where clause {clause}"
 
     def satisfy_where_clauses(self, where_clauses: t.List[nodes.WhereClause], mapping: Mapping):
         for clause in where_clauses:
             condition = clause.condition
             if not condition:
                 continue
-            dispatch(self.satisfy_where_clauses_dispatcher, type(condition), condition, mapping)
-
-    def estimate_expression(self, expression: nodes.Expression) -> enodes.Expression:
-        assert self.estimator
-        self.estimator.update_context(self.env, self.code)
-        return self.estimator.estimate_expression(expression)
-
-    def error_builtin_type_does_not_support_field(
-        self, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
-    ):
-        assert field.base_type is not None
-        raise errors.AngelFieldError(field.base, field.base_type, field.field.to_code(), self.code)
-
-    def error_builtin_type_does_not_support_subscript(
-        self, subscript: nodes.Subscript, mapping: Mapping, supertype: t.Optional[nodes.Type]
-    ):
-        assert subscript.base_type is not None
-        raise errors.AngelSubscriptError(subscript.base, subscript.base_type, subscript.index, self.code)
-
-    def error_type_does_not_support_subscript(
-        self, base_type: nodes.Type, subscript: nodes.Subscript, mapping: Mapping, supertype: t.Optional[nodes.Type]
-    ):
-        raise errors.AngelSubscriptError(subscript.base, base_type, subscript.index, self.code)
-
-    def error_type_does_not_support_field(
-        self, base_type: nodes.Type, field: nodes.Field, mapping: Mapping, supertype: t.Optional[nodes.Type]
-    ):
-        raise errors.AngelFieldError(field.base, base_type, field.field.to_code(), self.code)
+            elif isinstance(condition, nodes.BinaryExpression):
+                if condition.operator == nodes.Operator.and_:
+                    left = self.eval_where_clause(condition.left, mapping)
+                    right = self.eval_where_clause(condition.right, mapping)
+                    if not (left and right):
+                        raise errors.AngelUnsatisfiedWhereClause(condition, self.code)
+                else:
+                    assert 0, f"Cannot satisfy where clause (binary expression) {condition.operator}"
+            else:
+                assert 0, f"Cannot satisfy where clause with {condition} clause"
 
     def test(self):
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.type_inference_dispatcher.keys()))
@@ -1457,13 +1248,5 @@ class TypeChecker(unittest.TestCase):
             type_pairs, set((type1.__name__, type2.__name__) for type1, type2 in self.unification_dispatcher.keys())
         )
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.infer_type_from_field_dispatcher.keys()))
-        self.assertEqual(
-            TYPES,
-            set(subclass.__name__ for subclass in self.infer_type_from_method_call_dispatcher_by_method_type.keys())
-        )
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.infer_type_from_subscript_dispatcher.keys()))
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.replace_template_types_dispatcher.keys()))
-
-        all_builtin_types = set(typ.value for typ in nodes.BuiltinType)
-        self.assertEqual(all_builtin_types, set(self.infer_type_from_field_of_builtin_type_dispatcher.keys()))
-        self.assertEqual(all_builtin_types, set(self.infer_type_from_subscript_of_builtin_type_dispatcher.keys()))

@@ -88,7 +88,6 @@ class Translator(unittest.TestCase):
             nodes.DictType: lambda _: NotImplementedError,
             nodes.OptionalType: lambda _: NotImplementedError,
             nodes.FunctionType: lambda _: NotImplementedError,
-            nodes.MultipleDispatch: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.AlgebraicType: self.translate_algebraic_type_method_call,
@@ -102,7 +101,6 @@ class Translator(unittest.TestCase):
             nodes.DictType: self.translate_dict_type_field,
             nodes.OptionalType: lambda _: NotImplementedError,
             nodes.FunctionType: lambda _: NotImplementedError,
-            nodes.MultipleDispatch: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: self.translate_generic_type_field,
@@ -117,7 +115,6 @@ class Translator(unittest.TestCase):
             nodes.DictType: self.translate_collection_type_subscript,
             nodes.OptionalType: lambda _: NotImplementedError,
             nodes.FunctionType: lambda _: NotImplementedError,
-            nodes.MultipleDispatch: lambda _: NotImplementedError,
             nodes.TemplateType: lambda _: NotImplementedError,
             nodes.StructType: lambda _: NotImplementedError,
             nodes.GenericType: lambda _: NotImplementedError,
@@ -181,7 +178,6 @@ class Translator(unittest.TestCase):
             nodes.DictType: self.translate_dict_type,
             nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
             nodes.FunctionType: self.translate_function_type,
-            nodes.MultipleDispatch: lambda type_: self.translate_function_type(type_.funcs[0]),
             nodes.StructType: self.translate_struct_type,
             nodes.GenericType: self.translate_generic_type,
             nodes.AlgebraicType: self.translate_algebraic_type,
@@ -718,7 +714,7 @@ class Translator(unittest.TestCase):
         return cpp_nodes.If(condition, body, else_ifs, else_)
 
     def desugar_if_condition(
-        self, condition: nodes.Expression, body: nodes.AST
+            self, condition: nodes.Expression, body: nodes.AST
     ) -> t.Tuple[cpp_nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
         if isinstance(condition, nodes.ConstantDeclaration):
             assert condition.value is not None
@@ -818,7 +814,7 @@ class Translator(unittest.TestCase):
         return cpp_nodes.Id(tmp_name)
 
     def create_tmp(
-        self, type_: cpp_nodes.Type, value: t.Optional[cpp_nodes.Expression] = None
+            self, type_: cpp_nodes.Type, value: t.Optional[cpp_nodes.Expression] = None
     ) -> t.Tuple[nodes.Name, cpp_nodes.Id]:
         tmp_name = self.create_tmp_name()
         self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name.value, value=value))

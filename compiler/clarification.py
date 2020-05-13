@@ -2,13 +2,13 @@ import enum
 from dataclasses import dataclass
 
 from . import nodes
-from .context import CompilationContext
 from .utils import mangle
 
 
 @dataclass
 class Clarifier:
-    context: CompilationContext
+    main_module_hash: str
+    mangle_names: bool = True
 
     def clarify_ast(self, ast: nodes.AST) -> nodes.AST:
         return [self.clarify_node(node) for node in ast]
@@ -24,7 +24,7 @@ class Clarifier:
                     continue
                 else:
                     return result
-            return mangle(node, self.context)
+            return mangle(node, self.main_module_hash, self.mangle_names)
         elif isinstance(node, nodes.Field):
             base = self.clarify_node(node.base)
             if isinstance(base, nodes.BuiltinType) and (

@@ -2,21 +2,19 @@ import typing as t
 import unittest
 
 from compiler import parsers, analysis, environment, clarification, repl_evaluation
-from compiler.context import CompilationContext
 
 
 class TestEval(unittest.TestCase):
     def get_env(self, lines: t.List[str]) -> environment.Environment:
-        context = CompilationContext(lines, '', mangle_names=False)
         parser = parsers.Parser()
-        clarifier = clarification.Clarifier(context)
-        analyzer = analysis.Analyzer(context)
-        repl_evaluator = repl_evaluation.REPLEvaluator(context)
+        clarifier = clarification.Clarifier('', mangle_names=False)
+        analyzer = analysis.Analyzer(lines, '', mangle_names=False)
+        repl_evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False)
         repl_evaluator.estimate_ast(analyzer.analyze_ast((clarifier.clarify_ast(parser.parse("\n".join(lines))))))
         return repl_evaluator.env
 
     def eval(
-        self, lines: t.List[str], inp: t.Optional[str] = None, env: t.Optional[environment.Environment] = None
+            self, lines: t.List[str], inp: t.Optional[str] = None, env: t.Optional[environment.Environment] = None
     ) -> t.Tuple[t.Any, t.List[str]]:
         output = []
 
@@ -28,11 +26,10 @@ class TestEval(unittest.TestCase):
             return inp
 
         env = env or environment.Environment()
-        context = CompilationContext(lines, '', mangle_names=False)
         parser = parsers.Parser()
-        clarifier = clarification.Clarifier(context)
-        analyzer = analysis.Analyzer(context, env=env)
-        repl_evaluator = repl_evaluation.REPLEvaluator(context, env=env)
+        clarifier = clarification.Clarifier('', mangle_names=False)
+        analyzer = analysis.Analyzer(lines, '', mangle_names=False, env=env)
+        repl_evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False, env=env)
         repl_evaluation.print = print_test
         repl_evaluation.input = input_test
         result = repl_evaluator.estimate_ast(

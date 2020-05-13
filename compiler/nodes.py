@@ -471,12 +471,6 @@ class SpecialMethods(enum.Enum):
     def from_operator(cls, operator: Operator):
         return {
             Operator.eq_eq.value: SpecialMethods.eq,
-            Operator.lt.value: SpecialMethods.lt,
-            Operator.gt.value: SpecialMethods.gt,
-            Operator.add.value: SpecialMethods.add,
-            Operator.sub.value: SpecialMethods.sub,
-            Operator.mul.value: SpecialMethods.mul,
-            Operator.div.value: SpecialMethods.div,
         }[operator.value]
 
 
@@ -580,6 +574,7 @@ class FunctionCall(Node, Expression):
 
 @dataclass
 class MethodCall(Node, Expression):
+    line: int
     instance_path: Expression
     method: Name
     args: t.List[Expression]
@@ -587,8 +582,8 @@ class MethodCall(Node, Expression):
     is_algebraic_method: bool = False
 
     def __init__(
-        self, line: int, instance_path: Expression, method: Name, args: t.List[Expression],
-        instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
+            self, line: int, instance_path: Expression, method: Name, args: t.List[Expression],
+            instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
     ):
         self.line = line
         self.instance_path = instance_path
@@ -759,18 +754,9 @@ class FunctionType(Type):
     args: Arguments
     return_type: Type
     is_algebraic_method: bool = False
-    constraints: t.List[Expression] = field(default_factory=list)
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()}"
-
-
-@dataclass
-class MultipleDispatch(Type):
-    funcs: t.List[FunctionType]
-
-    def to_code(self, indentation_level: int = 0) -> str:
-        return f"MultiD[{', '.join(func.to_code() for func in self.funcs)}]"
 
 
 @dataclass
@@ -799,119 +785,9 @@ class AlgebraicType(Type):
         return f"{self.base.to_code()}{params}"
 
 
-class I8Fields(enum.Enum):
-    add = SpecialMethods.add.value
-    sub = SpecialMethods.sub.value
-    mul = SpecialMethods.mul.value
-    div = SpecialMethods.div.value
-
-    lt = SpecialMethods.lt.value
-    gt = SpecialMethods.gt.value
-    eq = SpecialMethods.eq.value
-
-    @property
-    def as_type(self) -> Type:
-        return {
-            I8Fields.add.value: MultipleDispatch([
-                FunctionType([], [Argument("other", BuiltinType.f32)], BuiltinType.f64),
-
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.i8, is_algebraic_method=False, constraints=[
-                    BinaryExpression(
-                        BinaryExpression(Name("self"), Operator.add, Name("other")), Operator.gt_eq,
-                        IntegerLiteral("-128")
-                    ),
-                    BinaryExpression(
-                        BinaryExpression(Name("self"), Operator.add, Name("other")), Operator.lt_eq,
-                        IntegerLiteral("127")
-                    ),
-                ]),
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.i16),
-                FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.i32),
-                FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.i64),
-
-                FunctionType([], [Argument("other", BuiltinType.u8)], BuiltinType.i16),
-                FunctionType([], [Argument("other", BuiltinType.u16)], BuiltinType.i32),
-                FunctionType([], [Argument("other", BuiltinType.u32)], BuiltinType.i64),
-            ]),
-
-            I8Fields.sub.value: MultipleDispatch([
-                FunctionType([], [Argument("other", BuiltinType.f32)], BuiltinType.f64),
-
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.i16),
-                FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.i32),
-                FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.i64),
-
-                FunctionType([], [Argument("other", BuiltinType.u8)], BuiltinType.i16),
-                FunctionType([], [Argument("other", BuiltinType.u16)], BuiltinType.i32),
-                FunctionType([], [Argument("other", BuiltinType.u32)], BuiltinType.i64),
-            ]),
-
-            I8Fields.mul.value: MultipleDispatch([
-                FunctionType([], [Argument("other", BuiltinType.f32)], BuiltinType.f64),
-
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.i16),
-                FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.i32),
-                FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.i64),
-
-                FunctionType([], [Argument("other", BuiltinType.u8)], BuiltinType.i16),
-                FunctionType([], [Argument("other", BuiltinType.u16)], BuiltinType.i32),
-                FunctionType([], [Argument("other", BuiltinType.u32)], BuiltinType.i64),
-            ]),
-
-            I8Fields.div.value: MultipleDispatch([
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.i64),
-                FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.i64),
-                FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.i64),
-
-                FunctionType([], [Argument("other", BuiltinType.u8)], BuiltinType.i64),
-                FunctionType([], [Argument("other", BuiltinType.u16)], BuiltinType.i64),
-                FunctionType([], [Argument("other", BuiltinType.u32)], BuiltinType.i64),
-            ]),
-
-            I8Fields.lt.value: MultipleDispatch([
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i64)], BuiltinType.bool),
-
-                FunctionType([], [Argument("other", BuiltinType.u8)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u16)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u32)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u64)], BuiltinType.bool),
-            ]),
-
-            I8Fields.gt.value: MultipleDispatch([
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i64)], BuiltinType.bool),
-
-                FunctionType([], [Argument("other", BuiltinType.u8)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u16)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u32)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u64)], BuiltinType.bool),
-            ]),
-
-            I8Fields.eq.value: MultipleDispatch([
-                FunctionType([], [Argument("other", BuiltinType.i8)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i16)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i32)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.i64)], BuiltinType.bool),
-
-                FunctionType([], [Argument("other", BuiltinType.u8)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u16)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u32)], BuiltinType.bool),
-                FunctionType([], [Argument("other", BuiltinType.u64)], BuiltinType.bool),
-            ])
-        }[self.value]
-
-
 class StringFields(enum.Enum):
     split = "split"
     length = "length"
-
-    add = SpecialMethods.add.value
-    eq = SpecialMethods.eq.value
 
     @property
     def as_type(self) -> Type:
@@ -920,12 +796,6 @@ class StringFields(enum.Enum):
                 [], [Argument("by", BuiltinType.char)], return_type=VectorType(BuiltinType.string)
             ),
             StringFields.length.value: BuiltinType.u64,
-            StringFields.add.value: FunctionType(
-                [], [Argument("other", BuiltinType.string)], return_type=BuiltinType.string
-            ),
-            StringFields.eq.value: FunctionType(
-                [], [Argument("other", BuiltinType.string)], return_type=BuiltinType.bool
-            )
         }[self.value]
 
 
@@ -933,20 +803,11 @@ class VectorFields(enum.Enum):
     append = "append"
     length = "length"
 
-    add = SpecialMethods.add.value
-    eq = SpecialMethods.eq.value
-
     def as_type(self, element_type: Type) -> Type:
         from .utils import apply_mapping
         return apply_mapping({
             VectorFields.append.value: FunctionType(
                 [], [Argument('element', Name('A'))], return_type=Name('A')
-            ),
-            VectorFields.add.value: FunctionType(
-                [], [Argument("other", VectorType(Name('A')))], return_type=VectorType(Name('A'))
-            ),
-            VectorFields.eq.value: FunctionType(
-                [], [Argument("other", VectorType(Name('A')))], return_type=BuiltinType.bool
             ),
             VectorFields.length.value: BuiltinType.u64,
         }[self.value], mapping={'A': element_type})

@@ -48,16 +48,16 @@ class Environment:
         return algebraic_entry.constructors[algebraic.constructor.member]
 
     def add_constant(
-        self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
-        estimated_value: t.Optional[enodes.Expression] = None
+            self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
+            estimated_value: t.Optional[enodes.Expression] = None
     ) -> None:
         self.space[self.nesting_level][name.member] = entries.ConstantEntry(
             line, name, type_, has_value=value is not None, estimated_value=estimated_value
         )
 
     def add_variable(
-        self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
-        estimated_value: t.Optional[enodes.Expression] = None
+            self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
+            estimated_value: t.Optional[enodes.Expression] = None
     ) -> None:
         self.space[self.nesting_level][name.member] = entries.VariableEntry(
             line, name, type_, value, estimated_value=estimated_value
@@ -97,10 +97,7 @@ class Environment:
             func = self.add_variable
         else:
             func = self.add_constant
-        func(
-            line, nodes.Name(nodes.SpecialName.self.value), type_, value=None,
-            estimated_value=enodes.DynamicValue(type_)
-        )
+        func(line, nodes.Name(nodes.SpecialName.self.value), type_, value=None)
 
     def add_init_declaration(self, line: int, args: nodes.Arguments) -> None:
         entry = self._get_parent_type_entry()
