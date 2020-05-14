@@ -6,8 +6,9 @@ from functools import partial
 from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
+from .enums import DeclType
 from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
-from .constants import builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields
+from .constants import builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields, SELF_NAME
 
 
 EstimatedObjects = namedtuple(
@@ -47,7 +48,7 @@ class Evaluator(unittest.TestCase):
             nodes.MethodCall: self.estimate_method_call,
             nodes.BuiltinFunc: lambda func: self.estimated_objs.builtin_funcs[func.value],
             nodes.PrivateBuiltinFunc: lambda func: self.estimated_objs.private_builtin_funcs[func.value],
-            nodes.ConstantDeclaration: self.estimate_constant_declaration,
+            nodes.Decl: self.estimate_decl,
 
             nodes.OptionalSomeCall: self.estimate_optional_some_call,
             nodes.OptionalSomeValue: self.estimate_optional_some_value,
@@ -141,8 +142,7 @@ class Evaluator(unittest.TestCase):
         }
 
         self.node_dispatcher = {
-            nodes.ConstantDeclaration: self.estimate_constant_declaration,
-            nodes.VariableDeclaration: self.estimate_variable_declaration,
+            nodes.Decl: self.estimate_decl,
             nodes.FunctionDeclaration: self.estimate_function_declaration,
             nodes.FieldDeclaration: self.estimate_field_declaration,
             nodes.InitDeclaration: self.estimate_init_declaration,
@@ -175,23 +175,12 @@ class Evaluator(unittest.TestCase):
                 return result
         return result
 
-    def estimate_constant_declaration(self, declaration: nodes.ConstantDeclaration) -> None:
-        assert declaration.type is not None
+    def estimate_decl(self, node: nodes.Decl) -> None:
+        assert node.type is not None
         estimated = None
-        if declaration.value is not None:
-            estimated = self.estimate_expression(declaration.value)
-        self.env.add_constant(
-            declaration.line, declaration.name, declaration.type, declaration.value, estimated
-        )
-
-    def estimate_variable_declaration(self, declaration: nodes.VariableDeclaration) -> None:
-        assert declaration.type is not None
-        estimated = None
-        if declaration.value is not None:
-            estimated = self.estimate_expression(declaration.value)
-        self.env.add_variable(
-            declaration.line, declaration.name, declaration.type, declaration.value, estimated
-        )
+        if node.value is not None:
+            estimated = self.estimate_expression(node.value)
+        self.env.add_declaration(node, estimated_value=estimated)
 
     def estimate_function_declaration(self, declaration: nodes.FunctionDeclaration) -> None:
         self.env.add_function(
@@ -254,11 +243,11 @@ class Evaluator(unittest.TestCase):
         entry = self.env[name.member]
         # Estimation is performed after name checking.
         assert entry is not None
-        if isinstance(entry, entries.ConstantEntry):
+        if isinstance(entry, entries.DeclEntry) and entry.is_constant:
             assert not entry.has_value
             entry.estimated_value = right
             entry.has_value = True
-        elif isinstance(entry, entries.VariableEntry):
+        elif isinstance(entry, entries.DeclEntry) and entry.is_variable:
             entry.estimated_value = right
         else:
             assert 0, f"REPL cannot reassign {type(entry)}"
@@ -269,7 +258,7 @@ class Evaluator(unittest.TestCase):
         if isinstance(field.base, nodes.Name):
             assert not field.base.module
             base_entry = self.env[field.base.member]
-            assert isinstance(base_entry, entries.VariableEntry)
+            assert isinstance(base_entry, entries.DeclEntry) and base_entry.is_variable
             if isinstance(base_entry.estimated_value, enodes.Instance):
                 base_entry.estimated_value.fields[field.field.member] = estimated_value
             elif isinstance(base_entry.estimated_value, enodes.Ref):
@@ -279,7 +268,7 @@ class Evaluator(unittest.TestCase):
                 assert 0, f"Cannot estimate field assignment {field.to_code()} = {value.to_code()}"
         elif isinstance(field.base, nodes.SpecialName):
             base_entry = self.env[field.base.value]
-            assert isinstance(base_entry, entries.VariableEntry)
+            assert isinstance(base_entry, entries.DeclEntry) and base_entry.is_variable
             assert isinstance(base_entry.estimated_value, enodes.Instance)
             base_entry.estimated_value.fields[field.field.member] = estimated_value
         else:
@@ -295,7 +284,7 @@ class Evaluator(unittest.TestCase):
             assert not subscript.base.module
             base_entry = self.env[subscript.base.member]
             # @Cleanup: separate this functionality to a function and use it in estimation of subscript
-            assert isinstance(base_entry, entries.VariableEntry)
+            assert isinstance(base_entry, entries.DeclEntry) and base_entry.is_variable
             assert isinstance(base_entry.estimated_value, enodes.String)
             new_value = list(base_entry.estimated_value.value)
             new_value[estimated_index.value] = estimated_value.value
@@ -331,8 +320,9 @@ class Evaluator(unittest.TestCase):
             raise NotImplementedError
         self.env.inc_nesting()
         for element in elements:
-            self.env.add_constant(
-                statement.line, statement.element, element_type, value=None, estimated_value=element
+            self.env.add_declaration(
+                nodes.Decl(statement.line, DeclType.constant, statement.element, element_type),
+                estimated_value=element
             )
             result = self.estimate_ast(statement.body)
             if isinstance(result, enodes.Break):
@@ -347,12 +337,13 @@ class Evaluator(unittest.TestCase):
             self, condition: nodes.Expression, body: nodes.AST
     ) -> t.Tuple[nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
         assignment = None
-        if isinstance(condition, nodes.ConstantDeclaration):
+        if isinstance(condition, nodes.Decl) and condition.is_constant:
             assert condition.value is not None
             tmp_right = self.create_repl_tmp(condition.value)
             to_prepend: t.List[nodes.Node] = [
-                nodes.VariableDeclaration(
-                    condition.line, condition.name, condition.type, nodes.OptionalSomeValue(tmp_right)
+                nodes.Decl(
+                    condition.line, DeclType.variable, condition.name, condition.type,
+                    nodes.OptionalSomeValue(tmp_right)
                 )
             ]
             body = to_prepend + body
@@ -379,7 +370,10 @@ class Evaluator(unittest.TestCase):
     def create_repl_tmp(self, value: nodes.Expression) -> nodes.Name:
         name = nodes.Name("__repl_tmp" + str(self.repl_tmp_count))
         self.repl_tmp_count += 1
-        self.env.add_variable(0, name, self.infer_type(value), value, estimated_value=self.estimate_expression(value))
+        self.env.add_declaration(
+            nodes.Decl(0, DeclType.variable, name, self.infer_type(value), value),
+            estimated_value=self.estimate_expression(value)
+        )
         return name
 
     def estimate_return(self, statement: nodes.Return) -> enodes.Expression:
@@ -449,8 +443,7 @@ class Evaluator(unittest.TestCase):
         entry = self.env[name.member]
         # Estimation is performed after name checking.
         assert entry is not None
-        if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
-            assert entry.estimated_value is not None
+        if isinstance(entry, entries.DeclEntry):
             return entry.estimated_value
         elif isinstance(entry, entries.FunctionEntry):
             return enodes.Function(entry.args, entry.return_type, specification=entry.body)
@@ -592,8 +585,8 @@ class Evaluator(unittest.TestCase):
                 expected_major.append([arg.type for arg in init_entry.args])
                 continue
             self.env.inc_nesting()
-            self.env.add_variable(
-                0, nodes.Name(nodes.SpecialName.self.value), struct.name, value=None,
+            self.env.add_declaration(
+                nodes.Decl(0, DeclType.variable, SELF_NAME, struct.name),
                 estimated_value=enodes.Instance(struct.name)
             )
             for arg, value, estimated in zip_longest(init_entry.args, args, arguments):
@@ -601,10 +594,12 @@ class Evaluator(unittest.TestCase):
                     value = arg.value
                     estimated = self.estimate_expression(value)
                 assert estimated is not None and value is not None
-                self.env.add_constant(0, arg.name, arg_type, value, estimated)
+                self.env.add_declaration(
+                    nodes.Decl(0, DeclType.constant, arg.name, arg_type, value), estimated_value=estimated
+                )
             self.estimate_ast(init_entry.body)
             self_entry = self.env[nodes.SpecialName.self.value]
-            assert isinstance(self_entry, entries.VariableEntry)
+            assert isinstance(self_entry, entries.DeclEntry) and self_entry.is_variable
             self_value = self_entry.estimated_value
             assert isinstance(self_value, enodes.Instance)
             self.env.dec_nesting()
@@ -626,12 +621,12 @@ class Evaluator(unittest.TestCase):
         if isinstance(function.specification, list):
             self.env.inc_nesting()
             if self_estimated and self_type:
-                self.env.add_variable(
-                    0, nodes.Name(nodes.SpecialName.self.value), self_type, value=self_arg,
+                self.env.add_declaration(
+                    nodes.Decl(0, DeclType.variable, SELF_NAME, self_type, self_arg),
                     estimated_value=self_estimated
                 )
             for arg, value, estimated in zip_longest(function.args, args, args_estimated):
-                self.env.add_constant(0, arg.name, arg.type, value, estimated)
+                self.env.add_declaration(nodes.Decl(0, DeclType.constant, arg.name, arg.type, value), estimated_value=estimated)
             result = self.estimate_ast(function.specification)
             self.env.dec_nesting()
             return result

@@ -1,6 +1,9 @@
 from . import nodes, estimation_nodes as enodes, environment_entries as entries
 
 
+SELF_NAME = nodes.Name(nodes.SpecialName.self.value)
+
+
 builtin_funcs = {
     nodes.BuiltinFunc.print.value: enodes.Function(
         [nodes.Argument("value", nodes.BuiltinType.convertible_to_string)], nodes.BuiltinType.void,

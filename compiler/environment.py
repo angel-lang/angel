@@ -1,7 +1,8 @@
 import typing as t
 
 from . import nodes, environment_entries as entries, estimation_nodes as enodes, errors
-from .constants import builtin_interfaces
+from .enums import DeclType
+from .constants import builtin_interfaces, SELF_NAME
 
 
 class Environment:
@@ -47,27 +48,27 @@ class Environment:
             return algebraic_entry
         return algebraic_entry.constructors[algebraic.constructor.member]
 
-    def add_constant(
-            self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
-            estimated_value: t.Optional[enodes.Expression] = None
+    def add_declaration(
+        self, node: nodes.Decl, estimated_value: t.Optional[enodes.Expression] = None, **kwargs
     ) -> None:
-        self.space[self.nesting_level][name.member] = entries.ConstantEntry(
-            line, name, type_, has_value=value is not None, estimated_value=estimated_value
-        )
-
-    def add_variable(
-            self, line: int, name: nodes.Name, type_: nodes.Type, value: t.Optional[nodes.Expression],
-            estimated_value: t.Optional[enodes.Expression] = None
-    ) -> None:
-        self.space[self.nesting_level][name.member] = entries.VariableEntry(
-            line, name, type_, value, estimated_value=estimated_value
-        )
+        if not estimated_value:
+            estimated_value = enodes.DynamicValue(kwargs.get("type", node.type))
+        params = {
+            "decl_type": node.decl_type,
+            "line": node.line,
+            "name": node.name,
+            "type": node.type,
+            "value": node.value,
+            "estimated_value": estimated_value
+        }
+        params.update(kwargs)
+        self.space[self.nesting_level][params["name"].member] = entries.DeclEntry(**params) # type: ignore
 
     def add_arguments(self, line: int, args: t.List[nodes.Argument]) -> None:
         for arg in args:
             value = enodes.DynamicValue(arg.type)
-            self.space[self.nesting_level][arg.name.member] = entries.ConstantEntry(
-                line, arg.name, arg.type, has_value=True, estimated_value=value
+            self.space[self.nesting_level][arg.name.member] = entries.DeclEntry(
+                line, DeclType.constant, arg.name, arg.type, value=None, estimated_value=value
             )
 
     def add_function(
@@ -89,15 +90,13 @@ class Environment:
     def add_field(self, line: int, name: nodes.Name, type_: nodes.Type) -> None:
         entry = self._get_parent_type_entry()
         assert isinstance(entry, (entries.StructEntry, entries.InterfaceEntry))
-        entry.fields[name.member] = entries.VariableEntry(line, name, type_, value=None)
+        entry.fields[name.member] = entries.DeclEntry(
+            line, DeclType.variable, name, type_, value=None, estimated_value=enodes.DynamicValue(type_)
+        )
 
     def add_self(self, line: int, is_variable: bool = False) -> None:
         type_ = self._build_parent_struct_type()
-        if is_variable:
-            func = self.add_variable
-        else:
-            func = self.add_constant
-        func(line, nodes.Name(nodes.SpecialName.self.value), type_, value=None)
+        self.add_declaration(nodes.Decl(line, DeclType.variable, SELF_NAME, type_))
 
     def add_init_declaration(self, line: int, args: nodes.Arguments) -> None:
         entry = self._get_parent_type_entry()

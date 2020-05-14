@@ -5,7 +5,6 @@ from decimal import Decimal
 from dataclasses import dataclass, field
 
 from . import nodes
-from .environment_simple_entries import AlgebraicEntry, StructEntry
 
 
 class Expression:
@@ -141,7 +140,7 @@ class Struct(Expression):
 @dataclass
 class Algebraic(Expression):
     name: nodes.Name
-    entry: AlgebraicEntry
+    entry: t.Any
 
     def to_code(self) -> str:
         return f"Algebraic({self.name.to_code()})"
@@ -151,7 +150,7 @@ class Algebraic(Expression):
 class AlgebraicConstructor(Expression):
     name: nodes.Name
     constructor: nodes.Name
-    entry: StructEntry
+    entry: t.Any
 
     def to_code(self) -> str:
         return f"AlgebraicConstructor({self.name.to_code()}, constructor={self.constructor.to_code()})"

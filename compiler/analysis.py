@@ -5,6 +5,7 @@ from itertools import zip_longest
 from . import (
     nodes, estimation, type_checking, environment, estimation_nodes as enodes, errors, environment_entries as entries
 )
+from .enums import DeclType
 from .constants import builtin_interfaces
 from .utils import mangle, dispatch, NODES, ASSIGNMENTS
 
@@ -46,8 +47,7 @@ class Analyzer(unittest.TestCase):
         }
 
         self.node_dispatcher = {
-            nodes.ConstantDeclaration: self.analyze_constant_declaration,
-            nodes.VariableDeclaration: self.analyze_variable_declaration,
+            nodes.Decl: self.analyze_declaration,
             nodes.FunctionDeclaration: self.analyze_function_declaration,
             nodes.StructDeclaration: self.analyze_struct_declaration,
             nodes.ExtensionDeclaration: self.analyze_extension_declaration,
@@ -82,31 +82,21 @@ class Analyzer(unittest.TestCase):
         self.line = node.line
         return dispatch(self.node_dispatcher, type(node), node)
 
-    def analyze_constant_declaration(self, declaration: nodes.ConstantDeclaration) -> nodes.ConstantDeclaration:
-        if declaration.value:
-            constant_type = self.infer_type(declaration.value, supertype=declaration.type)
-            estimated_value: t.Optional[enodes.Expression] = self.estimate_value(declaration.value)
+    def analyze_declaration(self, node: nodes.Decl) -> nodes.Decl:
+        """
+        1. Value (if presented) is checked in infer_type function
+        2. Type is checked in infer_type function (if value presented) or in check_type function
+        3. Estimated value estimation is based on current environment
+        """
+        if node.value:
+            type_ = self.infer_type(node.value, supertype=node.type)
+            estimated = self.estimate_value(node.value)
         else:
-            assert declaration.type is not None
-            constant_type = self.check_type(declaration.type)
-            estimated_value = None
-        self.env.add_constant(
-            declaration.line, declaration.name, constant_type, declaration.value, estimated_value
-        )
-        return nodes.ConstantDeclaration(declaration.line, declaration.name, constant_type, declaration.value)
-
-    def analyze_variable_declaration(self, declaration: nodes.VariableDeclaration) -> nodes.VariableDeclaration:
-        if declaration.value:
-            constant_type = self.infer_type(declaration.value, supertype=declaration.type)
-            estimated_value: t.Optional[enodes.Expression] = self.estimate_value(declaration.value)
-        else:
-            assert declaration.type is not None
-            constant_type = self.check_type(declaration.type)
-            estimated_value = None
-        self.env.add_variable(
-            declaration.line, declaration.name, constant_type, declaration.value, estimated_value
-        )
-        return nodes.VariableDeclaration(declaration.line, declaration.name, constant_type, declaration.value)
+            assert node.type
+            type_ = self.check_type(node.type)
+            estimated = enodes.DynamicValue(type_)
+        self.env.add_declaration(node, estimated_value=estimated, type=type_)
+        return nodes.Decl(node.line, node.decl_type, node.name, type_, node.value)
 
     def analyze_function_declaration(self, declaration: nodes.FunctionDeclaration) -> nodes.FunctionDeclaration:
         args = [nodes.Argument(arg.name, self.check_type(arg.type)) for arg in declaration.args]
@@ -116,7 +106,7 @@ class Analyzer(unittest.TestCase):
         self.env.add_parameters(declaration.line, declaration.params)
         self.function_return_types.append(return_type)
         for arg in args:
-            self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
+            self.env.add_declaration(nodes.Decl(declaration.line, DeclType.constant, arg.name, arg.type))
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
         self.env.dec_nesting()
@@ -240,7 +230,7 @@ class Analyzer(unittest.TestCase):
         self.function_return_types.append(return_type)
         self.env.add_self(declaration.line)
         for arg in args:
-            self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
+            self.env.add_declaration(nodes.Decl(declaration.line, DeclType.constant, arg.name, arg.type))
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
         self.env.dec_nesting()
@@ -259,7 +249,7 @@ class Analyzer(unittest.TestCase):
         self.env.inc_nesting()
         self.env.add_self(declaration.line, is_variable=True)
         for arg in args:
-            self.env.add_constant(declaration.line, arg.name, arg.type, value=None)
+            self.env.add_declaration(nodes.Decl(declaration.line, DeclType.constant, arg.name, arg.type))
         body = self.analyze_ast(declaration.body)
         self.env.dec_nesting()
         self.env.update_init_declaration_body(args, body)
@@ -277,8 +267,8 @@ class Analyzer(unittest.TestCase):
         return nodes.Assignment(statement.line, statement.left, nodes.Operator.eq, right)
 
     def analyze_if_statement(self, statement: nodes.If) -> nodes.If:
-        if isinstance(statement.condition, nodes.ConstantDeclaration):
-            condition: nodes.Expression = self.analyze_constant_declaration(statement.condition)
+        if isinstance(statement.condition, nodes.Decl) and statement.condition.is_constant:
+            condition: nodes.Expression = self.analyze_declaration(statement.condition)
         else:
             condition = statement.condition
             self.infer_type(condition, supertype=nodes.BuiltinType.bool)
@@ -287,8 +277,8 @@ class Analyzer(unittest.TestCase):
         self.env.dec_nesting()
         elifs = []
         for elif_condition, elif_body in statement.elifs:
-            if isinstance(elif_condition, nodes.ConstantDeclaration):
-                cond: nodes.Expression = self.analyze_constant_declaration(elif_condition)
+            if isinstance(elif_condition, nodes.Decl) and elif_condition.is_constant:
+                cond: nodes.Expression = self.analyze_declaration(elif_condition)
             else:
                 cond = elif_condition
                 self.infer_type(cond, supertype=nodes.BuiltinType.bool)
@@ -306,7 +296,9 @@ class Analyzer(unittest.TestCase):
         container_type = self.infer_type(statement.container)
         self.unify_types(container_type, iterable_type)
         self.env.inc_nesting()
-        self.env.add_variable(statement.line, statement.element, self.resolve_template_type(element_type), value=None)
+        self.env.add_declaration(
+            nodes.Decl(statement.line, DeclType.variable, statement.element, self.resolve_template_type(element_type))
+        )
         body = self.analyze_ast(statement.body)
         self.env.dec_nesting()
         statement.container_type = container_type
@@ -314,8 +306,8 @@ class Analyzer(unittest.TestCase):
         return statement
 
     def analyze_while_statement(self, statement: nodes.While) -> nodes.While:
-        if isinstance(statement.condition, nodes.ConstantDeclaration):
-            condition: nodes.Expression = self.analyze_constant_declaration(statement.condition)
+        if isinstance(statement.condition, nodes.Decl) and statement.condition.is_constant:
+            condition: nodes.Expression = self.analyze_declaration(statement.condition)
         else:
             condition = statement.condition
             self.infer_type(condition, supertype=nodes.BuiltinType.bool)
@@ -380,7 +372,7 @@ class Analyzer(unittest.TestCase):
         self, struct_entry: entries.StructEntry, interface_entry: entries.InterfaceEntry
     ) -> None:
         for field_name, field_entry in interface_entry.fields.items():
-            assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
+            assert isinstance(field_entry, entries.DeclEntry)
             found = struct_entry.fields.get(
                 field_name,
                 struct_entry.fields.get(
@@ -391,7 +383,7 @@ class Analyzer(unittest.TestCase):
                 raise errors.AngelMissingInterfaceMember(
                     struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), field_entry.name
                 )
-            assert isinstance(found, (entries.VariableEntry, entries.ConstantEntry))
+            assert isinstance(found, entries.DeclEntry)
             if found.type != field_entry.type:
                 raise errors.AngelInterfaceFieldError(
                     struct_entry.name, interface_entry.name, self.get_code(found.line),
@@ -399,7 +391,7 @@ class Analyzer(unittest.TestCase):
                 )
 
         for field_name, (inherited_from, field_entry) in interface_entry.inherited_fields.items():
-            assert isinstance(field_entry, (entries.VariableEntry, entries.ConstantEntry))
+            assert isinstance(field_entry, entries.DeclEntry)
             found = struct_entry.fields.get(
                 field_name,
                 struct_entry.fields.get(
@@ -411,7 +403,7 @@ class Analyzer(unittest.TestCase):
                     struct_entry.name, interface_entry.name, self.get_code(struct_entry.line), field_entry.name,
                     inherited_from=inherited_from
                 )
-            assert isinstance(found, (entries.VariableEntry, entries.ConstantEntry))
+            assert isinstance(found, entries.DeclEntry)
             if found.type != field_entry.type:
                 raise errors.AngelInterfaceFieldError(
                     struct_entry.name, interface_entry.name, self.get_code(found.line),
@@ -478,11 +470,11 @@ class Analyzer(unittest.TestCase):
         entry = self.env[left.member]
         # We assume that name checking was performed.
         assert entry is not None
-        if isinstance(entry, entries.ConstantEntry):
+        if isinstance(entry, entries.DeclEntry) and entry.is_constant:
             if entry.has_value:
                 raise errors.AngelConstantReassignment(left, self.get_code(), self.get_code(entry.line))
             entry.has_value = True
-        elif isinstance(entry, entries.VariableEntry):
+        elif isinstance(entry, entries.DeclEntry) and entry.is_variable:
             pass
         else:
             raise errors.AngelConstantReassignment(left, self.get_code(), self.get_code(entry.line))
@@ -497,7 +489,7 @@ class Analyzer(unittest.TestCase):
 
     def change_type_of_name(self, left: nodes.Name, typ: nodes.Type) -> None:
         entry = self.env.get(left)
-        assert isinstance(entry, (entries.VariableEntry, entries.ConstantEntry))
+        assert isinstance(entry, entries.DeclEntry)
         entry.type = typ
 
     def change_type_of_field(self, left: nodes.Field, typ: nodes.Type) -> None:

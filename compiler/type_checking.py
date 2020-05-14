@@ -136,7 +136,7 @@ class TypeChecker(unittest.TestCase):
             nodes.Field: self.infer_type_from_field,
             nodes.Subscript: self.infer_type_from_subscript,
             nodes.Cast: self.infer_type_from_cast,
-            nodes.ConstantDeclaration: lambda value, supertype, mapping: self.infer_type(
+            nodes.Decl: lambda value, supertype, mapping: self.infer_type(
                 value.value, supertype, mapping
             ),
             nodes.Ref: self.infer_type_from_ref,
@@ -351,7 +351,7 @@ class TypeChecker(unittest.TestCase):
             self, name: nodes.Name, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         entry = self.env.get(name)
-        if isinstance(entry, (entries.ConstantEntry, entries.VariableEntry)):
+        if isinstance(entry, entries.DeclEntry):
             return to_inference_result(self.unify_types(entry.type, supertype, mapping))
         elif isinstance(entry, entries.FunctionEntry):
             return to_inference_result(
@@ -604,7 +604,7 @@ class TypeChecker(unittest.TestCase):
                         nodes.FunctionType([], method_entry.args, method_entry.return_type), supertype, mapping
                     )
                 )
-            elif isinstance(field_entry, (entries.ConstantEntry, entries.VariableEntry)):
+            elif isinstance(field_entry, entries.DeclEntry):
                 return to_inference_result(self.unify_types(field_entry.type, supertype, mapping))
             else:
                 assert 0, f"Cannot infer type from field with entry {field_entry}"
@@ -644,7 +644,7 @@ class TypeChecker(unittest.TestCase):
                     supertype, mapping
                 )
             )
-        elif isinstance(field_entry, (entries.ConstantEntry, entries.VariableEntry)):
+        elif isinstance(field_entry, entries.DeclEntry):
             return to_inference_result(self.unify_types(field_entry.type, supertype, mapping))
         else:
             assert 0, f"Cannot infer type from field with entry {field_entry}"

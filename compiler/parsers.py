@@ -5,6 +5,7 @@ from itertools import zip_longest
 from functools import partial
 
 from . import nodes, errors
+from .enums import DeclType
 
 
 IDENTIFIER_REGEX = re.compile("[_]?[_]?[a-zA-Z][a-zA-Z0-9]*(__)?")
@@ -178,22 +179,22 @@ class Parser:
             raise errors.AngelSyntaxError("expected a statement", self.get_code())
         return result
 
-    def parse_variable_declaration(self) -> t.Optional[nodes.VariableDeclaration]:
+    def parse_variable_declaration(self) -> t.Optional[nodes.Decl]:
         line = self.position.line
         if not self.parse_keyword("var"):
             return None
         name, type_, value = self.parse_constant_and_variable_common()
-        return nodes.VariableDeclaration(line, name, type_, value)
+        return nodes.Decl(line, DeclType.variable, name, type_, value)
 
-    def parse_constant_declaration(self) -> t.Optional[nodes.ConstantDeclaration]:
+    def parse_constant_declaration(self) -> t.Optional[nodes.Decl]:
         line = self.position.line
         if not self.parse_keyword("let"):
             return None
         name, type_, value = self.parse_constant_and_variable_common()
-        return nodes.ConstantDeclaration(line, name, type_, value)
+        return nodes.Decl(line, DeclType.constant, name, type_, value)
 
     def parse_constant_and_variable_common(
-            self
+        self
     ) -> t.Tuple[nodes.Name, t.Optional[nodes.Type], t.Optional[nodes.Expression]]:
         self.spaces()
         name = self.parse_name()
@@ -330,7 +331,7 @@ class Parser:
 
     def parse_if_condition(self) -> nodes.Expression:
         condition: t.Optional[nodes.Expression] = self.parse_constant_declaration()
-        if isinstance(condition, nodes.ConstantDeclaration):
+        if isinstance(condition, nodes.Decl) and condition.is_constant:
             assert condition.value is not None
             return condition
         else:

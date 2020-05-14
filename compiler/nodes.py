@@ -3,6 +3,8 @@ import typing as t
 
 from dataclasses import dataclass, field
 
+from .enums import DeclType
+
 
 INDENTATION = " " * 4
 
@@ -608,44 +610,33 @@ class Assignment(Node):
 
 
 @dataclass
-class ConstantDeclaration(Node, Expression):
+class Decl(Node, Expression):
+    decl_type: DeclType
     name: Name
     type: t.Optional[Type]
-    value: t.Optional[Expression]
+    value: t.Optional[Expression] = None
 
     def __post_init__(self):
         assert self.type is not None or self.value is not None
 
-    def to_code(self, indentation_level: int = 0) -> str:
-        if self.type is not None and self.value is not None:
-            code = f"let {self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
-            return INDENTATION * indentation_level + code
-        if self.value is not None:
-            code = f"let {self.name.to_code()} = {self.value.to_code()}"
-            return INDENTATION * indentation_level + code
-        assert self.type is not None
-        code = f"let {self.name.to_code()}: {self.type.to_code()}"
-        return INDENTATION * indentation_level + code
+    @property
+    def is_variable(self) -> bool:
+        return self.decl_type.value == DeclType.variable.value
 
-
-@dataclass
-class VariableDeclaration(Node):
-    name: Name
-    type: t.Optional[Type]
-    value: t.Optional[Expression]
-
-    def __post_init__(self):
-        assert self.type is not None or self.value is not None
+    @property
+    def is_constant(self) -> bool:
+        return self.decl_type.value == DeclType.constant.value
 
     def to_code(self, indentation_level: int = 0) -> str:
+        kwd = "var" if self.is_variable else "let"
         if self.type is not None and self.value is not None:
-            code = f"var {self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
+            code = f"{kwd} {self.name.to_code()}: {self.type.to_code()} = {self.value.to_code()}"
             return INDENTATION * indentation_level + code
         if self.value is not None:
-            code = f"var {self.name.to_code()} = {self.value.to_code()}"
+            code = f"{kwd} {self.name.to_code()} = {self.value.to_code()}"
             return INDENTATION * indentation_level + code
         assert self.type is not None
-        code = f"var {self.name.to_code()}: {self.type.to_code()}"
+        code = f"{kwd} {self.name.to_code()}: {self.type.to_code()}"
         return INDENTATION * indentation_level + code
 
 

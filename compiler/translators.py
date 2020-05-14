@@ -3,6 +3,7 @@ import unittest
 
 from . import nodes, cpp_nodes, environment, library
 from .utils import dispatch, TYPES, EXPRS, NODES
+from .enums import DeclType
 
 
 BUILTIN_TYPE_TO_CPP_TYPE = {
@@ -123,8 +124,7 @@ class Translator(unittest.TestCase):
         }
 
         self.node_dispatcher = {
-            nodes.ConstantDeclaration: self.translate_constant_declaration,
-            nodes.VariableDeclaration: self.translate_variable_declaration,
+            nodes.Decl: self.translate_declaration,
             nodes.FunctionDeclaration: self.translate_function_declaration,
             nodes.StructDeclaration: self.translate_struct_declaration,
             nodes.InterfaceDeclaration: self.translate_interface_declaration,
@@ -165,7 +165,7 @@ class Translator(unittest.TestCase):
             nodes.SpecialName: self.translate_special_name,
             nodes.BuiltinFunc: self.translate_builtin_func,
             nodes.PrivateBuiltinFunc: self.translate_private_builtin_func,
-            nodes.ConstantDeclaration: self.translate_constant_declaration,
+            nodes.Decl: self.translate_declaration,
         }
         self.translate_expression: t.Callable[[nodes.Expression], cpp_nodes.Expression] = lambda value: \
             dispatch(self.expression_dispatcher, type(value), value)
@@ -671,15 +671,7 @@ class Translator(unittest.TestCase):
         self.env.dec_nesting()
         return cpp_nodes.While(translated_condition, translated_body)
 
-    def translate_constant_declaration(self, node: nodes.ConstantDeclaration) -> cpp_nodes.Declaration:
-        assert node.type is not None
-        if node.value is None:
-            value = None
-        else:
-            value = self.translate_expression(node.value)
-        return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value)
-
-    def translate_variable_declaration(self, node: nodes.VariableDeclaration) -> cpp_nodes.Declaration:
+    def translate_declaration(self, node: nodes.Decl) -> cpp_nodes.Declaration:
         assert node.type is not None
         if node.value is None:
             value = None
@@ -716,13 +708,14 @@ class Translator(unittest.TestCase):
     def desugar_if_condition(
             self, condition: nodes.Expression, body: nodes.AST
     ) -> t.Tuple[cpp_nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
-        if isinstance(condition, nodes.ConstantDeclaration):
+        if isinstance(condition, nodes.Decl) and condition.is_constant:
             assert condition.value is not None
             tmp, cpp_tmp = self.create_tmp(type_=cpp_nodes.Auto(), value=self.translate_expression(condition.value))
             new_condition = cpp_nodes.BinaryExpression(cpp_tmp, cpp_nodes.Operator.neq, cpp_nodes.StdName.nullopt)
             assert isinstance(condition.type, nodes.OptionalType)
-            new_declaration: nodes.Node = nodes.ConstantDeclaration(
-                condition.line, condition.name, condition.type.inner_type, nodes.OptionalSomeValue(tmp)
+            new_declaration: nodes.Node = nodes.Decl(
+                condition.line, DeclType.constant, condition.name, condition.type.inner_type,
+                nodes.OptionalSomeValue(tmp)
             )
             new_body = [new_declaration] + body
             assignment = nodes.Assignment(condition.line, tmp, nodes.Operator.eq, condition.value)
