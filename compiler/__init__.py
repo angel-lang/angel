@@ -8,6 +8,7 @@ from . import (
     parsers, translators, generators, environment, errors, clarification, repl_evaluation, analysis
 )
 from .utils import get_hash
+from .context import Context
 
 
 DEBUG = False
@@ -23,15 +24,15 @@ def compile_file(file_path: str) -> str:
 def compile_string(string: str, mangle_names: bool = True) -> str:
     """Translate Angel code represented by `string` into C++ code and returns it."""
     lines = string.split("\n")
-    parser = parsers.Parser()
     hash_ = get_hash(string)
-    clarifier = clarification.Clarifier(hash_, mangle_names)
-    analyzer = analysis.Analyzer(lines, hash_, mangle_names)
+
+    context = Context(lines, hash_, mangle_names)
+    parser = parsers.Parser()
+    clarifier = clarification.Clarifier(context)
+    analyzer = analysis.Analyzer(context)
     translator = translators.Translator()
     try:
-        cpp_ast = translator.translate(
-            analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
-        )
+        cpp_ast = translator.translate(analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string))))
     except errors.AngelError as e:
         if DEBUG:
             raise e
@@ -46,14 +47,14 @@ def compile_string(string: str, mangle_names: bool = True) -> str:
 def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     """Evaluate Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
+    context = Context(lines, main_hash='', mangle_names=False)
+
     parser = parsers.Parser()
-    clarifier = clarification.Clarifier('', mangle_names=False)
-    analyzer = analysis.Analyzer(lines, '', mangle_names=False, env=env)
-    repl_evaluator = repl_evaluation.REPLEvaluator('', mangle_names=False, env=env)
+    clarifier = clarification.Clarifier(context)
+    analyzer = analysis.Analyzer(context, env=env)
+    repl_evaluator = repl_evaluation.REPLEvaluator(context, env=env)
     try:
-        return repl_evaluator.estimate_ast(
-            analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string)))
-        )
+        return repl_evaluator.estimate_ast(analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string))))
     except errors.AngelError as e:
         if DEBUG:
             raise e

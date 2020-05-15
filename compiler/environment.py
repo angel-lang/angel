@@ -7,9 +7,13 @@ from .constants import builtin_interfaces, SELF_NAME
 
 class Environment:
 
-    def __init__(self):
-        self.space = [{}]
-        self.nesting_level = 0
+    def __init__(self, space: t.Optional[t.List[t.Dict[str, entries.Entry]]] = None):
+        if space:
+            self.nesting_level = len(space) - 1
+        else:
+            self.nesting_level = 0
+
+        self.space = space or [{}]
         self.parents: t.List[nodes.Name] = []
         self.where_clauses: t.List[nodes.WhereClause] = []
         self.code = errors.Code()
@@ -178,7 +182,9 @@ class Environment:
             )
 
     def update_function_body(self, name: nodes.Name, body: nodes.AST) -> None:
-        self.space[self.nesting_level][name.member].body = body
+        entry = self.space[self.nesting_level][name.member]
+        assert isinstance(entry, entries.FunctionEntry)
+        entry.body = body
 
     def update_method_body(self, name: nodes.Name, body: nodes.AST) -> None:
         entry = self._get_parent_type_entry()

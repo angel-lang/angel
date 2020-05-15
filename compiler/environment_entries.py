@@ -5,7 +5,7 @@ from enum import Enum
 
 from . import nodes
 from .enums import DeclType
-from .estimation_nodes import Expression
+from .estimation_nodes import Expression, Function
 
 
 @dataclass
@@ -21,6 +21,10 @@ class FunctionEntry(Entry):
     return_type: nodes.Type
     body: nodes.AST
     where_clauses: t.List[nodes.WhereClause] = field(default_factory=list)
+
+    # TODO: add an environment argument
+    def to_estimated_function(self) -> Function:
+        return Function(self.name, self.args, self.return_type, specification=self.body)
 
 
 @dataclass

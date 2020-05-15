@@ -6,6 +6,7 @@ from . import (
     nodes, estimation, type_checking, environment, estimation_nodes as enodes, errors, environment_entries as entries
 )
 from .enums import DeclType
+from .context import Context
 from .constants import builtin_interfaces
 from .utils import mangle, dispatch, NODES, ASSIGNMENTS
 
@@ -17,21 +18,16 @@ def is_8bit_int(typ: nodes.Type) -> bool:
 
 class Analyzer(unittest.TestCase):
 
-    def __init__(
-        self, lines: t.List[str], main_module_hash: str, mangle_names: bool = True,
-        env: t.Optional[environment.Environment] = None,
-    ):
+    def __init__(self, context: Context, env: t.Optional[environment.Environment] = None):
         super().__init__()
         self.env = env or environment.Environment()
-        self.lines = lines
+        self.context = context
+
         self.line = 0
         self.function_return_types: t.List[nodes.Type] = []
 
-        self.main_module_hash = main_module_hash
-        self.mangle_names = mangle_names
-
         self.type_checker = type_checking.TypeChecker()
-        self.estimator = estimation.Estimator(main_module_hash, mangle_names)
+        self.estimator = estimation.Estimator(context)
         self.type_checker.estimator = self.estimator
 
         self.assignment_dispatcher = {
@@ -86,7 +82,7 @@ class Analyzer(unittest.TestCase):
         """
         1. Value (if presented) is checked in infer_type function
         2. Type is checked in infer_type function (if value presented) or in check_type function
-        3. Estimated value estimation is based on current environment
+        3. Value estimation is based on current environment, no need to create a new one
         """
         if node.value:
             type_ = self.infer_type(node.value, supertype=node.type)
@@ -375,9 +371,7 @@ class Analyzer(unittest.TestCase):
             assert isinstance(field_entry, entries.DeclEntry)
             found = struct_entry.fields.get(
                 field_name,
-                struct_entry.fields.get(
-                    mangle(nodes.Name(field_name), self.main_module_hash, self.mangle_names).member
-                )
+                struct_entry.fields.get(mangle(nodes.Name(field_name), self.context).member)
             )
             if not found:
                 raise errors.AngelMissingInterfaceMember(
@@ -395,7 +389,7 @@ class Analyzer(unittest.TestCase):
             found = struct_entry.fields.get(
                 field_name,
                 struct_entry.fields.get(
-                    mangle(nodes.Name(field_name), self.main_module_hash, self.mangle_names).member
+                    mangle(nodes.Name(field_name), self.context).member
                 )
             )
             if not found:
@@ -414,7 +408,7 @@ class Analyzer(unittest.TestCase):
             found_method: t.Optional[entries.FunctionEntry] = struct_entry.methods.get(
                 method_name,
                 struct_entry.methods.get(
-                    mangle(nodes.Name(method_name), self.main_module_hash, self.mangle_names).member
+                    mangle(nodes.Name(method_name), self.context).member
                 )
             )
             if not found_method:
@@ -427,7 +421,7 @@ class Analyzer(unittest.TestCase):
             found_method = struct_entry.methods.get(
                 method_name,
                 struct_entry.methods.get(
-                    mangle(nodes.Name(method_name), self.main_module_hash, self.mangle_names).member
+                    mangle(nodes.Name(method_name), self.context).member
                 )
             )
             if not found_method:
@@ -532,8 +526,8 @@ class Analyzer(unittest.TestCase):
 
     def get_code(self, line: int = 0):
         if not line:
-            return errors.Code(self.lines[self.line - 1], self.line)
-        return errors.Code(self.lines[line - 1], line)
+            return errors.Code(self.context.lines[self.line - 1], self.line)
+        return errors.Code(self.context.lines[line - 1], line)
 
     def get_builtin_interface_entry(self, interface: nodes.BuiltinType) -> entries.InterfaceEntry:
         entry = builtin_interfaces[interface.value]

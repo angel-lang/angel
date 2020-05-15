@@ -9,6 +9,7 @@ from . import estimation_nodes as enodes, nodes, environment, errors, type_check
 from .enums import DeclType
 from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
 from .constants import builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields, SELF_NAME
+from .context import Context
 
 
 EstimatedObjects = namedtuple(
@@ -21,15 +22,13 @@ EstimatedFields = t.Dict[str, t.Union[t.Callable[..., enodes.Expression], enodes
 
 class Evaluator(unittest.TestCase):
     def __init__(
-        self, estimated_objs: EstimatedObjects, main_module_hash: str,
-        mangle_names: bool = True, env: t.Optional[environment.Environment] = None
+        self, estimated_objs: EstimatedObjects, context: Context, env: t.Optional[environment.Environment] = None
     ) -> None:
         super().__init__()
         self.env = env or environment.Environment()
         self.code = errors.Code()
         self.repl_tmp_count = 0
-        self.main_module_hash = main_module_hash
-        self.mangle_names = mangle_names
+        self.context = context
         self.type_checker = type_checking.TypeChecker()
         self.type_checker.estimator = self
 
@@ -404,11 +403,10 @@ class Evaluator(unittest.TestCase):
         entry = self.env.get(x.type)
         assert isinstance(entry, entries.StructEntry)
         method_entry = entry.methods[
-            mangle(nodes.Name(method_name.value), self.main_module_hash, self.mangle_names).member
+            mangle(nodes.Name(method_name.value), self.context).member
         ]
         result = self.match_function_body(
-            enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
-            args=[], args_estimated=[y], self_estimated=x, self_type=x.type
+            method_entry.to_estimated_function(), args=[], args_estimated=[y], self_estimated=x, self_type=x.type
         )
         assert isinstance(result, enodes.Instance)
         return result
@@ -446,7 +444,7 @@ class Evaluator(unittest.TestCase):
         if isinstance(entry, entries.DeclEntry):
             return entry.estimated_value
         elif isinstance(entry, entries.FunctionEntry):
-            return enodes.Function(entry.args, entry.return_type, specification=entry.body)
+            return entry.to_estimated_function()
         elif isinstance(entry, entries.StructEntry):
             return enodes.Struct(entry.name)
         elif isinstance(entry, entries.AlgebraicEntry):
@@ -481,7 +479,7 @@ class Evaluator(unittest.TestCase):
             algebraic_entry = self.env.get(base.type.name)
             assert isinstance(algebraic_entry, entries.AlgebraicEntry)
             method_entry = algebraic_entry.methods[field.member]
-        return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
+        return method_entry.to_estimated_function()
 
     def estimate_instance_field(self, base: enodes.Instance, field: nodes.Name) -> enodes.Expression:
         found = base.fields.get(field.member)
@@ -490,7 +488,7 @@ class Evaluator(unittest.TestCase):
         struct_entry = self.env[base.type.member]
         assert isinstance(struct_entry, entries.StructEntry)
         method_entry = struct_entry.methods[field.member]
-        return enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body)
+        return method_entry.to_estimated_function()
 
     def estimate_ref_field(self, ref: enodes.Ref, field: nodes.Name) -> enodes.Expression:
         assert (field.unmangled or field.member) == 'value'
@@ -521,6 +519,13 @@ class Evaluator(unittest.TestCase):
         return self.estimate_name(nodes.Name(special_name.value))
 
     def estimate_function_call(self, call: nodes.FunctionCall) -> t.Optional[enodes.Expression]:
+        """Estimate function or struct call.
+        1. Get the function/struct estimated object
+        2. Create an environment based on the environment that was available before function/struct declaration
+        3. Override names with arguments
+        4. Run the body
+        5. Return the result if the function returns one
+        """
         function = self.estimate_expression(call.function_path)
         if isinstance(function, enodes.Struct):
             if function.name.module:
@@ -625,7 +630,7 @@ class Evaluator(unittest.TestCase):
                     nodes.Decl(0, DeclType.variable, SELF_NAME, self_type, self_arg),
                     estimated_value=self_estimated
                 )
-            for arg, value, estimated in zip_longest(function.args, args, args_estimated):
+            for arg, value, estimated in zip_longest(function.arguments, args, args_estimated):
                 self.env.add_declaration(nodes.Decl(0, DeclType.constant, arg.name, arg.type, value), estimated_value=estimated)
             result = self.estimate_ast(function.specification)
             self.env.dec_nesting()
@@ -690,10 +695,10 @@ class Evaluator(unittest.TestCase):
                 entry = self.env.get(value.type)
                 assert isinstance(entry, entries.StructEntry)
                 method_entry = entry.methods[
-                    mangle(nodes.Name(nodes.SpecialMethods.as_.value), self.main_module_hash, self.mangle_names).member
+                    mangle(nodes.Name(nodes.SpecialMethods.as_.value), self.context).member
                 ]
                 result = self.match_function_body(
-                    enodes.Function(method_entry.args, method_entry.return_type, specification=method_entry.body),
+                    method_entry.to_estimated_function(),
                     args=[], args_estimated=[], self_estimated=value, self_type=value.type
                 )
                 assert result

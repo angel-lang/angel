@@ -6,21 +6,22 @@ SELF_NAME = nodes.Name(nodes.SpecialName.self.value)
 
 builtin_funcs = {
     nodes.BuiltinFunc.print.value: enodes.Function(
-        [nodes.Argument("value", nodes.BuiltinType.convertible_to_string)], nodes.BuiltinType.void,
-        specification=lambda value: enodes.Void(), name=nodes.BuiltinFunc.print.value
+        nodes.BuiltinFunc.print.value, [nodes.Argument('value', nodes.BuiltinType.convertible_to_string)],
+        nodes.BuiltinType.void, specification=lambda value: enodes.Void()
     ),
     nodes.BuiltinFunc.read.value: enodes.Function(
-        [nodes.Argument("prompt", nodes.BuiltinType.string)], nodes.BuiltinType.string,
-        specification=lambda prompt: enodes.DynamicValue(nodes.BuiltinType.string)
+        nodes.BuiltinFunc.read.value, [nodes.Argument('prompt', nodes.BuiltinType.string)],
+        nodes.BuiltinType.string, specification=lambda prompt: enodes.DynamicValue(nodes.BuiltinType.string)
     )
 }
 
 
 private_builtin_funcs = {
+    # TODO: replace specification for vector_to_string function: make return result much more specific
     nodes.PrivateBuiltinFunc.vector_to_string.value: enodes.Function(
-        [nodes.Argument("value", nodes.VectorType(nodes.BuiltinType.object_))], nodes.BuiltinType.string,
-        specification=lambda value: enodes.DynamicValue(nodes.BuiltinType.string),
-        name=nodes.PrivateBuiltinFunc.vector_to_string.value
+        nodes.PrivateBuiltinFunc.vector_to_string.value,
+        [nodes.Argument('value', nodes.VectorType(nodes.BuiltinType.convertible_to_string))],
+        nodes.BuiltinType.string, specification=lambda value: enodes.DynamicValue(nodes.BuiltinType.string)
     )
 }
 
@@ -144,8 +145,10 @@ def vector_append(v: enodes.Expression) -> enodes.Function:
         s.elements.append(element)
         return enodes.Void()
 
+    # We don't need to pass an environment because `self` will be added when calling the method
     return enodes.Function(
-        args=[nodes.Argument("element", type_=v.element_type)], return_type=nodes.BuiltinType.void, specification=func
+        nodes.VectorFields.append.value, [nodes.Argument('element', v.element_type)], nodes.BuiltinType.void,
+        specification=func
     )
 
 
@@ -159,14 +162,15 @@ def dict_length(d: enodes.Expression) -> enodes.Expression:
 
 string_fields = {
     nodes.StringFields.split.value: enodes.Function(
-        [nodes.Argument("by", nodes.BuiltinType.char)], nodes.VectorType(nodes.BuiltinType.string),
-        specification=string_split
+        nodes.StringFields.split.value, [nodes.Argument('delimiter', nodes.BuiltinType.char)],
+        nodes.VectorType(nodes.BuiltinType.string), specification=string_split
     ),
     nodes.StringFields.length.value: string_length,
 }
 
 vector_fields = {
     nodes.VectorFields.length.value: vector_length,
+    # TODO: consider returning Function object instead of a function
     nodes.VectorFields.append.value: vector_append,
 }
 

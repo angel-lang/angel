@@ -3,12 +3,12 @@ from dataclasses import dataclass
 
 from . import nodes
 from .utils import mangle
+from .context import Context
 
 
 @dataclass
 class Clarifier:
-    main_module_hash: str
-    mangle_names: bool = True
+    context: Context
 
     def clarify_ast(self, ast: nodes.AST) -> nodes.AST:
         return [self.clarify_node(node) for node in ast]
@@ -24,7 +24,7 @@ class Clarifier:
                     continue
                 else:
                     return result
-            return mangle(node, self.main_module_hash, self.mangle_names)
+            return mangle(node, self.context)
         elif isinstance(node, nodes.Field):
             base = self.clarify_node(node.base)
             if isinstance(base, nodes.BuiltinType) and (

@@ -120,13 +120,31 @@ class Ref(Expression):
 
 @dataclass
 class Function(Expression):
-    args: nodes.Arguments
+    """Represent function or method"""
+    name: nodes.Name
+    arguments: nodes.Arguments
     return_type: nodes.Type
     specification: t.Union[t.Callable[..., Expression], nodes.AST]
-    name: t.Optional[str] = None
+    # Actually, saved_environment dict's values are envrionment entries, but we use Any because of circular imports
+    saved_environment: t.List[t.Dict[str, t.Any]]
+
+    def __init__(
+        self, name: t.Union[nodes.Name, str], arguments: nodes.Arguments, return_type: nodes.Type,
+        specification: t.Union[t.Callable[..., Expression], nodes.AST],
+        saved_environment: t.Optional[t.List[t.Dict[str, t.Any]]] = None
+    ):
+        if isinstance(name, str):
+            self.name = nodes.Name(name)
+        else:
+            self.name = name
+
+        self.arguments = arguments
+        self.return_type = return_type
+        self.specification = specification
+        self.saved_environment = saved_environment or []
 
     def to_code(self) -> str:
-        return f"Function(({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()})"
+        return f"Function(({', '.join(arg.to_code() for arg in self.arguments)}) -> {self.return_type.to_code()})"
 
 
 @dataclass

@@ -111,6 +111,13 @@ class Name(Type, AssignmentLeft):
             return f"{self.module}#{member}"
         return member
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return (self.unmangled or self.member) == other
+        elif isinstance(other, Name):
+            return self.member == other.member and self.module == other.module
+        return False
+
 
 @dataclass
 class Field(AssignmentLeft):
