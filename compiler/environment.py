@@ -15,7 +15,7 @@ class Environment:
 
         self.space = space or [{}]
         self.parents: t.List[nodes.Name] = []
-        self.where_clauses: t.List[nodes.WhereClause] = []
+        self.where_clauses: t.List[nodes.Expression] = []
         self.code = errors.Code()
 
     def __getitem__(self, key) -> t.Optional[entries.Entry]:
@@ -210,7 +210,7 @@ class Environment:
         if parent:
             self.parents.pop()
 
-    def add_where_clause(self, where_clause: nodes.WhereClause) -> None:
+    def add_where_clause(self, where_clause: nodes.Expression) -> None:
         self.where_clauses.append(where_clause)
 
     def remove_where_clause(self) -> None:
@@ -257,9 +257,7 @@ class Environment:
         fields: t.Dict[str, entries.Entry] = {}
         methods: t.Dict[str, entries.FunctionEntry] = {}
         for clause in self.where_clauses:
-            if not clause.condition:
-                continue
-            sub_interfaces, sub_fields, sub_methods = self._get_required_data_from_clause(name, clause.condition)
+            sub_interfaces, sub_fields, sub_methods = self._get_required_data_from_clause(name, clause)
             interfaces.extend(sub_interfaces)
             fields.update(sub_fields)
             methods.update(sub_methods)

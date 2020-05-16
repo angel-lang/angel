@@ -1222,12 +1222,9 @@ class TypeChecker(unittest.TestCase):
         else:
             assert 0, f"Cannot eval where clause {clause}"
 
-    def satisfy_where_clauses(self, where_clauses: t.List[nodes.WhereClause], mapping: Mapping):
-        for clause in where_clauses:
-            condition = clause.condition
-            if not condition:
-                continue
-            elif isinstance(condition, nodes.BinaryExpression):
+    def satisfy_where_clauses(self, where_clauses: t.List[nodes.Expression], mapping: Mapping):
+        for condition in where_clauses:
+            if isinstance(condition, nodes.BinaryExpression):
                 if condition.operator == nodes.Operator.and_:
                     left = self.eval_where_clause(condition.left, mapping)
                     right = self.eval_where_clause(condition.right, mapping)

@@ -122,14 +122,17 @@ class Ref(Expression):
 class Function(Expression):
     """Represent function or method"""
     name: nodes.Name
+    parameters: nodes.Parameters
     arguments: nodes.Arguments
     return_type: nodes.Type
+    where_clauses: t.List[nodes.Expression]
     specification: t.Union[t.Callable[..., Expression], nodes.AST]
     # Actually, saved_environment dict's values are envrionment entries, but we use Any because of circular imports
     saved_environment: t.List[t.Dict[str, t.Any]]
 
     def __init__(
-        self, name: t.Union[nodes.Name, str], arguments: nodes.Arguments, return_type: nodes.Type,
+        self, name: t.Union[nodes.Name, str], parameters: nodes.Parameters,
+        arguments: nodes.Arguments, return_type: nodes.Type, where_clauses: t.List[nodes.Expression],
         specification: t.Union[t.Callable[..., Expression], nodes.AST],
         saved_environment: t.Optional[t.List[t.Dict[str, t.Any]]] = None
     ):
@@ -138,8 +141,10 @@ class Function(Expression):
         else:
             self.name = name
 
+        self.parameters = parameters
         self.arguments = arguments
         self.return_type = return_type
+        self.where_clauses = where_clauses
         self.specification = specification
         self.saved_environment = saved_environment or []
 

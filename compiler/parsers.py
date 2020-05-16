@@ -501,17 +501,17 @@ class Parser:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return self.make_extension_declaration(line, name, parameters, interfaces, where_clause, body)
 
-    def parse_where_clause(self) -> nodes.WhereClause:
+    def parse_where_clause(self) -> t.Optional[nodes.Expression]:
         state = self.backup_state()
         self.spaces()
         if not self.parse_raw("where"):
             self.restore_state(state)
-            return nodes.WhereClause(None)
+            return None
         self.spaces()
         condition = self.parse_expression()
         if condition is None:
             raise errors.AngelSyntaxError("expected condition after 'where'", self.get_code())
-        return nodes.WhereClause(condition)
+        return condition
 
     def parse_algebraic_declaration(self) -> t.Optional[nodes.AlgebraicDeclaration]:
         line = self.position.line
@@ -602,7 +602,7 @@ class Parser:
 
     def make_extension_declaration(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces,
-        where_clause: nodes.WhereClause, body: nodes.AST
+        where_clause: t.Optional[nodes.Expression], body: nodes.AST
     ) -> nodes.ExtensionDeclaration:
         private_methods, public_methods, special_methods = [], [], []
         for node in body:

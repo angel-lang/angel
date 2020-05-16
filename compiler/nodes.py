@@ -922,21 +922,11 @@ class StructDeclaration(Node):
 
 
 @dataclass
-class WhereClause:
-    condition: t.Optional[Expression]
-
-    def to_code(self) -> str:
-        if self.condition is None:
-            return ''
-        return f'where {self.condition.to_code()}'
-
-
-@dataclass
 class ExtensionDeclaration(Node):
     name: Name
     parameters: Parameters
     interfaces: Interfaces
-    where_clause: WhereClause
+    where_clause: t.Optional[Expression]
     private_methods: t.List[MethodDeclaration]
     public_methods: t.List[MethodDeclaration]
     special_methods: t.List[MethodDeclaration]
@@ -952,7 +942,11 @@ class ExtensionDeclaration(Node):
         else:
             parameters = ''
 
-        where = self.where_clause.to_code()
+        if self.where_clause:
+            where = self.where_clause.to_code()
+        else:
+            where = ''
+
         private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
         public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
 
