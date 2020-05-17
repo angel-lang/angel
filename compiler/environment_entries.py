@@ -21,11 +21,12 @@ class FunctionEntry(Entry):
     return_type: nodes.Type
     body: nodes.AST
     where_clauses: t.List[nodes.Expression] = field(default_factory=list)
+    saved_environment: t.List[t.Dict[str, Entry]] = field(default_factory=list)
 
-    # TODO: add an environment argument
     def to_estimated_function(self) -> Function:
         return Function(
-            self.name, self.params, self.args, self.return_type, self.where_clauses, specification=self.body
+            self.name, self.params, self.args, self.return_type, self.where_clauses, specification=self.body,
+            saved_environment=self.saved_environment
         )
 
 

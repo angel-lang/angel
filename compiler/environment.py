@@ -80,15 +80,18 @@ class Environment:
         return_type: nodes.Type
     ) -> None:
         self.space[self.nesting_level][name.member] = entries.FunctionEntry(
-            line, name, params, args, return_type, body=[]
+            line, name, params, args, return_type, body=[], where_clauses=list(self.where_clauses),
+            saved_environment=list(self.space)
         )
 
+    # TODO: add parameters to method declarations
     def add_method(
         self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
     ) -> None:
         entry = self._get_parent_type_entry()
         entry.methods[name.member] = entries.FunctionEntry(
-            line, name, [], args, return_type, body=[], where_clauses=list(self.where_clauses)
+            line, name, [], args, return_type, body=[], where_clauses=list(self.where_clauses),
+            saved_environment=list(self.space)
         )
 
     def add_field(self, line: int, name: nodes.Name, type_: nodes.Type) -> None:
