@@ -3,6 +3,9 @@ from . import nodes, estimation_nodes as enodes, environment_entries as entries
 
 SELF_NAME = nodes.Name(nodes.SpecialName.self.value)
 
+# Used for AST nodes created by compiler
+SPEC_LINE = -1
+
 
 builtin_funcs = {
     nodes.BuiltinFunc.print.value: enodes.Function(

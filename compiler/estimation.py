@@ -1,5 +1,6 @@
 import typing as t
 import unittest
+from copy import deepcopy
 from collections import namedtuple
 from decimal import Decimal
 from functools import partial
@@ -8,7 +9,9 @@ from itertools import zip_longest
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .enums import DeclType
 from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
-from .constants import builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields, SELF_NAME
+from .constants import (
+    builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields, SELF_NAME, SPEC_LINE
+)
 from .context import Context
 
 
@@ -93,32 +96,46 @@ class Evaluator(unittest.TestCase):
         }
 
         eq_dispatcher = {
-            (enodes.Int, enodes.Int): lambda x, y: enodes.Bool(x.value == y.value),
-            (enodes.String, enodes.String): lambda x, y: enodes.Bool(x.value == y.value),
-            (enodes.Char, enodes.Char): lambda x, y: enodes.Bool(x.value == y.value),
-            (enodes.Bool, enodes.Bool): lambda x, y: enodes.Bool(x.value == y.value),
-            (enodes.OptionalConstructor, enodes.OptionalConstructor): lambda x, y: enodes.Bool(x.value == y.value),
+            (enodes.Int, enodes.Int): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
+            (enodes.String, enodes.String): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
+            (enodes.Char, enodes.Char): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
+            (enodes.Bool, enodes.Bool): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
+            (enodes.OptionalConstructor, enodes.OptionalConstructor): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
 
-            (enodes.OptionalSomeCall, enodes.OptionalConstructor): lambda x, y: enodes.Bool(False),
+            (enodes.OptionalSomeCall, enodes.OptionalConstructor): lambda x, y, xe, ye: enodes.Bool(False),
         }
 
         lt_dispatcher = {
-            (enodes.Int, enodes.Int): lambda x, y: enodes.Bool(x.value < y.value),
+            (enodes.Int, enodes.Int): lambda x, y, xe, ye: enodes.Bool(xe.value < ye.value),
         }
 
         gt_dispatcher = {
-            (enodes.Int, enodes.Int): lambda x, y: enodes.Bool(x.value > y.value),
+            (enodes.Int, enodes.Int): lambda x, y, xe, ye: enodes.Bool(xe.value > ye.value),
         }
 
         self.binary_operator_dispatcher = {
-            nodes.Operator.add.value: lambda x, y: dispatch(add_dispatcher, (type(x), type(y)), x, y),
-            nodes.Operator.sub.value: lambda x, y: dispatch(sub_dispatcher, (type(x), type(y)), x, y),
-            nodes.Operator.mul.value: lambda x, y: dispatch(mul_dispatcher, (type(x), type(y)), x, y),
-            nodes.Operator.div.value: lambda x, y: dispatch(div_dispatcher, (type(x), type(y)), x, y),
+            nodes.Operator.add.value: lambda x, y, xe, ye: dispatch(
+                add_dispatcher, (type(xe), type(ye)), x, y, xe, ye
+            ),
+            nodes.Operator.sub.value: lambda x, y, xe, ye: dispatch(
+                sub_dispatcher, (type(xe), type(ye)), x, y, xe, ye
+            ),
+            nodes.Operator.mul.value: lambda x, y, xe, ye: dispatch(
+                mul_dispatcher, (type(xe), type(ye)), x, y, xe, ye
+            ),
+            nodes.Operator.div.value: lambda x, y, xe, ye: dispatch(
+                div_dispatcher, (type(xe), type(ye)), x, y, xe, ye
+            ),
 
-            nodes.Operator.eq_eq.value: lambda x, y: dispatch(eq_dispatcher, (type(x), type(y)), x, y),
-            nodes.Operator.lt.value: lambda x, y: dispatch(lt_dispatcher, (type(x), type(y)), x, y),
-            nodes.Operator.gt.value: lambda x, y: dispatch(gt_dispatcher, (type(x), type(y)), x, y),
+            nodes.Operator.eq_eq.value: lambda x, y, xe, ye: dispatch(
+                eq_dispatcher, (type(xe), type(ye)), x, y, xe, ye
+            ),
+            nodes.Operator.lt.value: lambda x, y, xe, ye: dispatch(
+                lt_dispatcher, (type(xe), type(ye)), x, y, xe, ye
+            ),
+            nodes.Operator.gt.value: lambda x, y, xe, ye: dispatch(
+                gt_dispatcher, (type(xe), type(ye)), x, y, xe, ye
+            ),
 
             nodes.Operator.and_.value: self.estimate_binary_expression_and,
             nodes.Operator.or_.value: self.estimate_binary_expression_or,
@@ -370,7 +387,7 @@ class Evaluator(unittest.TestCase):
         name = nodes.Name("__repl_tmp" + str(self.repl_tmp_count))
         self.repl_tmp_count += 1
         self.env.add_declaration(
-            nodes.Decl(0, DeclType.variable, name, self.infer_type(value), value),
+            nodes.Decl(SPEC_LINE, DeclType.variable, name, self.infer_type(value), value),
             estimated_value=self.estimate_expression(value)
         )
         return name
@@ -381,52 +398,65 @@ class Evaluator(unittest.TestCase):
     def estimate_break(self, _: nodes.Break) -> enodes.Break:
         return enodes.Break()
 
-    def estimate_add_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
-        value = x.value + y.value
+    def estimate_add_ints(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Int, ye: enodes.Int
+    ) -> enodes.Int:
+        value = xe.value + ye.value
         new_type = self.infer_type(nodes.IntegerLiteral(str(value)))
         assert isinstance(new_type, nodes.BuiltinType)
         return enodes.Int(value, new_type)
 
-    def estimate_add_strings(self, x: enodes.String, y: enodes.String) -> enodes.String:
-        return enodes.String(x.value + y.value)
+    def estimate_add_strings(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.String, ye: enodes.String
+    ) -> enodes.String:
+        return enodes.String(xe.value + ye.value)
 
-    def estimate_add_vectors(self, x: enodes.Vector, y: enodes.Vector) -> enodes.Vector:
-        element_type = x.element_type
-        if not x.elements:
-            element_type = y.element_type
-        return enodes.Vector(x.elements + y.elements, element_type)
+    def estimate_add_vectors(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Vector, ye: enodes.Vector
+    ) -> enodes.Vector:
+        element_type = xe.element_type
+        if not xe.elements:
+            element_type = ye.element_type
+        return enodes.Vector(xe.elements + ye.elements, element_type)
 
     def estimate_arithmetic_operation_instances(
-        self, method_name: nodes.SpecialMethods, x: enodes.Instance, y: enodes.Instance
+        self, method_name: nodes.SpecialMethods, x: nodes.Expression, y: nodes.Expression,
+        xe: enodes.Instance, ye: enodes.Instance
     ) -> enodes.Instance:
-        assert x.type == y.type
-        entry = self.env.get(x.type)
+        assert xe.type == ye.type
+        entry = self.env.get(xe.type)
         assert isinstance(entry, entries.StructEntry)
         method_entry = entry.methods[
             mangle(nodes.Name(method_name.value), self.context).member
         ]
-        result = self.match_function_body(
-            method_entry.to_estimated_function(), args=[], args_estimated=[y], self_estimated=x, self_type=x.type
+        result = self.perform_function_call(
+            method_entry.to_estimated_function(), [y], nodes.Argument(SELF_NAME, xe.type, x)
         )
         assert isinstance(result, enodes.Instance)
         return result
 
-    def estimate_sub_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
-        value = x.value - y.value
+    def estimate_sub_ints(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Int, ye: enodes.Int
+    ) -> enodes.Int:
+        value = xe.value - ye.value
         new_type = self.infer_type(nodes.IntegerLiteral(str(value)))
         assert isinstance(new_type, nodes.BuiltinType)
         return enodes.Int(value, new_type)
 
-    def estimate_mul_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
-        value = x.value * y.value
+    def estimate_mul_ints(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Int, ye: enodes.Int
+    ) -> enodes.Int:
+        value = xe.value * ye.value
         new_type = self.infer_type(nodes.IntegerLiteral(str(value)))
         assert isinstance(new_type, nodes.BuiltinType)
         return enodes.Int(value, new_type)
 
-    def estimate_div_ints(self, x: enodes.Int, y: enodes.Int) -> enodes.Int:
-        if y.value == 0:
+    def estimate_div_ints(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Int, ye: enodes.Int
+    ) -> enodes.Int:
+        if ye.value == 0:
             raise errors.AngelDivByZero
-        value = int(Decimal(x.value) / Decimal(y.value))
+        value = int(Decimal(xe.value) / Decimal(ye.value))
         new_type = self.infer_type(nodes.IntegerLiteral(str(value)))
         assert isinstance(new_type, nodes.BuiltinType)
         # TODO: move to enodes.Float(value, new_type)
@@ -440,7 +470,7 @@ class Evaluator(unittest.TestCase):
             assert 0, "Module system is not supported"
         entry = self.env[name.member]
         # Estimation is performed after name checking.
-        assert entry is not None
+        assert entry is not None, name.member
         if isinstance(entry, entries.DeclEntry):
             return entry.estimated_value
         elif isinstance(entry, entries.FunctionEntry):
@@ -542,7 +572,7 @@ class Evaluator(unittest.TestCase):
                     call.args[0], nodes.BuiltinType.string, is_builtin=isinstance(arg_type, nodes.BuiltinType)
                 )
             ]
-        return self.match_function_body(function, args)
+        return self.perform_function_call(function, args)
 
     def match_algebraic_constructor_init(
         self, algebraic_constructor: enodes.AlgebraicConstructor, init_declarations: t.List[entries.InitEntry],
@@ -614,36 +644,48 @@ class Evaluator(unittest.TestCase):
         )
         raise errors.AngelWrongArguments(expected, self.code, args)
 
-    def match_function_body(
-        self, function: enodes.Function, args: t.List[nodes.Expression],
-        args_estimated: t.Optional[t.List[enodes.Expression]] = None,
-        self_arg: t.Optional[nodes.Expression] = None, self_estimated: t.Optional[enodes.Expression] = None,
-        self_type: t.Optional[nodes.Type] = None,
+    def perform_function_call(
+        self, function: enodes.Function, arguments: t.List[nodes.Expression],
+        self_argument: t.Optional[nodes.Argument] = None
     ) -> t.Optional[enodes.Expression]:
-        if not self_estimated and self_arg:
-            self_estimated = self.estimate_expression(self_arg)
-        args_estimated = args_estimated or [self.estimate_expression(argument) for argument in args]
-        if isinstance(function.specification, list):
-            self.env.inc_nesting()
-            if self_estimated and self_type:
-                self.env.add_declaration(
-                    nodes.Decl(0, DeclType.variable, SELF_NAME, self_type, self_arg),
-                    estimated_value=self_estimated
-                )
-            for arg, value, estimated in zip_longest(function.arguments, args, args_estimated):
-                self.env.add_declaration(nodes.Decl(0, DeclType.constant, arg.name, arg.type, value), estimated_value=estimated)
-            result = self.estimate_ast(function.specification)
-            self.env.dec_nesting()
-            return result
-        if self_estimated:
-            return function.specification(self_estimated, *args_estimated)
-        return function.specification(*args_estimated)
+        """
+        1. Estimate the arguments and the self_argument
+        2. Create an environment based on function.saved_environment
+        3. Populate that environment with the arguments and the self argument
+        4. Call function's body
+        """
+        estimated_arguments = [self.estimate_expression(argument) for argument in arguments]
+        if not isinstance(function.specification, list):
+            if self_argument:
+                assert self_argument.value
+                estimated_arguments = [self.estimate_expression(self_argument.value)] + estimated_arguments
+            return function.specification(*estimated_arguments)
+
+        environment_backup = deepcopy(self.env)
+        self.env = environment.Environment(function.saved_environment)
+        if self_argument:
+            assert self_argument.value
+            self.env.add_declaration(
+                nodes.Decl(SPEC_LINE, DeclType.variable, SELF_NAME, self_argument.type, self_argument.value),
+                estimated_value=self.estimate_expression(self_argument.value)
+            )
+
+        for argument, expression, estimated in zip_longest(function.arguments, arguments, estimated_arguments):
+            self.env.add_declaration(
+                nodes.Decl(SPEC_LINE, DeclType.constant, argument.name, argument.type, expression),
+                estimated_value=estimated
+            )
+
+        result = self.estimate_ast(function.specification)
+        self.env = environment_backup
+        return result
 
     def estimate_method_call(self, call: nodes.MethodCall) -> t.Optional[enodes.Expression]:
         method = self.estimate_expression(nodes.Field(call.line, call.instance_path, call.method))
         if isinstance(method, enodes.Function):
-            return self.match_function_body(
-                method, call.args, self_arg=call.instance_path, self_type=call.instance_type
+            assert call.instance_type
+            return self.perform_function_call(
+                method, call.args, nodes.Argument(SELF_NAME, call.instance_type, call.instance_path)
             )
         elif isinstance(method, enodes.AlgebraicConstructor):
             algebraic_entry = self.env.get(method.name)
@@ -655,13 +697,17 @@ class Evaluator(unittest.TestCase):
         else:
             assert 0, f"Cannot estimate method call with estimated method {method}"
 
-    def estimate_binary_expression_and(self, left: enodes.Expression, right: enodes.Expression) -> enodes.Bool:
-        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
-        return enodes.Bool(left.value and right.value)
+    def estimate_binary_expression_and(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Expression, ye: enodes.Expression
+    ) -> enodes.Bool:
+        assert isinstance(xe, enodes.Bool) and isinstance(ye, enodes.Bool)
+        return enodes.Bool(xe.value and ye.value)
 
-    def estimate_binary_expression_or(self, left: enodes.Expression, right: enodes.Expression) -> enodes.Bool:
-        assert isinstance(left, enodes.Bool) and isinstance(right, enodes.Bool)
-        return enodes.Bool(left.value or right.value)
+    def estimate_binary_expression_or(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Expression, ye: enodes.Expression
+    ) -> enodes.Bool:
+        assert isinstance(xe, enodes.Bool) and isinstance(ye, enodes.Bool)
+        return enodes.Bool(xe.value or ye.value)
 
     def estimate_binary_expression(self, expression: nodes.BinaryExpression) -> enodes.Expression:
         if expression.operator.value == nodes.Operator.is_.value:
@@ -670,18 +716,29 @@ class Evaluator(unittest.TestCase):
         left = self.estimate_expression(expression.left)
         right = self.estimate_expression(expression.right)
         if expression.operator.value == nodes.Operator.neq.value:
-            result = dispatch(self.binary_operator_dispatcher, nodes.Operator.eq_eq.value, left, right)
+            result = dispatch(
+                self.binary_operator_dispatcher, nodes.Operator.eq_eq.value, expression.left,
+                expression.right, left, right
+            )
             assert isinstance(result, enodes.Bool)
             return enodes.Bool(not result.value)
         elif expression.operator.value == nodes.Operator.lt_eq.value:
-            result = dispatch(self.binary_operator_dispatcher, nodes.Operator.gt.value, left, right)
+            result = dispatch(
+                self.binary_operator_dispatcher, nodes.Operator.gt.value, expression.left, expression.right,
+                left, right
+            )
             assert isinstance(result, enodes.Bool)
             return enodes.Bool(not result.value)
         elif expression.operator.value == nodes.Operator.gt_eq.value:
-            result = dispatch(self.binary_operator_dispatcher, nodes.Operator.lt.value, left, right)
+            result = dispatch(
+                self.binary_operator_dispatcher, nodes.Operator.lt.value, expression.left, expression.right,
+                left, right
+            )
             assert isinstance(result, enodes.Bool)
             return enodes.Bool(not result.value)
-        return dispatch(self.binary_operator_dispatcher, expression.operator.value, left, right)
+        return dispatch(
+            self.binary_operator_dispatcher, expression.operator.value, expression.left, expression.right, left, right
+        )
 
     def estimate_ref(self, ref: nodes.Ref) -> enodes.Expression:
         current_value = self.estimate_expression(ref.value)
@@ -697,9 +754,9 @@ class Evaluator(unittest.TestCase):
                 method_entry = entry.methods[
                     mangle(nodes.Name(nodes.SpecialMethods.as_.value), self.context).member
                 ]
-                result = self.match_function_body(
-                    method_entry.to_estimated_function(),
-                    args=[], args_estimated=[], self_estimated=value, self_type=value.type
+                result = self.perform_function_call(
+                    method_entry.to_estimated_function(), arguments=[],
+                    self_argument=nodes.Argument(SELF_NAME, value.type, cast.value)
                 )
                 assert result
                 return result
