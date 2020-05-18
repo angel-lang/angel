@@ -661,8 +661,9 @@ class Evaluator(unittest.TestCase):
                 estimated_arguments = [self.estimate_expression(self_argument.value)] + estimated_arguments
             return function.specification(*estimated_arguments)
 
-        environment_backup = deepcopy(self.env)
-        self.env = environment.Environment(function.saved_environment)
+        # environment_backup = deepcopy(self.env)
+        # self.env = environment.Environment(function.saved_environment)
+        self.env.inc_nesting()
         if self_argument:
             assert self_argument.value
             self.env.add_declaration(
@@ -677,7 +678,8 @@ class Evaluator(unittest.TestCase):
             )
 
         result = self.estimate_ast(function.specification)
-        self.env = environment_backup
+        self.env.dec_nesting()
+        # self.env = environment_backup
         return result
 
     def estimate_method_call(self, call: nodes.MethodCall) -> t.Optional[enodes.Expression]:

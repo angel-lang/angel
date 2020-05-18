@@ -27,7 +27,6 @@ class TestEval(unittest.TestCase):
         def input_test(_):
             return inp
 
-        env = env or environment.Environment()
         context = Context(lines, main_hash='', mangle_names=False)
         parser = parsers.Parser()
         clarifier = clarification.Clarifier(context)
