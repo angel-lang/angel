@@ -174,7 +174,7 @@ email.changeDomain("new-domain.com")
 
 Structures can be generic.
 ```
-struct Stack(A):
+struct Stack<A>:
     data: [A]
 
     fun push(element: A) -> A:
@@ -385,7 +385,7 @@ e.g. `["a": 1, "c": 0, "b": 3]` for `[String: I8]` type.
 ### Optional type `T?`
 It is defined as
 ```
-algebraic Optional(T):
+algebraic Optional<T>:
     Some(value: T)
   | None
 
