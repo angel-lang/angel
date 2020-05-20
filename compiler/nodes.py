@@ -9,6 +9,13 @@ from .enums import DeclType
 INDENTATION = " " * 4
 
 
+# TODO: replace all if something: str; else: "" with this function
+def opt_to_str(opt, func) -> str:
+    if opt:
+        return func(opt)
+    return ""
+
+
 @dataclass
 class Position:
     column: int = 1
@@ -751,6 +758,7 @@ class FunctionType(Type):
     params: Parameters
     args: Arguments
     return_type: Type
+    where_clauses: t.List[Expression] = field(default_factory=list)
     is_algebraic_method: bool = False
 
     def to_code(self, indentation_level: int = 0) -> str:
@@ -826,16 +834,15 @@ class FunctionDeclaration(Node):
     params: Parameters
     args: Arguments
     return_type: Type
+    where_clause: t.Optional[Expression]
     body: AST
 
     def to_code(self, indentation_level: int = 0) -> str:
         body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
-        if self.params:
-            params = f"<{', '.join(param.to_code() for param in self.params)}>"
-        else:
-            params = ""
+        where = opt_to_str(self.where_clause, lambda e: f" where {e.to_code()}")
+        params = opt_to_str(self.params, lambda p: f"<{', '.join(param.to_code() for param in p)}>")
         args = ', '.join(arg.to_code() for arg in self.args)
-        code = f"fun {self.name.to_code()}{params}({args}) -> {self.return_type.to_code()}:\n{body}"
+        code = f"fun {self.name.to_code()}{params}({args}) -> {self.return_type.to_code()}{where}:\n{body}"
         return INDENTATION * indentation_level + code
 
 

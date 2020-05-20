@@ -601,7 +601,7 @@ class Translator(unittest.TestCase):
             funcs.append(
                 nodes.FunctionDeclaration(
                     method.line, nodes.Name(algebraic_method_name(node.name, method.name)), [],
-                    [self_arg] + method.args, method.return_type, method.body
+                    [self_arg] + method.args, method.return_type, where_clause=None, body=method.body
                 )
             )
         methods = self.translate_body(funcs)

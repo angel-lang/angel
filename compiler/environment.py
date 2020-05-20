@@ -90,12 +90,14 @@ class Environment:
 
     def add_function(
         self, line: int, name: nodes.Name, params: nodes.Parameters, args: t.List[nodes.Argument],
-        return_type: nodes.Type
+        return_type: nodes.Type, where_clause: t.Optional[nodes.Expression]
     ) -> None:
         space_copy = copy_environment(self).space
+        clauses = list(self.where_clauses)
+        if where_clause:
+            clauses.append(where_clause)
         self.space[self.nesting_level][name.member] = entries.FunctionEntry(
-            line, name, params, args, return_type, body=[], where_clauses=list(self.where_clauses),
-            saved_environment=space_copy
+            line, name, params, args, return_type, body=[], where_clauses=clauses, saved_environment=space_copy
         )
 
     # TODO: add parameters to method declarations

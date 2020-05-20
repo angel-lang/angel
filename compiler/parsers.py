@@ -381,16 +381,17 @@ class Parser:
                 raise errors.AngelSyntaxError("expected type", self.get_code())
         else:
             return_type = nodes.BuiltinType.void
+        where_clause = self.parse_where_clause()
         if not self.parse_raw(":"):
             if body_required:
                 raise errors.AngelSyntaxError("expected ':'", self.get_code())
-            return nodes.FunctionDeclaration(line, name, params, args, return_type, [])
+            return nodes.FunctionDeclaration(line, name, params, args, return_type, where_clause, [])
         self.additional_statement_parsers.append(self.parse_return_statement)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return nodes.FunctionDeclaration(line, name, params, args, return_type, body)
+        return nodes.FunctionDeclaration(line, name, params, args, return_type, where_clause, body)
 
     def parse_return_statement(self) -> t.Optional[nodes.Return]:
         line = self.position.line

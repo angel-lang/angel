@@ -321,7 +321,7 @@ class TypeChecker(unittest.TestCase):
             nodes.FunctionType: lambda func_type: nodes.FunctionType(
                 func_type.params,
                 [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.args],
-                self.replace_template_types(func_type.return_type), func_type.is_algebraic_method
+                self.replace_template_types(func_type.return_type), func_type.where_clauses, func_type.is_algebraic_method
             ),
             nodes.DictType: lambda dict_type: nodes.DictType(self.replace_template_types(dict_type.key_type),
                                                              self.replace_template_types(dict_type.value_type)),
@@ -354,11 +354,7 @@ class TypeChecker(unittest.TestCase):
         if isinstance(entry, entries.DeclEntry):
             return to_inference_result(self.unify_types(entry.type, supertype, mapping))
         elif isinstance(entry, entries.FunctionEntry):
-            return to_inference_result(
-                self.unify_types(
-                    nodes.FunctionType(entry.params, entry.args, entry.return_type), supertype, mapping
-                )
-            )
+            return to_inference_result(self.unify_types(entry.to_function_type(), supertype, mapping))
         elif isinstance(entry, entries.StructEntry):
             params: t.List[nodes.Type] = [self.create_template_type() for _ in entry.params]
             return to_inference_result(self.unify_types(nodes.StructType(entry.name, params), supertype, mapping))
@@ -406,6 +402,9 @@ class TypeChecker(unittest.TestCase):
     def infer_type_from_function_call(
             self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
+        """
+        1.
+        """
         function_result = self.infer_type(call.function_path)
         function_type = function_result.type
         if isinstance(function_type, nodes.StructType):
@@ -599,11 +598,7 @@ class TypeChecker(unittest.TestCase):
                 method_entry = entry.methods.get(field.field.member)
                 if method_entry is None:
                     raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
-                return to_inference_result(
-                    self.unify_types(
-                        nodes.FunctionType([], method_entry.args, method_entry.return_type), supertype, mapping
-                    )
-                )
+                return to_inference_result(self.unify_types(method_entry.to_function_type(), supertype, mapping))
             elif isinstance(field_entry, entries.DeclEntry):
                 return to_inference_result(self.unify_types(field_entry.type, supertype, mapping))
             else:
@@ -638,12 +633,9 @@ class TypeChecker(unittest.TestCase):
                 if method_entry is None:
                     raise errors.AngelFieldError(field.base, base_type, field.field.member, self.code)
                 is_algebraic_method = True
-            return to_inference_result(
-                self.unify_types(
-                    nodes.FunctionType([], method_entry.args, method_entry.return_type, is_algebraic_method),
-                    supertype, mapping
-                )
-            )
+            func_type = method_entry.to_function_type()
+            func_type.is_algebraic_method = is_algebraic_method
+            return to_inference_result(self.unify_types(func_type, supertype, mapping))
         elif isinstance(field_entry, entries.DeclEntry):
             return to_inference_result(self.unify_types(field_entry.type, supertype, mapping))
         else:
@@ -1022,6 +1014,8 @@ class TypeChecker(unittest.TestCase):
         self, subtype: nodes.FunctionType, supertype: nodes.FunctionType, mapping: Mapping
     ) -> UnificationResult:
         arguments = []
+        # TODO: unify where clauses
+        clauses = subtype.where_clauses
         for sub_argument, super_argument in zip_longest(subtype.args, supertype.args):
             try:
                 argument_result = self.unify_types(sub_argument, super_argument, mapping)
@@ -1037,7 +1031,8 @@ class TypeChecker(unittest.TestCase):
         else:
             return UnificationResult(
                 nodes.FunctionType(
-                    subtype.params, arguments, return_result.type, is_algebraic_method=subtype.is_algebraic_method
+                    subtype.params, arguments, return_result.type, clauses,
+                    is_algebraic_method=subtype.is_algebraic_method
                 ),
                 return_result.mapping
             )

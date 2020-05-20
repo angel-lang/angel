@@ -29,6 +29,9 @@ class FunctionEntry(Entry):
             saved_environment=self.saved_environment
         )
 
+    def to_function_type(self) -> nodes.FunctionType:
+        return nodes.FunctionType(self.params, self.args, self.return_type, self.where_clauses)
+
 
 @dataclass
 class InitEntry(Entry):
