@@ -1,4 +1,5 @@
 import typing as t
+from copy import copy
 
 from . import nodes, environment_entries as entries, estimation_nodes as enodes, errors
 from .enums import DeclType
@@ -79,19 +80,27 @@ class Environment:
         self, line: int, name: nodes.Name, params: nodes.Parameters, args: t.List[nodes.Argument],
         return_type: nodes.Type
     ) -> None:
+        space_copy = copy(self.space)
         self.space[self.nesting_level][name.member] = entries.FunctionEntry(
             line, name, params, args, return_type, body=[], where_clauses=list(self.where_clauses),
-            saved_environment=list(self.space)
+            saved_environment=space_copy
         )
 
     # TODO: add parameters to method declarations
     def add_method(
-        self, line: int, name: nodes.Name, args: t.List[nodes.Argument], return_type: nodes.Type
+        self, line: int, name: t.Union[nodes.SpecialMethods, nodes.Name],
+        args: t.List[nodes.Argument], return_type: nodes.Type
     ) -> None:
         entry = self._get_parent_type_entry()
-        entry.methods[name.member] = entries.FunctionEntry(
+        space_copy = copy(self.space)
+        if isinstance(name, nodes.SpecialMethods):
+            key = name.value
+            name = nodes.Name(key)
+        else:
+            key = name.member
+        entry.methods[key] = entries.FunctionEntry(
             line, name, [], args, return_type, body=[], where_clauses=list(self.where_clauses),
-            saved_environment=list(self.space)
+            saved_environment=space_copy
         )
 
     def add_field(self, line: int, name: nodes.Name, type_: nodes.Type) -> None:
@@ -189,9 +198,13 @@ class Environment:
         assert isinstance(entry, entries.FunctionEntry)
         entry.body = body
 
-    def update_method_body(self, name: nodes.Name, body: nodes.AST) -> None:
+    def update_method_body(self, name: t.Union[nodes.SpecialMethods, nodes.Name], body: nodes.AST) -> None:
         entry = self._get_parent_type_entry()
-        entry.methods[name.member].body = body
+        if isinstance(name, nodes.SpecialMethods):
+            key = name.value
+        else:
+            key = name.member
+        entry.methods[key].body = body
 
     def update_init_declaration_body(self, args: nodes.Arguments, body: nodes.AST) -> None:
         entry = self._get_parent_type_entry()

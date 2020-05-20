@@ -520,7 +520,8 @@ class Translator(unittest.TestCase):
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
 
     def translate_special_method(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
-        real_name = node.name.unmangled or node.name.member
+        assert isinstance(node.name, nodes.SpecialMethods)
+        real_name = node.name.value
         if real_name == nodes.SpecialMethods.as_.value:
             assert isinstance(node.return_type, nodes.BuiltinType) and node.return_type == nodes.BuiltinType.string
             printing_override_args = [

@@ -1,6 +1,6 @@
 import typing as t
 import unittest
-from copy import deepcopy
+from copy import copy
 from collections import namedtuple
 from decimal import Decimal
 from functools import partial
@@ -426,9 +426,7 @@ class Evaluator(unittest.TestCase):
         assert xe.type == ye.type
         entry = self.env.get(xe.type)
         assert isinstance(entry, entries.StructEntry)
-        method_entry = entry.methods[
-            mangle(nodes.Name(method_name.value), self.context).member
-        ]
+        method_entry = entry.methods[method_name.value]
         result = self.perform_function_call(
             method_entry.to_estimated_function(), [y], nodes.Argument(SELF_NAME, xe.type, x)
         )
@@ -661,14 +659,18 @@ class Evaluator(unittest.TestCase):
                 estimated_arguments = [self.estimate_expression(self_argument.value)] + estimated_arguments
             return function.specification(*estimated_arguments)
 
-        # environment_backup = deepcopy(self.env)
-        # self.env = environment.Environment(function.saved_environment)
-        self.env.inc_nesting()
         if self_argument:
             assert self_argument.value
+            estimated_self: t.Optional[enodes.Expression] = self.estimate_expression(self_argument.value)
+        else:
+            estimated_self = None
+
+        environment_backup = copy(self.env)
+        self.env = environment.Environment(function.saved_environment)
+        if self_argument:
             self.env.add_declaration(
                 nodes.Decl(SPEC_LINE, DeclType.variable, SELF_NAME, self_argument.type, self_argument.value),
-                estimated_value=self.estimate_expression(self_argument.value)
+                estimated_value=estimated_self
             )
 
         for argument, expression, estimated in zip_longest(function.arguments, arguments, estimated_arguments):
@@ -678,8 +680,7 @@ class Evaluator(unittest.TestCase):
             )
 
         result = self.estimate_ast(function.specification)
-        self.env.dec_nesting()
-        # self.env = environment_backup
+        self.env = environment_backup
         return result
 
     def estimate_method_call(self, call: nodes.MethodCall) -> t.Optional[enodes.Expression]:
@@ -753,9 +754,7 @@ class Evaluator(unittest.TestCase):
             if isinstance(value, enodes.Instance):
                 entry = self.env.get(value.type)
                 assert isinstance(entry, entries.StructEntry)
-                method_entry = entry.methods[
-                    mangle(nodes.Name(nodes.SpecialMethods.as_.value), self.context).member
-                ]
+                method_entry = entry.methods[nodes.SpecialMethods.as_.value]
                 result = self.perform_function_call(
                     method_entry.to_estimated_function(), arguments=[],
                     self_argument=nodes.Argument(SELF_NAME, value.type, cast.value)

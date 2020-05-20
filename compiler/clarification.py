@@ -17,7 +17,7 @@ class Clarifier:
         if node is None:
             return None
         if isinstance(node, nodes.Name):
-            for cls in (nodes.BuiltinType, nodes.BuiltinFunc, nodes.BoolLiteral, nodes.SpecialName):
+            for cls in (nodes.BuiltinType, nodes.BuiltinFunc, nodes.BoolLiteral, nodes.SpecialName, nodes.SpecialMethods):
                 try:
                     result = cls(node.member)
                 except ValueError:
