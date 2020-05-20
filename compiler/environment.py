@@ -1,9 +1,21 @@
 import typing as t
-from copy import copy
 
 from . import nodes, environment_entries as entries, estimation_nodes as enodes, errors
 from .enums import DeclType
 from .constants import builtin_interfaces, SELF_NAME
+
+
+def copy_environment(to_copy):
+    result = Environment()
+    result.where_clauses = list(to_copy.where_clauses)
+    result.space = []
+    result.nesting_level = -1
+    for scope in to_copy.space:
+        # Entries are the same
+        result_scope = dict(scope)
+        result.space.append(result_scope)
+        result.nesting_level += 1
+    return result
 
 
 class Environment:
@@ -80,7 +92,7 @@ class Environment:
         self, line: int, name: nodes.Name, params: nodes.Parameters, args: t.List[nodes.Argument],
         return_type: nodes.Type
     ) -> None:
-        space_copy = copy(self.space)
+        space_copy = copy_environment(self).space
         self.space[self.nesting_level][name.member] = entries.FunctionEntry(
             line, name, params, args, return_type, body=[], where_clauses=list(self.where_clauses),
             saved_environment=space_copy
@@ -92,7 +104,7 @@ class Environment:
         args: t.List[nodes.Argument], return_type: nodes.Type
     ) -> None:
         entry = self._get_parent_type_entry()
-        space_copy = copy(self.space)
+        space_copy = copy_environment(self).space
         if isinstance(name, nodes.SpecialMethods):
             key = name.value
             name = nodes.Name(key)
