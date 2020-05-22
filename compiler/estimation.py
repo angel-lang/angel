@@ -66,12 +66,14 @@ class Evaluator(unittest.TestCase):
         }
 
         add_dispatcher = {
+            (enodes.DynamicValue, enodes.DynamicValue): self.estimate_add_dyn_values,
             (enodes.Int, enodes.Int): self.estimate_add_ints,
             (enodes.String, enodes.String): self.estimate_add_strings,
             (enodes.Vector, enodes.Vector): self.estimate_add_vectors,
             (enodes.Instance, enodes.Instance): partial(
                 self.estimate_arithmetic_operation_instances, nodes.SpecialMethods.add
             ),
+            (enodes.DynamicValue, enodes.String): self.estimate_add_dyn_value_and_string,
         }
 
         sub_dispatcher = {
@@ -95,12 +97,13 @@ class Evaluator(unittest.TestCase):
             ),
         }
 
-        eq_dispatcher = {
+        eq_dispatcher: t.Dict[t.Tuple[type, type], t.Callable] = {
             (enodes.Int, enodes.Int): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
             (enodes.String, enodes.String): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
             (enodes.Char, enodes.Char): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
             (enodes.Bool, enodes.Bool): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
             (enodes.OptionalConstructor, enodes.OptionalConstructor): lambda x, y, xe, ye: enodes.Bool(xe.value == ye.value),
+            (enodes.Instance, enodes.Instance): self.estimate_eq_instances,
 
             (enodes.OptionalSomeCall, enodes.OptionalConstructor): lambda x, y, xe, ye: enodes.Bool(False),
         }
@@ -149,6 +152,7 @@ class Evaluator(unittest.TestCase):
             enodes.Algebraic: self.estimate_algebraic_field,
             enodes.AlgebraicConstructorInstance: self.estimate_algebraic_constructor_instance_field,
             enodes.Ref: self.estimate_ref_field,
+            enodes.DynamicValue: self.estimate_dyn_field,
         }
 
         self.assignment_dispatcher = {
@@ -399,6 +403,22 @@ class Evaluator(unittest.TestCase):
     def estimate_break(self, _: nodes.Break) -> enodes.Break:
         return enodes.Break()
 
+    def estimate_eq_instances(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Instance, ye: enodes.Instance
+    ) -> enodes.Expression:
+        result = self.estimate_method_call(
+            nodes.MethodCall(
+                SPEC_LINE, x, method=nodes.Name(nodes.SpecialMethods.eq.value), args=[y], instance_type=xe.type
+            )
+        )
+        assert result
+        return result
+
+    def estimate_add_dyn_values(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.DynamicValue, ye: enodes.DynamicValue
+    ) -> enodes.Expression:
+        return xe
+
     def estimate_add_ints(
         self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Int, ye: enodes.Int
     ) -> enodes.Int:
@@ -411,6 +431,12 @@ class Evaluator(unittest.TestCase):
         self, x: nodes.Expression, y: nodes.Expression, xe: enodes.String, ye: enodes.String
     ) -> enodes.String:
         return enodes.String(xe.value + ye.value)
+
+    def estimate_add_dyn_value_and_string(
+        self, x: nodes.Expression, y: nodes.Expression, xe: enodes.DynamicValue, ye: enodes.String
+    ) -> enodes.Expression:
+        assert isinstance(xe.type, nodes.BuiltinType) and xe.type == nodes.BuiltinType.string
+        return enodes.DynamicValue(nodes.BuiltinType.string)
 
     def estimate_add_vectors(
         self, x: nodes.Expression, y: nodes.Expression, xe: enodes.Vector, ye: enodes.Vector
@@ -522,6 +548,14 @@ class Evaluator(unittest.TestCase):
     def estimate_ref_field(self, ref: enodes.Ref, field: nodes.Name) -> enodes.Expression:
         assert (field.unmangled or field.member) == 'value'
         return ref.value
+
+    def estimate_dyn_field(self, dyn_value: enodes.DynamicValue, field: nodes.Name) -> enodes.Expression:
+        assert isinstance(dyn_value.type, nodes.Name)
+        entry = self.env.get(dyn_value.type)
+        assert isinstance(entry, entries.StructEntry)
+        field_entry = entry.fields[field.member]
+        assert isinstance(field_entry, entries.DeclEntry)
+        return enodes.DynamicValue(field_entry.type)
 
     def estimate_field(self, field: nodes.Field) -> enodes.Expression:
         base = self.estimate_expression(field.base)
@@ -750,6 +784,9 @@ class Evaluator(unittest.TestCase):
 
     def estimate_cast(self, cast: nodes.Cast) -> enodes.Expression:
         value = self.estimate_expression(cast.value)
+        if isinstance(cast.to_type, nodes.Name) and isinstance(value, enodes.Instance):
+            assert isinstance(value.type, nodes.Name) and cast.to_type == value.type
+            return value
         assert isinstance(cast.to_type, nodes.BuiltinType)
         if cast.to_type.value == nodes.BuiltinType.string.value:
             if isinstance(value, enodes.Instance):
@@ -768,6 +805,9 @@ class Evaluator(unittest.TestCase):
                 return enodes.String(value.value)
             elif isinstance(value, (enodes.Bool, enodes.Dict, enodes.Vector)):
                 return enodes.String(value.to_code())
+            elif isinstance(value, enodes.DynamicValue):
+                assert isinstance(value.type, nodes.BuiltinType) and value.type.is_finite_int_type
+                return enodes.DynamicValue(nodes.BuiltinType.string)
             assert isinstance(value, (enodes.Int, enodes.Float)), type(value)
             return enodes.String(str(value.value))
         assert isinstance(value, (enodes.Int, enodes.Float)), type(value)

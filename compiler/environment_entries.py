@@ -30,7 +30,9 @@ class FunctionEntry(Entry):
         )
 
     def to_function_type(self) -> nodes.FunctionType:
-        return nodes.FunctionType(self.params, self.args, self.return_type, self.where_clauses)
+        return nodes.FunctionType(
+            self.params, self.args, self.return_type, self.where_clauses, self.saved_environment
+        )
 
 
 @dataclass

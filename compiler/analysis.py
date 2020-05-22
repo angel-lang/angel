@@ -105,6 +105,12 @@ class Analyzer(unittest.TestCase):
         self.function_return_types.append(return_type)
         for arg in args:
             self.env.add_declaration(nodes.Decl(declaration.line, DeclType.constant, arg.name, arg.type))
+
+        # The clause can use parameters and arguments.
+        if declaration.where_clause:
+            # Nothing except Bool is subtype of Bool.
+            self.infer_type(declaration.where_clause, nodes.BuiltinType.bool)
+
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
         self.env.dec_nesting()

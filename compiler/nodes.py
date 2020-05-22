@@ -759,6 +759,7 @@ class FunctionType(Type):
     args: Arguments
     return_type: Type
     where_clauses: t.List[Expression] = field(default_factory=list)
+    saved_environment: t.List[t.Dict[str, t.Any]] = field(default_factory=list)
     is_algebraic_method: bool = False
 
     def to_code(self, indentation_level: int = 0) -> str:

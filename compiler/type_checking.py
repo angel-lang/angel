@@ -1,11 +1,13 @@
 import typing as t
 import unittest
+from copy import copy
 from collections import namedtuple
 from decimal import Decimal
 from itertools import zip_longest
 
-from . import nodes, errors, environment, environment_entries as entries
-from .constants import builtin_interfaces
+from . import nodes, errors, environment, environment_entries as entries, estimation_nodes as enodes
+from .enums import DeclType
+from .constants import builtin_interfaces, SPEC_LINE
 from .utils import dispatch, TYPES, EXPRS, apply_mapping, is_user_defined_type
 
 
@@ -321,7 +323,8 @@ class TypeChecker(unittest.TestCase):
             nodes.FunctionType: lambda func_type: nodes.FunctionType(
                 func_type.params,
                 [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.args],
-                self.replace_template_types(func_type.return_type), func_type.where_clauses, func_type.is_algebraic_method
+                self.replace_template_types(func_type.return_type),
+                func_type.where_clauses, func_type.saved_environment, func_type.is_algebraic_method
             ),
             nodes.DictType: lambda dict_type: nodes.DictType(self.replace_template_types(dict_type.key_type),
                                                              self.replace_template_types(dict_type.value_type)),
@@ -402,9 +405,6 @@ class TypeChecker(unittest.TestCase):
     def infer_type_from_function_call(
             self, call: nodes.FunctionCall, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
-        """
-        1.
-        """
         function_result = self.infer_type(call.function_path)
         function_type = function_result.type
         if isinstance(function_type, nodes.StructType):
@@ -461,17 +461,39 @@ class TypeChecker(unittest.TestCase):
         raise errors.AngelWrongArguments(expected, self.code, args)
 
     def match_with_function_type(
-            self, function_type: nodes.FunctionType, args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type],
-            mapping: Mapping
+        self, function_type: nodes.FunctionType, arguments: t.List[nodes.Expression],
+        supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
+        """
+        1. Create template types from parameters. In checks it will be replaced by regular types.
+        2. Passed argument's type is subtype of declared argument's type (e.g. I8 is ConvertibleToString).
+        3. Check satisfaction of `where` clauses.
+        """
         for param in function_type.params:
             mapping[param.member] = self.create_template_type()
-        for arg, value in zip_longest(function_type.args, args):
+        for arg, value in zip_longest(function_type.args, arguments):
             if arg is None or value is None:
                 raise errors.AngelWrongArguments(
-                    f'({", ".join(arg.to_code() for arg in function_type.args)})', self.code, args
+                    f'({", ".join(arg.to_code() for arg in function_type.args)})', self.code, arguments
                 )
             self.infer_type(value, arg.type, mapping)
+
+        # TODO: add `self` to the environment
+        estimated_arguments = [self.estimate_expression(argument) for argument in arguments]
+        environment_backup = copy(self.env)
+        self.env = environment.Environment(function_type.saved_environment)
+        for argument, expression, estimated in zip_longest(function_type.args, arguments, estimated_arguments):
+            self.env.add_declaration(
+                nodes.Decl(SPEC_LINE, DeclType.constant, argument.name, argument.type, expression),
+                estimated_value=estimated
+            )
+
+        for clause in function_type.where_clauses:
+            estimated_clause = self.estimate_expression(clause)
+            if not isinstance(estimated_clause, enodes.Bool) or not estimated_clause.value:
+                raise errors.AngelUnsatisfiedWhereClause(clause, self.code)
+
+        self.env = environment_backup
         return to_inference_result(self.unify_types(function_type.return_type, supertype, mapping))
 
     def basic_struct_mapping(self, struct_type: t.Union[nodes.GenericType, nodes.StructType]) -> Mapping:
@@ -1031,7 +1053,7 @@ class TypeChecker(unittest.TestCase):
         else:
             return UnificationResult(
                 nodes.FunctionType(
-                    subtype.params, arguments, return_result.type, clauses,
+                    subtype.params, arguments, return_result.type, clauses, subtype.saved_environment,
                     is_algebraic_method=subtype.is_algebraic_method
                 ),
                 return_result.mapping
@@ -1183,6 +1205,11 @@ class TypeChecker(unittest.TestCase):
         self.env = env
         self.code = code
         self.env.update_code(code)
+
+    def estimate_expression(self, expression: nodes.Expression) -> enodes.Expression:
+        assert self.estimator
+        self.estimator.update_context(self.env, self.code)
+        return self.estimator.estimate_expression(expression)
 
     def entry_possible_param(self, name: nodes.Name) -> entries.Entry:
         result = self.env[name.member]
