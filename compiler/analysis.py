@@ -71,6 +71,14 @@ class Analyzer(unittest.TestCase):
             nodes.BuiltinFunc.print.value: self.analyze_print_function_call,
         }
 
+        self._apply_clause_to_env_dispatcher_binary_expression = {
+            nodes.Operator.is_.value: self.apply_is_check_to_env,
+
+            # TODO: apply to estimated_value
+            nodes.Operator.lt.value: lambda _: None,
+            nodes.Operator.gt.value: lambda _: None,
+        }
+
     def analyze_ast(self, ast: nodes.AST) -> nodes.AST:
         return [self.analyze_node(node) for node in ast]
 
@@ -100,6 +108,7 @@ class Analyzer(unittest.TestCase):
         self.env.add_function(
             declaration.line, declaration.name, declaration.params, args, return_type, declaration.where_clause
         )
+        # TODO: backup env, because apply_clause can modify variables
         self.env.inc_nesting()
         self.env.add_parameters(declaration.line, declaration.params)
         self.function_return_types.append(return_type)
@@ -110,6 +119,7 @@ class Analyzer(unittest.TestCase):
         if declaration.where_clause:
             # Nothing except Bool is subtype of Bool.
             self.infer_type(declaration.where_clause, nodes.BuiltinType.bool)
+            self.apply_clause_to_env(declaration.where_clause)
 
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
@@ -558,6 +568,17 @@ class Analyzer(unittest.TestCase):
         entry.inherited_fields = inherited_fields
         entry.inherited_methods = inherited_methods
         return entry
+
+    def apply_clause_to_env(self, clause: nodes.Expression):
+        assert isinstance(clause, nodes.BinaryExpression)
+        return dispatch(self._apply_clause_to_env_dispatcher_binary_expression, clause.operator.value, clause)
+
+    def apply_is_check_to_env(self, clause: nodes.BinaryExpression):
+        assert isinstance(clause.left, nodes.Name)
+        assert isinstance(clause.right, (nodes.Name, nodes.BuiltinType, nodes.GenericType))
+        entry = self.env.get(clause.left)
+        assert isinstance(entry, entries.ParameterEntry)
+        entry.parent_interfaces.append(clause.right)
 
     def test(self):
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))

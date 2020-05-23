@@ -44,6 +44,16 @@ TYPES = get_all_subclasses(nodes.Type)
 ASSIGNMENTS = get_all_subclasses(nodes.AssignmentLeft)
 
 
+apply_mapping_expression_dispatcher = {
+    nodes.Name: lambda name, mapping: mapping.get(name.member, name),
+    nodes.BuiltinType: lambda name, mapping: name,
+    nodes.BuiltinFunc: lambda name, mapping: name,
+    nodes.BinaryExpression: lambda expr, mapping: nodes.BinaryExpression(
+        apply_mapping_expression(expr.left, mapping), expr.operator, apply_mapping_expression(expr.right, mapping)
+    ),
+}
+
+
 apply_mapping_dispatcher = {
     nodes.Name: lambda name, mapping: mapping.get(name.member, name),
     nodes.FunctionType: lambda func, mapping: nodes.FunctionType(
@@ -75,6 +85,10 @@ apply_mapping_dispatcher = {
 
 def apply_mapping(raw: nodes.Type, mapping: t.Dict[str, nodes.Type]) -> nodes.Type:
     return dispatch(apply_mapping_dispatcher, type(raw), raw, mapping)
+
+
+def apply_mapping_expression(raw: nodes.Expression, mapping: t.Dict[str, nodes.Type]) -> nodes.Expression:
+    return dispatch(apply_mapping_expression_dispatcher, type(raw), raw, mapping)
 
 
 def is_user_defined_type(typ: nodes.Type) -> bool:

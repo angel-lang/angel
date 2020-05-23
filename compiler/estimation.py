@@ -749,8 +749,21 @@ class Evaluator(unittest.TestCase):
 
     def estimate_binary_expression(self, expression: nodes.BinaryExpression) -> enodes.Expression:
         if expression.operator.value == nodes.Operator.is_.value:
-            assert isinstance(expression.right, nodes.BuiltinType) and expression.right == nodes.BuiltinType.object_
-            return enodes.Bool(True)
+            if isinstance(expression.left, nodes.BuiltinType):
+                if not isinstance(expression.right, nodes.BuiltinType):
+                    return enodes.Bool(False)
+                if expression.right.value in expression.left.get_builtin_supertypes():
+                    return enodes.Bool(True)
+                return enodes.Bool(False)
+            if expression.right == nodes.BuiltinType.object_:
+                return enodes.Bool(True)
+            assert isinstance(expression.left, nodes.Name)
+            assert isinstance(expression.right, (nodes.Name, nodes.BuiltinType, nodes.GenericType))
+            entry = self.env.get(expression.left)
+            assert isinstance(entry, (entries.StructEntry, entries.ParameterEntry))
+            if entry.implements_interface(expression.right):
+                return enodes.Bool(True)
+            return enodes.Bool(False)
         left = self.estimate_expression(expression.left)
         right = self.estimate_expression(expression.right)
         if expression.operator.value == nodes.Operator.neq.value:

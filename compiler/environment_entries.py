@@ -50,6 +50,9 @@ class StructEntry(Entry):
     init_declarations: t.Dict[str, InitEntry]
     methods: t.Dict[str, FunctionEntry]
 
+    def implements_interface(self, interface: nodes.Interface) -> bool:
+        return interface in self.implemented_interfaces
+
 
 @dataclass
 class AlgebraicEntry(Entry):
@@ -76,6 +79,9 @@ class ParameterEntry(Entry):
     parent_interfaces: nodes.Interfaces
     fields: t.Dict[str, Entry]
     methods: t.Dict[str, FunctionEntry]
+
+    def implements_interface(self, interface: nodes.Interface) -> bool:
+        return interface in self.parent_interfaces
 
 
 @dataclass

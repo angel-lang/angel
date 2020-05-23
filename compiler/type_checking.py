@@ -8,7 +8,7 @@ from itertools import zip_longest
 from . import nodes, errors, environment, environment_entries as entries, estimation_nodes as enodes
 from .enums import DeclType
 from .constants import builtin_interfaces, SPEC_LINE
-from .utils import dispatch, TYPES, EXPRS, apply_mapping, is_user_defined_type
+from .utils import dispatch, TYPES, EXPRS, apply_mapping, apply_mapping_expression, is_user_defined_type
 
 
 Mapping = t.Dict[str, nodes.Type]
@@ -482,13 +482,20 @@ class TypeChecker(unittest.TestCase):
         estimated_arguments = [self.estimate_expression(argument) for argument in arguments]
         environment_backup = copy(self.env)
         self.env = environment.Environment(function_type.saved_environment)
+        self.env.add_parameters(SPEC_LINE, function_type.params)
+
         for argument, expression, estimated in zip_longest(function_type.args, arguments, estimated_arguments):
             self.env.add_declaration(
                 nodes.Decl(SPEC_LINE, DeclType.constant, argument.name, argument.type, expression),
                 estimated_value=estimated
             )
 
-        for clause in function_type.where_clauses:
+        # TODO: Maybe we need to apply mapping only to the last where clause
+        new_mapping = {}
+        for k, v in mapping.items():
+            new_mapping[k] = self.replace_template_types(v)
+        mapping = new_mapping
+        for clause in [apply_mapping_expression(clause, mapping) for clause in function_type.where_clauses]:
             estimated_clause = self.estimate_expression(clause)
             if not isinstance(estimated_clause, enodes.Bool) or not estimated_clause.value:
                 raise errors.AngelUnsatisfiedWhereClause(clause, self.code)
@@ -967,8 +974,12 @@ class TypeChecker(unittest.TestCase):
         if not supertype.is_interface:
             return self.unification_failed(subtype, supertype, mapping)
         subtype_entry = self.env.get(subtype)
-        assert isinstance(subtype_entry, entries.StructEntry)
-        if not self.is_operator(subtype_entry.implemented_interfaces, supertype):
+        if isinstance(subtype_entry, entries.StructEntry):
+            subtype_implemented_interfaces = subtype_entry.implemented_interfaces
+        else:
+            assert isinstance(subtype_entry, entries.ParameterEntry)
+            subtype_implemented_interfaces = subtype_entry.parent_interfaces
+        if not self.is_operator(subtype_implemented_interfaces, supertype):
             return self.unification_failed(subtype, supertype, mapping)
         return UnificationResult(supertype, mapping)
 
