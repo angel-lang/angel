@@ -16,8 +16,8 @@ class Entry:
 @dataclass
 class FunctionEntry(Entry):
     name: nodes.Name
-    params: nodes.Parameters
-    args: t.List[nodes.Argument]
+    parameters: nodes.Parameters
+    arguments: t.List[nodes.Argument]
     return_type: nodes.Type
     body: nodes.AST
     where_clauses: t.List[nodes.Expression] = field(default_factory=list)
@@ -25,26 +25,26 @@ class FunctionEntry(Entry):
 
     def to_estimated_function(self) -> Function:
         return Function(
-            self.name, self.params, self.args, self.return_type, self.where_clauses, specification=self.body,
+            self.name, self.parameters, self.arguments, self.return_type, self.where_clauses, specification=self.body,
             saved_environment=self.saved_environment
         )
 
     def to_function_type(self) -> nodes.FunctionType:
         return nodes.FunctionType(
-            self.params, self.args, self.return_type, self.where_clauses, self.saved_environment
+            self.parameters, self.arguments, self.return_type, self.where_clauses, self.saved_environment
         )
 
 
 @dataclass
 class InitEntry(Entry):
-    args: t.List[nodes.Argument]
+    arguments: t.List[nodes.Argument]
     body: nodes.AST
 
 
 @dataclass
 class StructEntry(Entry):
     name: nodes.Name
-    params: nodes.Parameters
+    parameters: nodes.Parameters
     implemented_interfaces: nodes.Interfaces
     fields: t.Dict[str, Entry]
     init_declarations: t.Dict[str, InitEntry]
@@ -57,7 +57,7 @@ class StructEntry(Entry):
 @dataclass
 class AlgebraicEntry(Entry):
     name: nodes.Name
-    params: nodes.Parameters
+    parameters: nodes.Parameters
     constructors: t.Dict[str, StructEntry]
     methods: t.Dict[str, FunctionEntry]
 
@@ -65,8 +65,8 @@ class AlgebraicEntry(Entry):
 @dataclass
 class InterfaceEntry(Entry):
     name: nodes.Name
-    params: nodes.Parameters
-    parent_interfaces: nodes.Interfaces
+    parameters: nodes.Parameters
+    implemented_interfaces: nodes.Interfaces
     fields: t.Dict[str, Entry]
     methods: t.Dict[str, FunctionEntry]
     inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, Entry]]
@@ -76,12 +76,12 @@ class InterfaceEntry(Entry):
 @dataclass
 class ParameterEntry(Entry):
     name: nodes.Name
-    parent_interfaces: nodes.Interfaces
+    implemented_interfaces: nodes.Interfaces
     fields: t.Dict[str, Entry]
     methods: t.Dict[str, FunctionEntry]
 
     def implements_interface(self, interface: nodes.Interface) -> bool:
-        return interface in self.parent_interfaces
+        return interface in self.implemented_interfaces
 
 
 @dataclass

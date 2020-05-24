@@ -217,10 +217,10 @@ class GenericType(Type):
 @dataclass
 class FunctionType(Type):
     result_type: Type
-    args: t.List[Type]
+    arguments: t.List[Type]
 
     def to_code(self) -> str:
-        return f"std::function<{self.result_type.to_code()}({','.join(arg.to_code() for arg in self.args)})>"
+        return f"std::function<{self.result_type.to_code()}({','.join(arg.to_code() for arg in self.arguments)})>"
 
 
 @dataclass
@@ -318,29 +318,29 @@ class Semicolon(Node):
 @dataclass
 class FunctionCall(Node, Expression):
     function_path: Expression
-    args: t.List[Expression]
-    params: t.List[Type] = field(default_factory=list)
+    arguments: t.List[Expression]
+    parameters: t.List[Type] = field(default_factory=list)
 
     def to_code(self) -> str:
-        args = ",".join(arg.to_code() for arg in self.args)
-        if self.params:
-            params = ",".join(param.to_code() for param in self.params)
-            return f"{self.function_path.to_code()}<{params}>({args})"
-        return f"{self.function_path.to_code()}({args})"
+        arguments = ",".join(arg.to_code() for arg in self.arguments)
+        if self.parameters:
+            parameters = ",".join(param.to_code() for param in self.parameters)
+            return f"{self.function_path.to_code()}<{parameters}>({arguments})"
+        return f"{self.function_path.to_code()}({arguments})"
 
 
 @dataclass
 class MethodCall(Node, Expression):
     base: Expression
     method: str
-    args: t.List[Expression]
+    arguments: t.List[Expression]
 
     def to_code(self) -> str:
         base = self.base.to_code()
         if isinstance(self.base, Cast):
             base = f'({base})'
-        args = ','.join(arg.to_code() for arg in self.args)
-        return f"{base}.{self.method}({args})"
+        arguments = ','.join(arg.to_code() for arg in self.arguments)
+        return f"{base}.{self.method}({arguments})"
 
 
 @dataclass
@@ -417,13 +417,13 @@ class Return(Node):
 class FunctionDeclaration(Node):
     return_type: Type
     name: str
-    args: Arguments
+    arguments: Arguments
     body: AST
 
     def to_code(self) -> str:
-        args = ",".join(arg.to_code() for arg in self.args)
+        arguments = ",".join(arg.to_code() for arg in self.arguments)
         body = "\n".join(node.to_code() for node in self.body)
-        return f"{self.return_type.to_code()} {self.name}({args}){{{body}}}"
+        return f"{self.return_type.to_code()} {self.name}({arguments}){{{body}}}"
 
 
 @dataclass
@@ -487,13 +487,13 @@ class AccessModifier(enum.Enum):
 @dataclass
 class InitDeclaration(Node):
     name: str
-    args: Arguments
+    arguments: Arguments
     body: AST
 
     def to_code(self) -> str:
-        args = ','.join(arg.to_code() for arg in self.args)
+        arguments = ','.join(arg.to_code() for arg in self.arguments)
         body = ''.join(node.to_code() for node in self.body)
-        return f"{self.name}({args}){{{body}}}"
+        return f"{self.name}({arguments}){{{body}}}"
 
 
 @dataclass

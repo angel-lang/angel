@@ -204,18 +204,18 @@ class Evaluator(unittest.TestCase):
 
     def estimate_function_declaration(self, declaration: nodes.FunctionDeclaration) -> None:
         self.env.add_function(
-            declaration.line, declaration.name, declaration.params, declaration.args, declaration.return_type,
+            declaration.line, declaration.name, declaration.parameters, declaration.arguments, declaration.return_type,
             declaration.where_clause
         )
         self.env.update_function_body(declaration.name, declaration.body)
 
     def estimate_method_declaration(self, declaration: nodes.MethodDeclaration) -> None:
-        self.env.add_method(declaration.line, declaration.name, declaration.args, declaration.return_type)
+        self.env.add_method(declaration.line, declaration.name, declaration.arguments, declaration.return_type)
         self.env.update_method_body(declaration.name, declaration.body)
 
     def estimate_init_declaration(self, declaration: nodes.InitDeclaration) -> None:
-        self.env.add_init_declaration(declaration.line, declaration.args)
-        self.env.update_init_declaration_body(declaration.args, declaration.body)
+        self.env.add_init_declaration(declaration.line, declaration.arguments)
+        self.env.update_init_declaration_body(declaration.arguments, declaration.body)
 
     def estimate_struct_declaration(self, declaration: nodes.StructDeclaration) -> None:
         # list(...) for mypy
@@ -247,7 +247,7 @@ class Evaluator(unittest.TestCase):
 
     def estimate_interface_declaration(self, declaration: nodes.InterfaceDeclaration) -> None:
         self.env.add_interface(
-            declaration.line, declaration.name, declaration.parameters, declaration.parent_interfaces
+            declaration.line, declaration.name, declaration.parameters, declaration.implemented_interfaces
         )
         self.env.inc_nesting(declaration.name)
         self.estimate_ast(list(declaration.fields))
@@ -408,7 +408,7 @@ class Evaluator(unittest.TestCase):
     ) -> enodes.Expression:
         result = self.estimate_method_call(
             nodes.MethodCall(
-                SPEC_LINE, x, method=nodes.Name(nodes.SpecialMethods.eq.value), args=[y], instance_type=xe.type
+                SPEC_LINE, x, method=nodes.Name(nodes.SpecialMethods.eq.value), arguments=[y], instance_type=xe.type
             )
         )
         assert result
@@ -526,7 +526,7 @@ class Evaluator(unittest.TestCase):
         if found is not None:
             return found
         constructor_entry = self.env.get_algebraic(
-            nodes.AlgebraicType(base.type.name, params=[], constructor=base.type.constructor)
+            nodes.AlgebraicType(base.type.name, parameters=[], constructor=base.type.constructor)
         )
         assert isinstance(constructor_entry, entries.StructEntry)
         method_entry = constructor_entry.methods.get(field.member)
@@ -595,30 +595,30 @@ class Evaluator(unittest.TestCase):
                 assert 0, "Module system is not supported"
             struct_entry = self.env[function.name.member]
             assert isinstance(struct_entry, entries.StructEntry)
-            return self.match_init_declaration(function, list(struct_entry.init_declarations.values()), call.args)
+            return self.match_init_declaration(function, list(struct_entry.init_declarations.values()), call.arguments)
         assert isinstance(function, enodes.Function)
-        args = call.args
+        arguments = call.arguments
         if function.name == nodes.BuiltinFunc.print.value:
-            arg_type = self.infer_type(args[0])
-            args = [
+            arg_type = self.infer_type(arguments[0])
+            arguments = [
                 nodes.Cast(
-                    call.args[0], nodes.BuiltinType.string, is_builtin=isinstance(arg_type, nodes.BuiltinType)
+                    call.arguments[0], nodes.BuiltinType.string, is_builtin=isinstance(arg_type, nodes.BuiltinType)
                 )
             ]
-        return self.perform_function_call(function, args)
+        return self.perform_function_call(function, arguments)
 
     def match_algebraic_constructor_init(
         self, algebraic_constructor: enodes.AlgebraicConstructor, init_declarations: t.List[entries.InitEntry],
-        args: t.List[nodes.Expression]
+        arguments: t.List[nodes.Expression]
     ) -> enodes.AlgebraicConstructorInstance:
-        result = self.match_init_declaration(enodes.Struct(algebraic_constructor.constructor), init_declarations, args, algebraic=algebraic_constructor.name)
+        result = self.match_init_declaration(enodes.Struct(algebraic_constructor.constructor), init_declarations, arguments, algebraic=algebraic_constructor.name)
         return enodes.AlgebraicConstructorInstance(algebraic_constructor, result.fields)
 
     def match_init_declaration(
-        self, struct: enodes.Struct, init_declarations: t.List[entries.InitEntry], args: t.List[nodes.Expression],
+        self, struct: enodes.Struct, init_declarations: t.List[entries.InitEntry], arguments: t.List[nodes.Expression],
         algebraic: t.Optional[nodes.Name] = None
     ) -> enodes.Instance:
-        arguments = [self.estimate_expression(argument) for argument in args]
+        estimated_arguments = [self.estimate_expression(argument) for argument in arguments]
         matched = True
         expected_major = []
         if algebraic:
@@ -631,10 +631,10 @@ class Evaluator(unittest.TestCase):
 
         for init_entry in init_declarations:
             struct_mapping: t.Dict[str, nodes.Type] = {}
-            for param in struct_entry.params:
+            for param in struct_entry.parameters:
                 struct_mapping[param.member] = self.type_checker.create_template_type()
 
-            for arg, value in zip_longest(init_entry.args, args):
+            for arg, value in zip_longest(init_entry.arguments, arguments):
                 if value is None:
                     value = arg.value
                 if arg is None or value is None:
@@ -650,14 +650,14 @@ class Evaluator(unittest.TestCase):
                     arg_type = self.type_checker.replace_template_types(arg_type)
             if not matched:
                 matched = True
-                expected_major.append([arg.type for arg in init_entry.args])
+                expected_major.append([arg.type for arg in init_entry.arguments])
                 continue
             self.env.inc_nesting()
             self.env.add_declaration(
                 nodes.Decl(0, DeclType.variable, SELF_NAME, struct.name),
                 estimated_value=enodes.Instance(struct.name)
             )
-            for arg, value, estimated in zip_longest(init_entry.args, args, arguments):
+            for arg, value, estimated in zip_longest(init_entry.arguments, arguments, estimated_arguments):
                 if value is None:
                     value = arg.value
                     estimated = self.estimate_expression(value)
@@ -675,7 +675,7 @@ class Evaluator(unittest.TestCase):
         expected = " or ".join(
             ("(" + ", ".join(type_.to_code() for type_ in type_list) + ")" for type_list in expected_major)
         )
-        raise errors.AngelWrongArguments(expected, self.code, args)
+        raise errors.AngelWrongArguments(expected, self.code, arguments)
 
     def perform_function_call(
         self, function: enodes.Function, arguments: t.List[nodes.Expression],
@@ -723,14 +723,14 @@ class Evaluator(unittest.TestCase):
         if isinstance(method, enodes.Function):
             assert call.instance_type
             return self.perform_function_call(
-                method, call.args, nodes.Argument(SELF_NAME, call.instance_type, call.instance_path)
+                method, call.arguments, nodes.Argument(SELF_NAME, call.instance_type, call.instance_path)
             )
         elif isinstance(method, enodes.AlgebraicConstructor):
             algebraic_entry = self.env.get(method.name)
             assert isinstance(algebraic_entry, entries.AlgebraicEntry)
             constructor_entry = algebraic_entry.constructors[method.constructor.member]
             return self.match_algebraic_constructor_init(
-                method, list(constructor_entry.init_declarations.values()), call.args
+                method, list(constructor_entry.init_declarations.values()), call.arguments
             )
         else:
             assert 0, f"Cannot estimate method call with estimated method {method}"

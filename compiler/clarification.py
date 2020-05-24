@@ -33,13 +33,13 @@ class Clarifier:
             return nodes.Field(node.line, base, self.clarify_node(node.field))
         elif isinstance(node, nodes.FunctionCall):
             function_path = self.clarify_node(node.function_path)
-            args = self.clarify_node(node.args)
+            arguments = self.clarify_node(node.arguments)
             if isinstance(function_path, nodes.OptionalTypeConstructor):
-                assert len(args) == 1
-                return nodes.OptionalSomeCall(args[0])
+                assert len(arguments) == 1
+                return nodes.OptionalSomeCall(arguments[0])
             elif isinstance(function_path, nodes.Field):
-                return nodes.MethodCall(node.line, function_path.base, function_path.field, args)
-            return nodes.FunctionCall(node.line, function_path, args)
+                return nodes.MethodCall(node.line, function_path.base, function_path.field, arguments)
+            return nodes.FunctionCall(node.line, function_path, arguments)
         elif isinstance(node, list):
             return [self.clarify_node(element) for element in node]
         elif isinstance(node, tuple):

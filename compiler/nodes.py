@@ -580,11 +580,11 @@ class DictLiteral(Expression):
 @dataclass
 class FunctionCall(Node, Expression):
     function_path: Expression
-    args: t.List[Expression]
-    instance_call_params: t.Optional[t.List[Type]] = None
+    arguments: t.List[Expression]
+    instance_call_parameters: t.Optional[t.List[Type]] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
-        code = f"{self.function_path.to_code()}({', '.join(arg.to_code() for arg in self.args)})"
+        code = f"{self.function_path.to_code()}({', '.join(arg.to_code() for arg in self.arguments)})"
         return INDENTATION * indentation_level + code
 
 
@@ -593,23 +593,23 @@ class MethodCall(Node, Expression):
     line: int
     instance_path: Expression
     method: Name
-    args: t.List[Expression]
+    arguments: t.List[Expression]
     instance_type: t.Optional[Type] = None
     is_algebraic_method: bool = False
 
     def __init__(
-            self, line: int, instance_path: Expression, method: Name, args: t.List[Expression],
+            self, line: int, instance_path: Expression, method: Name, arguments: t.List[Expression],
             instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
     ):
         self.line = line
         self.instance_path = instance_path
         self.method = method
-        self.args = args
+        self.arguments = arguments
         self.instance_type = instance_type
 
     def to_code(self, indentation_level: int = 0) -> str:
         method = self.method.to_code()
-        return f"{self.instance_path.to_code()}.{method}({', '.join(arg.to_code() for arg in self.args)})"
+        return f"{self.instance_path.to_code()}.{method}({', '.join(arg.to_code() for arg in self.arguments)})"
 
 
 @dataclass
@@ -741,10 +741,10 @@ class Argument:
 @dataclass
 class GenericType(Type):
     name: t.Union[Name, BuiltinType]
-    params: t.List[Type]
+    parameters: t.List[Type]
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"{self.name.to_code()}({', '.join(param.to_code() for param in self.params)})"
+        return f"{self.name.to_code()}({', '.join(param.to_code() for param in self.parameters)})"
 
 
 Arguments = t.List[Argument]
@@ -755,41 +755,41 @@ Interfaces = t.List[Interface]
 
 @dataclass
 class FunctionType(Type):
-    params: Parameters
-    args: Arguments
+    parameters: Parameters
+    arguments: Arguments
     return_type: Type
     where_clauses: t.List[Expression] = field(default_factory=list)
     saved_environment: t.List[t.Dict[str, t.Any]] = field(default_factory=list)
     is_algebraic_method: bool = False
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"({', '.join(arg.to_code() for arg in self.args)}) -> {self.return_type.to_code()}"
+        return f"({', '.join(arg.to_code() for arg in self.arguments)}) -> {self.return_type.to_code()}"
 
 
 @dataclass
 class StructType(Type):
     name: Name
-    params: t.List[Type]
+    parameters: t.List[Type]
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"StructType({self.name.to_code()}, params={[param.to_code() for param in self.params]})"
+        return f"StructType({self.name.to_code()}, parameters={[param.to_code() for param in self.parameters]})"
 
 
 @dataclass
 class AlgebraicType(Type):
     base: Name
-    params: t.List[Type]
+    parameters: t.List[Type]
     constructor: t.Optional[Name] = None
     constructor_types: t.Dict[str, Name] = field(default_factory=dict)
 
     def to_code(self, indentation_level: int = 0) -> str:
         if self.constructor:
             return f"{self.base.to_code()}.{self.constructor.to_code()}"
-        if self.params:
-            params = f"({', '.join(param.to_code() for param in self.params)})"
+        if self.parameters:
+            parameters = f"({', '.join(param.to_code() for param in self.parameters)})"
         else:
-            params = ""
-        return f"{self.base.to_code()}{params}"
+            parameters = ""
+        return f"{self.base.to_code()}{parameters}"
 
 
 class StringFields(enum.Enum):
@@ -832,8 +832,8 @@ class DictFields(enum.Enum):
 @dataclass
 class FunctionDeclaration(Node):
     name: Name
-    params: Parameters
-    args: Arguments
+    parameters: Parameters
+    arguments: Arguments
     return_type: Type
     where_clause: t.Optional[Expression]
     body: AST
@@ -841,30 +841,30 @@ class FunctionDeclaration(Node):
     def to_code(self, indentation_level: int = 0) -> str:
         body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
         where = opt_to_str(self.where_clause, lambda e: f" where {e.to_code()}")
-        params = opt_to_str(self.params, lambda p: f"<{', '.join(param.to_code() for param in p)}>")
-        args = ', '.join(arg.to_code() for arg in self.args)
-        code = f"fun {self.name.to_code()}{params}({args}) -> {self.return_type.to_code()}{where}:\n{body}"
+        parameters = opt_to_str(self.parameters, lambda p: f"<{', '.join(param.to_code() for param in p)}>")
+        arguments = ', '.join(arg.to_code() for arg in self.arguments)
+        code = f"fun {self.name.to_code()}{parameters}({arguments}) -> {self.return_type.to_code()}{where}:\n{body}"
         return INDENTATION * indentation_level + code
 
 
 @dataclass
 class MethodDeclaration(Node):
     name: Name
-    args: Arguments
+    arguments: Arguments
     return_type: Type
     body: AST
 
     def to_code(self, indentation_level: int = 0) -> str:
         body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
-        if self.args:
-            args = "(" + ', '.join(arg.to_code() for arg in self.args) + ")"
+        if self.arguments:
+            arguments = "(" + ', '.join(arg.to_code() for arg in self.arguments) + ")"
         else:
-            args = ''
+            arguments = ''
         if self.return_type:
             return_type = " -> " + self.return_type.to_code()
         else:
             return_type = ""
-        code = f"fun {self.name.to_code()}{args}{return_type}:\n{body}"
+        code = f"fun {self.name.to_code()}{arguments}{return_type}:\n{body}"
         return INDENTATION * indentation_level + code
 
 
@@ -882,12 +882,12 @@ class FieldDeclaration(Node):
 
 @dataclass
 class InitDeclaration(Node):
-    args: Arguments
+    arguments: Arguments
     body: AST
 
     def to_code(self, indentation_level: int = 0) -> str:
         body = '\n'.join(node.to_code(indentation_level + 1) for node in self.body)
-        return INDENTATION * indentation_level + f"init({', '.join(arg.to_code() for arg in self.args)}):\n{body}"
+        return INDENTATION * indentation_level + f"init({', '.join(arg.to_code() for arg in self.arguments)}):\n{body}"
 
 
 @dataclass
@@ -991,13 +991,13 @@ class AlgebraicDeclaration(Node):
 class InterfaceDeclaration(Node):
     name: Name
     parameters: Parameters
-    parent_interfaces: Interfaces
+    implemented_interfaces: Interfaces
     fields: t.List[FieldDeclaration]
     methods: t.List[MethodDeclaration]
 
     def to_code(self, indentation_level: int = 0) -> str:
-        if self.parent_interfaces:
-            interfaces = ' is ' + ', '.join(interface.to_code() for interface in self.parent_interfaces)
+        if self.implemented_interfaces:
+            interfaces = ' is ' + ', '.join(interface.to_code() for interface in self.implemented_interfaces)
         else:
             interfaces = ''
 

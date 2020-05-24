@@ -21,8 +21,8 @@ def to_inference_result(unification_result: UnificationResult) -> InferenceResul
 
 
 def build_instance_type(struct_type: nodes.StructType) -> nodes.Type:
-    if struct_type.params:
-        return nodes.GenericType(struct_type.name, struct_type.params)
+    if struct_type.parameters:
+        return nodes.GenericType(struct_type.name, struct_type.parameters)
     return struct_type.name
 
 
@@ -321,8 +321,8 @@ class TypeChecker(unittest.TestCase):
             nodes.Name: lambda name_type: name_type,
             nodes.BuiltinType: lambda builtin_type: builtin_type,
             nodes.FunctionType: lambda func_type: nodes.FunctionType(
-                func_type.params,
-                [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.args],
+                func_type.parameters,
+                [nodes.Argument(arg.name, self.replace_template_types(arg.type), arg.value) for arg in func_type.arguments],
                 self.replace_template_types(func_type.return_type),
                 func_type.where_clauses, func_type.saved_environment, func_type.is_algebraic_method
             ),
@@ -333,14 +333,14 @@ class TypeChecker(unittest.TestCase):
                 self.replace_template_types(optional_type.inner_type)
             ),
             nodes.StructType: lambda struct_type: nodes.StructType(
-                struct_type.name, [self.replace_template_types(param) for param in struct_type.params]
+                struct_type.name, [self.replace_template_types(param) for param in struct_type.parameters]
             ),
             nodes.AlgebraicType: lambda typ: nodes.AlgebraicType(
-                typ.base, [self.replace_template_types(param) for param in typ.params],
+                typ.base, [self.replace_template_types(param) for param in typ.parameters],
                 typ.constructor, typ.constructor_types
             ),
             nodes.GenericType: lambda generic_type: nodes.GenericType(
-                generic_type.name, [self.replace_template_types(param) for param in generic_type.params]
+                generic_type.name, [self.replace_template_types(param) for param in generic_type.parameters]
             ),
             nodes.RefType: lambda ref_type: nodes.RefType(self.replace_template_types(ref_type.value_type))
         }
@@ -359,14 +359,14 @@ class TypeChecker(unittest.TestCase):
         elif isinstance(entry, entries.FunctionEntry):
             return to_inference_result(self.unify_types(entry.to_function_type(), supertype, mapping))
         elif isinstance(entry, entries.StructEntry):
-            params: t.List[nodes.Type] = [self.create_template_type() for _ in entry.params]
-            return to_inference_result(self.unify_types(nodes.StructType(entry.name, params), supertype, mapping))
+            parameters: t.List[nodes.Type] = [self.create_template_type() for _ in entry.parameters]
+            return to_inference_result(self.unify_types(nodes.StructType(entry.name, parameters), supertype, mapping))
         elif isinstance(entry, entries.AlgebraicEntry):
-            params = [self.create_template_type() for _ in entry.params]
+            parameters = [self.create_template_type() for _ in entry.parameters]
             constructor_types = self.build_algebraic_constructor_types_dict(entry)
             return to_inference_result(
                 self.unify_types(
-                    nodes.AlgebraicType(entry.name, params, constructor=None, constructor_types=constructor_types),
+                    nodes.AlgebraicType(entry.name, parameters, constructor=None, constructor_types=constructor_types),
                     supertype, mapping
                 )
             )
@@ -383,11 +383,11 @@ class TypeChecker(unittest.TestCase):
     ) -> InferenceResult:
         return to_inference_result(self.unify_types({
             nodes.BuiltinFunc.print.value: nodes.FunctionType(
-                [], args=[nodes.Argument('value', nodes.BuiltinType.convertible_to_string)],
+                [], arguments=[nodes.Argument('value', nodes.BuiltinType.convertible_to_string)],
                 return_type=nodes.BuiltinType.void
             ),
             nodes.BuiltinFunc.read.value: nodes.FunctionType(
-                [], args=[nodes.Argument('prompt', nodes.BuiltinType.string)],
+                [], arguments=[nodes.Argument('prompt', nodes.BuiltinType.string)],
                 return_type=nodes.BuiltinType.string
             ),
         }[builtin_func.value], supertype, mapping))
@@ -397,7 +397,7 @@ class TypeChecker(unittest.TestCase):
     ) -> InferenceResult:
         return to_inference_result(self.unify_types({
             nodes.PrivateBuiltinFunc.vector_to_string.value: nodes.FunctionType(
-                [], args=[nodes.Argument('value', nodes.VectorType(nodes.BuiltinType.object_))],
+                [], arguments=[nodes.Argument('value', nodes.VectorType(nodes.BuiltinType.object_))],
                 return_type=nodes.BuiltinType.string
             )
         }[builtin_func.value], supertype, mapping))
@@ -415,24 +415,24 @@ class TypeChecker(unittest.TestCase):
                 raise errors.AngelNameError(function_type.name, self.code)
             assert isinstance(struct_entry, entries.StructEntry)
             result = self.match_init_declaration(
-                function_type, list(struct_entry.init_declarations.values()), call.args, supertype, mapping
+                function_type, list(struct_entry.init_declarations.values()), call.arguments, supertype, mapping
             )
             if isinstance(result.type, nodes.GenericType):
-                call.instance_call_params = result.type.params
+                call.instance_call_parameters = result.type.parameters
             return result
         elif isinstance(function_type, nodes.FunctionType):
-            return self.match_with_function_type(function_type, call.args, supertype, mapping)
+            return self.match_with_function_type(function_type, call.arguments, supertype, mapping)
         raise errors.AngelNoncallableCall(call.function_path, self.code)
 
     def match_init_declaration(
             self, struct_type: nodes.StructType, init_declarations: t.List[entries.InitEntry],
-            args: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
+            arguments: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         matched = True
         expected_major = []
         struct_mapping = self.basic_struct_mapping(struct_type)
         for init_entry in init_declarations:
-            for arg, value in zip_longest(init_entry.args, args):
+            for arg, value in zip_longest(init_entry.arguments, arguments):
                 if arg is None:
                     matched = False
                     break
@@ -450,7 +450,7 @@ class TypeChecker(unittest.TestCase):
                     break
             if not matched:
                 matched = True
-                expected_major.append([arg.type for arg in init_entry.args])
+                expected_major.append([arg.type for arg in init_entry.arguments])
                 continue
             return to_inference_result(
                 self.unify_types(apply_mapping(build_instance_type(struct_type), mapping), supertype, mapping)
@@ -458,7 +458,7 @@ class TypeChecker(unittest.TestCase):
         expected = " or ".join(
             ("(" + ", ".join(type_.to_code() for type_ in type_list) + ")" for type_list in expected_major)
         )
-        raise errors.AngelWrongArguments(expected, self.code, args)
+        raise errors.AngelWrongArguments(expected, self.code, arguments)
 
     def match_with_function_type(
         self, function_type: nodes.FunctionType, arguments: t.List[nodes.Expression],
@@ -469,12 +469,12 @@ class TypeChecker(unittest.TestCase):
         2. Passed argument's type is subtype of declared argument's type (e.g. I8 is ConvertibleToString).
         3. Check satisfaction of `where` clauses.
         """
-        for param in function_type.params:
+        for param in function_type.parameters:
             mapping[param.member] = self.create_template_type()
-        for arg, value in zip_longest(function_type.args, arguments):
+        for arg, value in zip_longest(function_type.arguments, arguments):
             if arg is None or value is None:
                 raise errors.AngelWrongArguments(
-                    f'({", ".join(arg.to_code() for arg in function_type.args)})', self.code, arguments
+                    f'({", ".join(arg.to_code() for arg in function_type.arguments)})', self.code, arguments
                 )
             self.infer_type(value, arg.type, mapping)
 
@@ -482,9 +482,9 @@ class TypeChecker(unittest.TestCase):
         estimated_arguments = [self.estimate_expression(argument) for argument in arguments]
         environment_backup = copy(self.env)
         self.env = environment.Environment(function_type.saved_environment)
-        self.env.add_parameters(SPEC_LINE, function_type.params)
+        self.env.add_parameters(SPEC_LINE, function_type.parameters)
 
-        for argument, expression, estimated in zip_longest(function_type.args, arguments, estimated_arguments):
+        for argument, expression, estimated in zip_longest(function_type.arguments, arguments, estimated_arguments):
             self.env.add_declaration(
                 nodes.Decl(SPEC_LINE, DeclType.constant, argument.name, argument.type, expression),
                 estimated_value=estimated
@@ -513,14 +513,14 @@ class TypeChecker(unittest.TestCase):
 
         result will be {'B': I8, 'C': I64}
         """
-        if not struct_type.params:
+        if not struct_type.parameters:
             return {}
         if isinstance(struct_type.name, nodes.BuiltinType):
             return {}
         entry = self.env.get(struct_type.name)
         assert isinstance(entry, entries.StructEntry)
         mapping = {}
-        for param, type_ in zip(entry.params, struct_type.params):
+        for param, type_ in zip(entry.parameters, struct_type.parameters):
             mapping[param.member] = type_
         return mapping
 
@@ -534,7 +534,7 @@ class TypeChecker(unittest.TestCase):
             instance_result = self.infer_type(call.instance_path, mapping=mapping)
             call.instance_type = instance_result.type
             call.is_algebraic_method = method_result.type.is_algebraic_method
-            return self.match_with_function_type(method_result.type, call.args, supertype, mapping)
+            return self.match_with_function_type(method_result.type, call.arguments, supertype, mapping)
         elif isinstance(method_result.type, nodes.AlgebraicType) and method_result.type.constructor:
             instance_result = self.infer_type(call.instance_path, mapping=mapping)
             call.instance_type = instance_result.type
@@ -646,7 +646,7 @@ class TypeChecker(unittest.TestCase):
             return to_inference_result(
                 self.unify_types(
                     nodes.AlgebraicType(
-                        base_type.base, base_type.params, field.field, base_type.constructor_types
+                        base_type.base, base_type.parameters, field.field, base_type.constructor_types
                     ), supertype, mapping
                 )
             )
@@ -934,7 +934,7 @@ class TypeChecker(unittest.TestCase):
     ) -> UnificationResult:
         if isinstance(supertype.name, nodes.BuiltinType) and supertype.name.value == nodes.BuiltinType.iterable.value:
             if subtype.value == nodes.BuiltinType.string.value:
-                element_result = self.unify_types(nodes.BuiltinType.char, supertype.params[0], mapping)
+                element_result = self.unify_types(nodes.BuiltinType.char, supertype.parameters[0], mapping)
                 return UnificationResult(
                     nodes.GenericType(nodes.BuiltinType.iterable, [element_result.type]), element_result.mapping
                 )
@@ -978,7 +978,7 @@ class TypeChecker(unittest.TestCase):
             subtype_implemented_interfaces = subtype_entry.implemented_interfaces
         else:
             assert isinstance(subtype_entry, entries.ParameterEntry)
-            subtype_implemented_interfaces = subtype_entry.parent_interfaces
+            subtype_implemented_interfaces = subtype_entry.implemented_interfaces
         if not self.is_operator(subtype_implemented_interfaces, supertype):
             return self.unification_failed(subtype, supertype, mapping)
         return UnificationResult(supertype, mapping)
@@ -1003,7 +1003,7 @@ class TypeChecker(unittest.TestCase):
     ) -> UnificationResult:
         if isinstance(supertype.name, nodes.Name) or supertype.name.value != nodes.BuiltinType.iterable.value:
             return self.unification_failed(subtype, supertype, mapping)
-        element_result = self.unify_types(subtype.subtype, supertype.params[0], mapping)
+        element_result = self.unify_types(subtype.subtype, supertype.parameters[0], mapping)
         return UnificationResult(
             nodes.GenericType(nodes.BuiltinType.iterable, [element_result.type]), element_result.mapping
         )
@@ -1049,7 +1049,7 @@ class TypeChecker(unittest.TestCase):
         arguments = []
         # TODO: unify where clauses
         clauses = subtype.where_clauses
-        for sub_argument, super_argument in zip_longest(subtype.args, supertype.args):
+        for sub_argument, super_argument in zip_longest(subtype.arguments, supertype.arguments):
             try:
                 argument_result = self.unify_types(sub_argument, super_argument, mapping)
             except errors.AngelTypeError:
@@ -1064,7 +1064,7 @@ class TypeChecker(unittest.TestCase):
         else:
             return UnificationResult(
                 nodes.FunctionType(
-                    subtype.params, arguments, return_result.type, clauses, subtype.saved_environment,
+                    subtype.parameters, arguments, return_result.type, clauses, subtype.saved_environment,
                     is_algebraic_method=subtype.is_algebraic_method
                 ),
                 return_result.mapping
@@ -1092,7 +1092,7 @@ class TypeChecker(unittest.TestCase):
         base_result = self.unify_types(subtype.name, supertype.name, mapping)
         mapping = base_result.mapping
         parameters = []
-        for param1, param2 in zip(subtype.params, supertype.params):
+        for param1, param2 in zip(subtype.parameters, supertype.parameters):
             try:
                 param_result = self.unify_types(param1, param2, mapping)
             except errors.AngelTypeError:
@@ -1108,7 +1108,7 @@ class TypeChecker(unittest.TestCase):
         base_result = self.unify_types(subtype.name, supertype.name, mapping)
         mapping = base_result.mapping
         parameters = []
-        for param1, param2 in zip(subtype.params, supertype.params):
+        for param1, param2 in zip(subtype.parameters, supertype.parameters):
             try:
                 param_result = self.unify_types(param1, param2, mapping)
             except errors.AngelTypeError:
@@ -1139,7 +1139,7 @@ class TypeChecker(unittest.TestCase):
             mapping = base_result.mapping
 
         parameters = []
-        for param1, param2 in zip(subtype.params, supertype.params):
+        for param1, param2 in zip(subtype.parameters, supertype.parameters):
             try:
                 param_result = self.unify_types(param1, param2, mapping)
             except errors.AngelTypeError:
@@ -1198,7 +1198,7 @@ class TypeChecker(unittest.TestCase):
             if implemented_interface == interface:
                 return True
             entry = get_interface(implemented_interface)
-            if self.is_operator(entry.parent_interfaces, interface):
+            if self.is_operator(entry.implemented_interfaces, interface):
                 return True
         return False
 
@@ -1225,7 +1225,7 @@ class TypeChecker(unittest.TestCase):
     def entry_possible_param(self, name: nodes.Name) -> entries.Entry:
         result = self.env[name.member]
         if result is None:
-            return entries.ParameterEntry(0, name, parent_interfaces=[], fields={}, methods={})
+            return entries.ParameterEntry(0, name, implemented_interfaces=[], fields={}, methods={})
         return result
 
     def replace_template_types(self, from_type: nodes.Type) -> nodes.Type:

@@ -66,11 +66,11 @@ class Environment:
         return algebraic_entry.constructors[algebraic.constructor.member]
 
     def add_declaration(
-        self, node: nodes.Decl, estimated_value: t.Optional[enodes.Expression] = None, **kwargs
+        self, node: nodes.Decl, estimated_value: t.Optional[enodes.Expression] = None, **kwarguments
     ) -> None:
         if not estimated_value:
-            estimated_value = enodes.DynamicValue(kwargs.get("type", node.type))
-        params = {
+            estimated_value = enodes.DynamicValue(kwarguments.get("type", node.type))
+        parameters = {
             "decl_type": node.decl_type,
             "line": node.line,
             "name": node.name,
@@ -78,18 +78,18 @@ class Environment:
             "value": node.value,
             "estimated_value": estimated_value
         }
-        params.update(kwargs)
-        self.space[self.nesting_level][params["name"].member] = entries.DeclEntry(**params) # type: ignore
+        parameters.update(kwarguments)
+        self.space[self.nesting_level][parameters["name"].member] = entries.DeclEntry(**parameters) # type: ignore
 
-    def add_arguments(self, line: int, args: t.List[nodes.Argument]) -> None:
-        for arg in args:
+    def add_arguments(self, line: int, arguments: t.List[nodes.Argument]) -> None:
+        for arg in arguments:
             value = enodes.DynamicValue(arg.type)
             self.space[self.nesting_level][arg.name.member] = entries.DeclEntry(
                 line, DeclType.constant, arg.name, arg.type, value=None, estimated_value=value
             )
 
     def add_function(
-        self, line: int, name: nodes.Name, params: nodes.Parameters, args: t.List[nodes.Argument],
+        self, line: int, name: nodes.Name, parameters: nodes.Parameters, arguments: t.List[nodes.Argument],
         return_type: nodes.Type, where_clause: t.Optional[nodes.Expression]
     ) -> None:
         space_copy = copy_environment(self).space
@@ -97,13 +97,13 @@ class Environment:
         if where_clause:
             clauses.append(where_clause)
         self.space[self.nesting_level][name.member] = entries.FunctionEntry(
-            line, name, params, args, return_type, body=[], where_clauses=clauses, saved_environment=space_copy
+            line, name, parameters, arguments, return_type, body=[], where_clauses=clauses, saved_environment=space_copy
         )
 
     # TODO: add parameters to method declarations
     def add_method(
         self, line: int, name: t.Union[nodes.SpecialMethods, nodes.Name],
-        args: t.List[nodes.Argument], return_type: nodes.Type
+        arguments: t.List[nodes.Argument], return_type: nodes.Type
     ) -> None:
         entry = self._get_parent_type_entry()
         space_copy = copy_environment(self).space
@@ -113,7 +113,7 @@ class Environment:
         else:
             key = name.member
         entry.methods[key] = entries.FunctionEntry(
-            line, name, [], args, return_type, body=[], where_clauses=list(self.where_clauses),
+            line, name, [], arguments, return_type, body=[], where_clauses=list(self.where_clauses),
             saved_environment=space_copy
         )
 
@@ -128,10 +128,10 @@ class Environment:
         type_ = self._build_parent_struct_type()
         self.add_declaration(nodes.Decl(line, DeclType.variable, SELF_NAME, type_))
 
-    def add_init_declaration(self, line: int, args: nodes.Arguments) -> None:
+    def add_init_declaration(self, line: int, arguments: nodes.Arguments) -> None:
         entry = self._get_parent_type_entry()
         assert isinstance(entry, entries.StructEntry)
-        entry.init_declarations[','.join(arg.to_code() for arg in args)] = entries.InitEntry(line, args, body=[])
+        entry.init_declarations[','.join(arg.to_code() for arg in arguments)] = entries.InitEntry(line, arguments, body=[])
 
     def _get_parent_type_entry(self) -> t.Union[entries.StructEntry, entries.AlgebraicEntry, entries.InterfaceEntry]:
         assert self.parents
@@ -148,37 +148,37 @@ class Environment:
         assert self.parents
         type_: nodes.Type = self.parents[-1]
         for parent in reversed(self.parents[:-1]):
-            # TODO: add proper params and constructor_types
+            # TODO: add proper parameters and constructor_types
             assert isinstance(type_, nodes.Name)
             type_ = nodes.AlgebraicType(parent, [], type_)
         return type_
 
-    def add_struct(self, line: int, name: nodes.Name, params: nodes.Parameters, interfaces: nodes.Interfaces) -> None:
+    def add_struct(self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces) -> None:
         if self.parents:
-            self.add_algebraic_constructor(line, name, params)
+            self.add_algebraic_constructor(line, name, parameters)
         else:
             self.space[self.nesting_level][name.member] = entries.StructEntry(
-                line, name, params, interfaces, fields={}, init_declarations={}, methods={}
+                line, name, parameters, interfaces, fields={}, init_declarations={}, methods={}
             )
 
-    def add_algebraic_constructor(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
+    def add_algebraic_constructor(self, line: int, name: nodes.Name, parameters: nodes.Parameters) -> None:
         assert self.parents
         entry = self[self.parents[-1].member]
         assert isinstance(entry, entries.AlgebraicEntry)
         entry.constructors[name.member] = entries.StructEntry(
-            line, name, params, implemented_interfaces=[], fields={}, init_declarations={}, methods={}
+            line, name, parameters, implemented_interfaces=[], fields={}, init_declarations={}, methods={}
         )
 
-    def add_algebraic(self, line: int, name: nodes.Name, params: nodes.Parameters) -> None:
+    def add_algebraic(self, line: int, name: nodes.Name, parameters: nodes.Parameters) -> None:
         self.space[self.nesting_level][name.member] = entries.AlgebraicEntry(
-            line, name, params, constructors={}, methods={}
+            line, name, parameters, constructors={}, methods={}
         )
 
     def add_interface(
-        self, line: int, name: nodes.Name, params: nodes.Parameters, parent_interfaces: nodes.Interfaces
+        self, line: int, name: nodes.Name, parameters: nodes.Parameters, implemented_interfaces: nodes.Interfaces
     ) -> None:
         inherited_fields, inherited_methods = {}, {}
-        for interface in parent_interfaces:
+        for interface in implemented_interfaces:
             if isinstance(interface, nodes.Name):
                 interface_entry = self.get(interface)
             else:
@@ -196,7 +196,7 @@ class Environment:
             inherited_methods.update(interface_entry.inherited_methods)
 
         self.space[self.nesting_level][name.member] = entries.InterfaceEntry(
-            line, name, params, parent_interfaces=parent_interfaces, fields={}, methods={},
+            line, name, parameters, implemented_interfaces=implemented_interfaces, fields={}, methods={},
             inherited_fields=inherited_fields, inherited_methods=inherited_methods
         )
 
@@ -220,10 +220,10 @@ class Environment:
             key = name.member
         entry.methods[key].body = body
 
-    def update_init_declaration_body(self, args: nodes.Arguments, body: nodes.AST) -> None:
+    def update_init_declaration_body(self, arguments: nodes.Arguments, body: nodes.AST) -> None:
         entry = self._get_parent_type_entry()
         assert isinstance(entry, entries.StructEntry)
-        entry.init_declarations[','.join(arg.to_code() for arg in args)].body = body
+        entry.init_declarations[','.join(arg.to_code() for arg in arguments)].body = body
 
     def update_code(self, code: errors.Code) -> None:
         self.code = code

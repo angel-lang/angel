@@ -103,16 +103,16 @@ class Analyzer(unittest.TestCase):
         return nodes.Decl(node.line, node.decl_type, node.name, type_, node.value)
 
     def analyze_function_declaration(self, declaration: nodes.FunctionDeclaration) -> nodes.FunctionDeclaration:
-        args = [nodes.Argument(arg.name, self.check_type(arg.type)) for arg in declaration.args]
+        arguments = [nodes.Argument(arg.name, self.check_type(arg.type)) for arg in declaration.arguments]
         return_type = self.check_type(declaration.return_type)
         self.env.add_function(
-            declaration.line, declaration.name, declaration.params, args, return_type, declaration.where_clause
+            declaration.line, declaration.name, declaration.parameters, arguments, return_type, declaration.where_clause
         )
         # TODO: backup env, because apply_clause can modify variables
         self.env.inc_nesting()
-        self.env.add_parameters(declaration.line, declaration.params)
+        self.env.add_parameters(declaration.line, declaration.parameters)
         self.function_return_types.append(return_type)
-        for arg in args:
+        for arg in arguments:
             self.env.add_declaration(nodes.Decl(declaration.line, DeclType.constant, arg.name, arg.type))
 
         # The clause can use parameters and arguments.
@@ -126,7 +126,7 @@ class Analyzer(unittest.TestCase):
         self.env.dec_nesting()
         self.env.update_function_body(declaration.name, body)
         return nodes.FunctionDeclaration(
-            declaration.line, declaration.name, declaration.params, args, return_type,
+            declaration.line, declaration.name, declaration.parameters, arguments, return_type,
             declaration.where_clause, body
         )
 
@@ -188,7 +188,7 @@ class Analyzer(unittest.TestCase):
 
     def analyze_interface_declaration(self, declaration: nodes.InterfaceDeclaration) -> nodes.InterfaceDeclaration:
         self.env.add_interface(
-            declaration.line, declaration.name, declaration.parameters, declaration.parent_interfaces
+            declaration.line, declaration.name, declaration.parameters, declaration.implemented_interfaces
         )
         self.env.inc_nesting(declaration.name)
         self.env.add_parameters(declaration.line, declaration.parameters)
@@ -197,7 +197,7 @@ class Analyzer(unittest.TestCase):
         methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.methods)))
         self.env.dec_nesting(declaration.name)
         return nodes.InterfaceDeclaration(
-            declaration.line, declaration.name, declaration.parameters, declaration.parent_interfaces, fields, methods
+            declaration.line, declaration.name, declaration.parameters, declaration.implemented_interfaces, fields, methods
         )
 
     def generate_default_init(
@@ -205,9 +205,9 @@ class Analyzer(unittest.TestCase):
     ):
         if not init_declarations:
             init_declaration_body: nodes.AST = []
-            args = []
+            arguments = []
             for field in public_fields:
-                args.append(nodes.Argument(field.name, field.type, field.value))
+                arguments.append(nodes.Argument(field.name, field.type, field.value))
                 init_declaration_body.append(
                     nodes.Assignment(
                         field.line, nodes.Field(field.line, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.name
@@ -221,7 +221,7 @@ class Analyzer(unittest.TestCase):
                         field.line, nodes.Field(field.line, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.value
                     )
                 )
-            default_init_declaration = nodes.InitDeclaration(struct_declaration_line, args, init_declaration_body)
+            default_init_declaration = nodes.InitDeclaration(struct_declaration_line, arguments, init_declaration_body)
             return [default_init_declaration] + init_declarations
         return init_declarations
 
@@ -234,43 +234,43 @@ class Analyzer(unittest.TestCase):
         return nodes.FieldDeclaration(declaration.line, declaration.name, field_type, declaration.value)
 
     def analyze_method_declaration(self, declaration: nodes.MethodDeclaration) -> nodes.MethodDeclaration:
-        args = []
-        for arg in declaration.args:
+        arguments = []
+        for arg in declaration.arguments:
             if arg.value is not None:
                 argument = nodes.Argument(arg.name, self.infer_type(arg.value, arg.type), arg.value)
             else:
                 argument = nodes.Argument(arg.name, self.check_type(arg.type), arg.value)
-            args.append(argument)
+            arguments.append(argument)
         return_type = self.check_type(declaration.return_type)
-        self.env.add_method(declaration.line, declaration.name, args, return_type)
+        self.env.add_method(declaration.line, declaration.name, arguments, return_type)
         self.env.inc_nesting()
         self.function_return_types.append(return_type)
         self.env.add_self(declaration.line)
-        for arg in args:
+        for arg in arguments:
             self.env.add_declaration(nodes.Decl(declaration.line, DeclType.constant, arg.name, arg.type))
         body = self.analyze_ast(declaration.body)
         self.function_return_types.pop()
         self.env.dec_nesting()
         self.env.update_method_body(declaration.name, body)
-        return nodes.MethodDeclaration(declaration.line, declaration.name, args, return_type, body)
+        return nodes.MethodDeclaration(declaration.line, declaration.name, arguments, return_type, body)
 
     def analyze_init_declaration(self, declaration: nodes.InitDeclaration) -> nodes.InitDeclaration:
-        args = []
-        for arg in declaration.args:
+        arguments = []
+        for arg in declaration.arguments:
             if arg.value is not None:
                 argument = nodes.Argument(arg.name, self.infer_type(arg.value, arg.type), arg.value)
             else:
                 argument = nodes.Argument(arg.name, self.check_type(arg.type), arg.value)
-            args.append(argument)
-        self.env.add_init_declaration(declaration.line, args)
+            arguments.append(argument)
+        self.env.add_init_declaration(declaration.line, arguments)
         self.env.inc_nesting()
         self.env.add_self(declaration.line, is_variable=True)
-        for arg in args:
+        for arg in arguments:
             self.env.add_declaration(nodes.Decl(declaration.line, DeclType.constant, arg.name, arg.type))
         body = self.analyze_ast(declaration.body)
         self.env.dec_nesting()
-        self.env.update_init_declaration_body(args, body)
-        return nodes.InitDeclaration(declaration.line, args, body)
+        self.env.update_init_declaration_body(arguments, body)
+        return nodes.InitDeclaration(declaration.line, arguments, body)
 
     def analyze_assignment(self, statement: nodes.Assignment) -> nodes.Assignment:
         if statement.operator.value != nodes.Operator.eq.value:
@@ -347,7 +347,7 @@ class Analyzer(unittest.TestCase):
 
     def analyze_print_function_call(self, function_call: nodes.FunctionCall) -> nodes.FunctionCall:
         self.infer_type(function_call)
-        value = function_call.args[0]
+        value = function_call.arguments[0]
         value_type = self.infer_type(value)
         if is_8bit_int(value_type):
             value = nodes.Cast(value, nodes.BuiltinType.i16)
@@ -462,21 +462,21 @@ class Analyzer(unittest.TestCase):
             self.unify_types(subject_method.return_type, interface_method.return_type)
         except errors.AngelTypeError:
             raise errors.AngelInterfaceMethodError(
-                subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
-                subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
+                subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.arguments,
+                subject_method.return_type, interface_method.arguments, interface_method.return_type, inherited_from
             )
-        for interface_arg, subject_arg in zip_longest(interface_method.args, subject_method.args):
+        for interface_arg, subject_arg in zip_longest(interface_method.arguments, subject_method.arguments):
             if interface_arg is None or subject_arg is None:
                 raise errors.AngelInterfaceMethodError(
-                    subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
-                    subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
+                    subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.arguments,
+                    subject_method.return_type, interface_method.arguments, interface_method.return_type, inherited_from
                 )
             try:
                 self.unify_types(subject_arg.type, interface_arg.type)
             except errors.AngelTypeError:
                 raise errors.AngelInterfaceMethodError(
-                    subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.args,
-                    subject_method.return_type, interface_method.args, interface_method.return_type, inherited_from
+                    subject, interface, self.get_code(subject_method.line), interface_method.name, subject_method.arguments,
+                    subject_method.return_type, interface_method.arguments, interface_method.return_type, inherited_from
                 )
 
     def check_name_reassignment(self, left: nodes.Name) -> None:
@@ -554,7 +554,7 @@ class Analyzer(unittest.TestCase):
         entry = builtin_interfaces[interface.value]
         inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, entries.Entry]] = {}
         inherited_methods: t.Dict[str, t.Tuple[nodes.Interface, entries.FunctionEntry]] = {}
-        for parent_interface in entry.parent_interfaces:
+        for parent_interface in entry.implemented_interfaces:
             assert isinstance(parent_interface, nodes.BuiltinType)
             parent_entry = self.get_builtin_interface_entry(parent_interface)
             inherited_fields.update({
@@ -578,7 +578,7 @@ class Analyzer(unittest.TestCase):
         assert isinstance(clause.right, (nodes.Name, nodes.BuiltinType, nodes.GenericType))
         entry = self.env.get(clause.left)
         assert isinstance(entry, entries.ParameterEntry)
-        entry.parent_interfaces.append(clause.right)
+        entry.implemented_interfaces.append(clause.right)
 
     def test(self):
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))

@@ -112,7 +112,7 @@ class Trailer:
 
 @dataclass
 class TupleTrailer(Trailer):
-    args: t.List[nodes.Expression]
+    arguments: t.List[nodes.Expression]
 
 
 @dataclass
@@ -136,7 +136,7 @@ class OptionalTypeTrailer(Trailer):
 
 @dataclass
 class GenericTypeTrailer(Trailer):
-    params: t.List[nodes.Type]
+    parameters: t.List[nodes.Type]
 
 
 @dataclass
@@ -344,16 +344,16 @@ class Parser:
         line = self.position.line
         if not self.parse_raw("init"):
             return None
-        args: t.Optional[nodes.Arguments] = self.parse_container(
+        arguments: t.Optional[nodes.Arguments] = self.parse_container(
             open_container="(", close_container=")", element_separator=",", element_parser=self.parse_argument)
-        if args is None:
-            args = []
+        if arguments is None:
+            arguments = []
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return nodes.InitDeclaration(line, args, body)
+        return nodes.InitDeclaration(line, arguments, body)
 
     def parse_function_declaration(self, body_required: bool = True) -> t.Optional[nodes.FunctionDeclaration]:
         line = self.position.line
@@ -363,16 +363,16 @@ class Parser:
         name = self.parse_name()
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
-        params: t.Optional[nodes.Parameters] = self.parse_container(
+        parameters: t.Optional[nodes.Parameters] = self.parse_container(
             open_container="<", close_container=">", element_separator=",", element_parser=self.parse_name
         )
-        if params is None:
-            params = []
-        args: t.Optional[nodes.Arguments] = self.parse_container(
+        if parameters is None:
+            parameters = []
+        arguments: t.Optional[nodes.Arguments] = self.parse_container(
             open_container="(", close_container=")", element_separator=",", element_parser=self.parse_argument
         )
-        if args is None:
-            args = []
+        if arguments is None:
+            arguments = []
         self.spaces()
         if self.parse_raw("->"):
             self.spaces()
@@ -385,13 +385,13 @@ class Parser:
         if not self.parse_raw(":"):
             if body_required:
                 raise errors.AngelSyntaxError("expected ':'", self.get_code())
-            return nodes.FunctionDeclaration(line, name, params, args, return_type, where_clause, [])
+            return nodes.FunctionDeclaration(line, name, parameters, arguments, return_type, where_clause, [])
         self.additional_statement_parsers.append(self.parse_return_statement)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return nodes.FunctionDeclaration(line, name, params, args, return_type, where_clause, body)
+        return nodes.FunctionDeclaration(line, name, parameters, arguments, return_type, where_clause, body)
 
     def parse_return_statement(self) -> t.Optional[nodes.Return]:
         line = self.position.line
@@ -547,15 +547,15 @@ class Parser:
         self.spaces()
         if self.parse_raw("is"):
             self.spaces()
-            parent_interfaces = self.parse_elements(
+            implemented_interfaces = self.parse_elements(
                 element_separator=",", element_parser=self.parse_parent_interface, chars_ending_sequence=":",
                 raise_error=False
             )
         else:
             self.restore_state(backup_state)
-            parent_interfaces = []
+            implemented_interfaces = []
         if not self.parse_raw(":"):
-            return self.make_interface_declaration(line, name, parameters, parent_interfaces, [])
+            return self.make_interface_declaration(line, name, parameters, implemented_interfaces, [])
         self.additional_statement_parsers.append(self.parse_field_declaration)
         self.additional_statement_parsers.append(partial(self.parse_function_declaration, False))
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
@@ -563,7 +563,7 @@ class Parser:
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return self.make_interface_declaration(line, name, parameters, parent_interfaces, body)
+        return self.make_interface_declaration(line, name, parameters, implemented_interfaces, body)
 
     NODE_PARSERS = [
         parse_constant_declaration, parse_variable_declaration, parse_function_declaration, parse_struct_declaration,
@@ -584,7 +584,7 @@ class Parser:
                     public_fields.append(node)
             elif isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.args, node.return_type, node.body
+                    node.line, node.name, node.arguments, node.return_type, node.body
                 )
                 if node.name.member.startswith("__") or node.name.member == "as":
                     special_methods.append(method_declaration)
@@ -609,7 +609,7 @@ class Parser:
         for node in body:
             if isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.args, node.return_type, node.body
+                    node.line, node.name, node.arguments, node.return_type, node.body
                 )
                 if node.name.member.startswith("__") or node.name.member == "as":
                     special_methods.append(method_declaration)
@@ -632,7 +632,7 @@ class Parser:
                 constructors.append(node)
             elif isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.args, node.return_type, node.body
+                    node.line, node.name, node.arguments, node.return_type, node.body
                 )
                 if node.name.member.startswith("_"):
                     private_methods.append(method_declaration)
@@ -643,21 +643,21 @@ class Parser:
         return nodes.AlgebraicDeclaration(line, name, parameters, constructors, public_methods, private_methods)
 
     def make_interface_declaration(
-        self, line: int, name: nodes.Name, parameters: nodes.Parameters, parent_interfaces: nodes.Interfaces,
+        self, line: int, name: nodes.Name, parameters: nodes.Parameters, implemented_interfaces: nodes.Interfaces,
         body: nodes.AST
     ) -> nodes.InterfaceDeclaration:
         methods, fields = [], []
         for node in body:
             if isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.args, node.return_type, node.body
+                    node.line, node.name, node.arguments, node.return_type, node.body
                 )
                 methods.append(method_declaration)
             elif isinstance(node, nodes.FieldDeclaration):
                 fields.append(node)
             else:
                 raise errors.AngelSyntaxError("expected method or field declaration", self.get_code(node.line))
-        return nodes.InterfaceDeclaration(line, name, parameters, parent_interfaces, fields, methods)
+        return nodes.InterfaceDeclaration(line, name, parameters, implemented_interfaces, fields, methods)
 
     def parse_body(self, statement_parsers) -> nodes.AST:
         def mega_parser() -> t.Optional[nodes.Node]:
@@ -800,7 +800,7 @@ class Parser:
                 inner_type = nodes.OptionalType(inner_type)
             elif isinstance(type_trailer, GenericTypeTrailer):
                 assert isinstance(inner_type, nodes.Name)
-                inner_type = nodes.GenericType(inner_type, type_trailer.params)
+                inner_type = nodes.GenericType(inner_type, type_trailer.parameters)
             else:
                 raise errors.AngelNotImplemented
             type_trailer = self.parse_type_trailer()
@@ -809,9 +809,9 @@ class Parser:
     def parse_type_trailer(self) -> t.Optional[Trailer]:
         if self.parse_raw("?"):
             return OptionalTypeTrailer(self.position.line)
-        params = self.parse_container('(', ')', ',', element_parser=self.parse_type)
-        if params:
-            return GenericTypeTrailer(self.position.line, params)
+        parameters = self.parse_container('(', ')', ',', element_parser=self.parse_type)
+        if parameters:
+            return GenericTypeTrailer(self.position.line, parameters)
         return None
 
     def parse_type_atom_with_prefixes(self) -> t.Optional[nodes.Type]:
@@ -900,7 +900,7 @@ class Parser:
         trailer = self.parse_trailer()
         while trailer is not None:
             if isinstance(trailer, TupleTrailer):
-                atom = nodes.FunctionCall(trailer.line, atom, trailer.args)
+                atom = nodes.FunctionCall(trailer.line, atom, trailer.arguments)
             elif isinstance(trailer, FieldTrailer):
                 atom = nodes.Field(trailer.line, atom, trailer.field)
             elif isinstance(trailer, SubscriptTrailer):
@@ -944,9 +944,9 @@ class Parser:
     def parse_trailer(self) -> t.Optional[Trailer]:
         line = self.position.line
         state = self.backup_state()
-        args = self.parse_container(
+        arguments = self.parse_container(
             open_container="(", close_container=")", element_separator=",", element_parser=self.parse_expression)
-        if args is None:
+        if arguments is None:
             if self.parse_raw("."):
                 field = self.parse_identifier()
                 if not field:
@@ -969,7 +969,7 @@ class Parser:
             else:
                 self.restore_state(state)
             return None
-        return TupleTrailer(line, args)
+        return TupleTrailer(line, arguments)
 
     def parse_comparison_operator(self) -> t.Optional[nodes.Operator]:
         for operator in nodes.Operator.comparison_operators():

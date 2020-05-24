@@ -20,9 +20,9 @@ class TestEval(unittest.TestCase):
     ) -> t.Tuple[t.Any, t.List[str]]:
         output = []
 
-        def print_test(value, *args):
+        def print_test(value, *arguments):
             output.append(value)
-            output.extend(args)
+            output.extend(arguments)
 
         def input_test(_):
             return inp

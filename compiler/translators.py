@@ -51,7 +51,7 @@ def algebraic_method_name(algebraic: nodes.Name, method: nodes.Name) -> str:
 
 def has_default_constructor(init_declarations: t.List[nodes.InitDeclaration]) -> bool:
     for decl in init_declarations:
-        if not decl.args:
+        if not decl.arguments:
             return True
     return False
 
@@ -193,15 +193,15 @@ class Translator(unittest.TestCase):
     def translate_method_call_name(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         return cpp_nodes.MethodCall(
             self.translate_expression(method_call.instance_path), method_call.method.member,
-            [self.translate_expression(arg) for arg in method_call.args]
+            [self.translate_expression(arg) for arg in method_call.arguments]
         )
 
     def translate_vector_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         method = method_call.method.unmangled or method_call.method.member
         if method == nodes.VectorFields.append.value:
             self.add_include(cpp_nodes.StdModule.vector)
-            args = [self.translate_expression(arg) for arg in method_call.args]
-            return cpp_nodes.MethodCall(self.translate_expression(method_call.instance_path), "push_back", args)
+            arguments = [self.translate_expression(arg) for arg in method_call.arguments]
+            return cpp_nodes.MethodCall(self.translate_expression(method_call.instance_path), "push_back", arguments)
         else:
             assert 0, f"Cannot translate method '{method_call.method}' call on Vector type"
 
@@ -213,18 +213,18 @@ class Translator(unittest.TestCase):
                 base = self.translate_expression(method_call.instance_path)
                 return cpp_nodes.FunctionCall(
                     cpp_nodes.Id(algebraic_method_name(instance_type.base, method_call.method)),
-                    [base] + [self.translate_expression(arg) for arg in method_call.args]
+                    [base] + [self.translate_expression(arg) for arg in method_call.arguments]
                 )
             base = cpp_nodes.FunctionCall(
                 cpp_nodes.StdName.get, [self.translate_expression(method_call.instance_path)],
-                params=[cpp_nodes.Id(algebraic_constructor_name(instance_type.base, instance_type.constructor))]
+                parameters=[cpp_nodes.Id(algebraic_constructor_name(instance_type.base, instance_type.constructor))]
             )
             return cpp_nodes.MethodCall(
-                base, method_call.method.member, [self.translate_expression(arg) for arg in method_call.args]
+                base, method_call.method.member, [self.translate_expression(arg) for arg in method_call.arguments]
             )
         return cpp_nodes.FunctionCall(
             cpp_nodes.Id(algebraic_constructor_name(instance_type.base, method_call.method)),
-            [self.translate_expression(arg) for arg in method_call.args]
+            [self.translate_expression(arg) for arg in method_call.arguments]
         )
 
     def translate_string_type_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
@@ -233,14 +233,14 @@ class Translator(unittest.TestCase):
             self.add_include(cpp_nodes.StdModule.vector)
             self.add_include(cpp_nodes.StdModule.string)
             self.add_library_include(library.Modules.string)
-            args = []
-            for arg in method_call.args:
+            arguments = []
+            for arg in method_call.arguments:
                 translated_arg = self.translate_expression(arg)
                 assert translated_arg is not None
-                args.append(translated_arg)
+                arguments.append(translated_arg)
             instance = self.translate_expression(method_call.instance_path)
             assert instance is not None
-            return cpp_nodes.FunctionCall(cpp_nodes.Id(library.StringFields.split_char.value), [instance] + args)
+            return cpp_nodes.FunctionCall(cpp_nodes.Id(library.StringFields.split_char.value), [instance] + arguments)
         else:
             assert 0, f"Cannot translate method '{method_call.method}' call on String type"
 
@@ -294,7 +294,7 @@ class Translator(unittest.TestCase):
             return cpp_nodes.ArrowField(field_base, field.field.member)
         base = cpp_nodes.FunctionCall(
             cpp_nodes.StdName.get, [field_base],
-            params=[cpp_nodes.Id(algebraic_constructor_name(field.base_type.base, field.base_type.constructor))]
+            parameters=[cpp_nodes.Id(algebraic_constructor_name(field.base_type.base, field.base_type.constructor))]
         )
         return cpp_nodes.DotField(base, field.field.member)
 
@@ -323,7 +323,7 @@ class Translator(unittest.TestCase):
             if field_name == nodes.StringFields.length.value:
                 base = self.translate_expression(field.base)
                 assert base is not None
-                return cpp_nodes.MethodCall(base, field.field.member, args=[])
+                return cpp_nodes.MethodCall(base, field.field.member, arguments=[])
             assert 0, f"Field 'String.{field.field}' is not supported"
         else:
             assert 0, f"Fields for '{field.base_type.to_code()}' are not supported"
@@ -358,14 +358,14 @@ class Translator(unittest.TestCase):
     def translate_function_call(self, function_call: nodes.FunctionCall) -> cpp_nodes.Expression:
         if isinstance(function_call.function_path, nodes.BuiltinFunc):
             return dispatch(
-                self.translate_builtin_function_dispatcher, function_call.function_path.value, function_call.args
+                self.translate_builtin_function_dispatcher, function_call.function_path.value, function_call.arguments
             )
-        init_params: t.List[cpp_nodes.Type] = []
-        if function_call.instance_call_params:
-            init_params = [self.translate_type(param) for param in function_call.instance_call_params]
+        init_parameters: t.List[cpp_nodes.Type] = []
+        if function_call.instance_call_parameters:
+            init_parameters = [self.translate_type(param) for param in function_call.instance_call_parameters]
         return cpp_nodes.FunctionCall(
             self.translate_expression(function_call.function_path),
-            [self.translate_expression(arg) for arg in function_call.args], init_params
+            [self.translate_expression(arg) for arg in function_call.arguments], init_parameters
         )
 
     def translate_vector_literal(self, literal: nodes.VectorLiteral) -> cpp_nodes.Expression:
@@ -482,7 +482,7 @@ class Translator(unittest.TestCase):
 
         return0 = cpp_nodes.Return(cpp_nodes.IntegerLiteral("0"))
         main_function = cpp_nodes.FunctionDeclaration(
-            return_type=cpp_nodes.PrimitiveTypes.int, name="main", args=[], body=self.main_function_body + [return0]
+            return_type=cpp_nodes.PrimitiveTypes.int, name="main", arguments=[], body=self.main_function_body + [return0]
         )
         return (
             t.cast(cpp_nodes.AST, list(self.includes.values())) + structs + self.top_nodes +
@@ -502,34 +502,34 @@ class Translator(unittest.TestCase):
 
     def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.Node:
         return_type = self.translate_type(node.return_type)
-        args = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.args]
+        arguments = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.arguments]
         self.env.inc_nesting()
         body = self.translate_body(node.body)
         self.env.dec_nesting()
-        func_decl = cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
-        if node.params:
-            return cpp_nodes.Template([self.translate_type(param) for param in node.params], func_decl)
+        func_decl = cpp_nodes.FunctionDeclaration(return_type, node.name.member, arguments, body)
+        if node.parameters:
+            return cpp_nodes.Template([self.translate_type(param) for param in node.parameters], func_decl)
         return func_decl
 
     def translate_method_declaration(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
         return_type = self.translate_type(node.return_type)
-        args = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.args]
+        arguments = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.arguments]
         self.env.inc_nesting()
         body = self.translate_body(node.body)
         self.env.dec_nesting()
-        return cpp_nodes.FunctionDeclaration(return_type, node.name.member, args, body)
+        return cpp_nodes.FunctionDeclaration(return_type, node.name.member, arguments, body)
 
     def translate_special_method(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
         assert isinstance(node.name, nodes.SpecialMethods)
         real_name = node.name.value
         if real_name == nodes.SpecialMethods.as_.value:
             assert isinstance(node.return_type, nodes.BuiltinType) and node.return_type == nodes.BuiltinType.string
-            printing_override_args = [
+            printing_override_arguments = [
                 cpp_nodes.Argument(cpp_nodes.Addr(cpp_nodes.StdName.ostream), '_arg1'),
                 cpp_nodes.Argument(cpp_nodes.Addr(cpp_nodes.Id(self.struct_name)), '_arg2')
             ]
             printing_override = cpp_nodes.FunctionDeclaration(
-                cpp_nodes.Addr(cpp_nodes.StdName.ostream), 'operator<<', printing_override_args, body=[
+                cpp_nodes.Addr(cpp_nodes.StdName.ostream), 'operator<<', printing_override_arguments, body=[
                     cpp_nodes.Semicolon(
                         cpp_nodes.BinaryExpression(
                             cpp_nodes.Id('_arg1'), cpp_nodes.Operator.lshift,
@@ -575,7 +575,7 @@ class Translator(unittest.TestCase):
         # list(...) for mypy
         class_declaration = cpp_nodes.ClassDeclaration(
             node.name.member,
-            [(cpp_nodes.AccessModifier.public, self.translate_type(interface)) for interface in node.parent_interfaces],
+            [(cpp_nodes.AccessModifier.public, self.translate_type(interface)) for interface in node.implemented_interfaces],
             private=[], public=self.translate_body(list(node.fields)) + self.translate_body(list(node.methods))
         )
         if node.parameters:
@@ -593,7 +593,7 @@ class Translator(unittest.TestCase):
         body = self.translate_body(list(node.constructors))
         funcs: t.List[nodes.Node] = []
         self_type = nodes.AlgebraicType(
-            node.name, params=[], constructor=None,
+            node.name, parameters=[], constructor=None,
             constructor_types={name.member: name for name in constructor_names}
         )
         self_arg = nodes.Argument("self", self_type)
@@ -601,7 +601,7 @@ class Translator(unittest.TestCase):
             funcs.append(
                 nodes.FunctionDeclaration(
                     method.line, nodes.Name(algebraic_method_name(node.name, method.name)), [],
-                    [self_arg] + method.args, method.return_type, where_clause=None, body=method.body
+                    [self_arg] + method.arguments, method.return_type, where_clause=None, body=method.body
                 )
             )
         methods = self.translate_body(funcs)
@@ -610,15 +610,15 @@ class Translator(unittest.TestCase):
         return None
 
     def translate_init_declaration(self, declaration: nodes.InitDeclaration) -> cpp_nodes.InitDeclaration:
-        args = []
-        for arg in declaration.args:
+        arguments = []
+        for arg in declaration.arguments:
             if arg.value is not None:
                 value: t.Optional[cpp_nodes.Expression] = self.translate_expression(arg.value)
             else:
                 value = None
-            args.append(cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member, value))
+            arguments.append(cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member, value))
         body = self.translate_body(declaration.body)
-        return cpp_nodes.InitDeclaration(self.struct_name, args, body)
+        return cpp_nodes.InitDeclaration(self.struct_name, arguments, body)
 
     def translate_field_declaration(self, node: nodes.FieldDeclaration) -> cpp_nodes.Declaration:
         return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value=None)
@@ -731,15 +731,15 @@ class Translator(unittest.TestCase):
         assert value is not None
         return cpp_nodes.Return(value)
 
-    def translate_print_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
-        assert len(args) == 1
+    def translate_print_function_call(self, arguments: t.List[nodes.Expression]) -> cpp_nodes.Expression:
+        assert len(arguments) == 1
         self.add_library_include(library.Modules.builtins)
-        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.print.value), [self.translate_expression(args[0])])
+        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.print.value), [self.translate_expression(arguments[0])])
 
-    def translate_read_function_call(self, args: t.List[nodes.Expression]) -> cpp_nodes.Expression:
-        assert len(args) == 1
+    def translate_read_function_call(self, arguments: t.List[nodes.Expression]) -> cpp_nodes.Expression:
+        assert len(arguments) == 1
         self.add_library_include(library.Modules.builtins)
-        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.read.value), [self.translate_expression(args[0])])
+        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.read.value), [self.translate_expression(arguments[0])])
 
     def translate_vector_type(self, vector_type: nodes.VectorType) -> cpp_nodes.Type:
         self.add_include(cpp_nodes.StdModule.vector)
@@ -763,19 +763,19 @@ class Translator(unittest.TestCase):
         self.add_include(cpp_nodes.StdModule.functional)
         return cpp_nodes.FunctionType(
             self.translate_type(function_type.return_type),
-            [self.translate_type(arg.type) for arg in function_type.args]
+            [self.translate_type(arg.type) for arg in function_type.arguments]
         )
 
     def translate_struct_type(self, struct_type: nodes.StructType) -> cpp_nodes.Type:
         base = self.translate_type(struct_type.name)
-        if struct_type.params:
-            return cpp_nodes.GenericType(base, [self.translate_type(param) for param in struct_type.params])
+        if struct_type.parameters:
+            return cpp_nodes.GenericType(base, [self.translate_type(param) for param in struct_type.parameters])
         return base
 
     def translate_generic_type(self, generic_type: nodes.GenericType) -> cpp_nodes.Type:
         base = self.translate_type(generic_type.name)
-        if generic_type.params:
-            return cpp_nodes.GenericType(base, [self.translate_type(param) for param in generic_type.params])
+        if generic_type.parameters:
+            return cpp_nodes.GenericType(base, [self.translate_type(param) for param in generic_type.parameters])
         return base
 
     def translate_algebraic_type(self, algebraic: nodes.AlgebraicType) -> cpp_nodes.Type:

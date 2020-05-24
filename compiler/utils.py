@@ -5,11 +5,11 @@ from . import errors, nodes
 from .context import Context
 
 
-def dispatch(dispatcher, key, *args):
+def dispatch(dispatcher, key, *arguments):
     func = dispatcher.get(key)
     if func is None:
         raise errors.AngelNotImplemented(f'cannot dispatch {key}')
-    return func(*args)
+    return func(*arguments)
 
 
 def get_hash(string: str) -> str:
@@ -57,20 +57,20 @@ apply_mapping_expression_dispatcher = {
 apply_mapping_dispatcher = {
     nodes.Name: lambda name, mapping: mapping.get(name.member, name),
     nodes.FunctionType: lambda func, mapping: nodes.FunctionType(
-        func.params, [nodes.Argument(arg.name, apply_mapping(arg.type, mapping), arg.value) for arg in func.args],
+        func.parameters, [nodes.Argument(arg.name, apply_mapping(arg.type, mapping), arg.value) for arg in func.arguments],
         apply_mapping(func.return_type, mapping), func.where_clauses, func.saved_environment, func.is_algebraic_method
     ),
     nodes.BuiltinType: lambda builtin, mapping: builtin,
     nodes.TemplateType: lambda template, mapping: template,
     nodes.StructType: lambda struct, mapping: nodes.StructType(
-        struct.name, [apply_mapping(param, mapping) for param in struct.params]
+        struct.name, [apply_mapping(param, mapping) for param in struct.parameters]
     ),
     nodes.AlgebraicType: lambda algebraic, mapping: nodes.AlgebraicType(
-        algebraic.base, [apply_mapping(param, mapping) for param in algebraic.params], algebraic.constructor,
+        algebraic.base, [apply_mapping(param, mapping) for param in algebraic.parameters], algebraic.constructor,
         algebraic.constructor_types
     ),
     nodes.GenericType: lambda generic, mapping: nodes.GenericType(
-        generic.name, [apply_mapping(param, mapping) for param in generic.params]
+        generic.name, [apply_mapping(param, mapping) for param in generic.parameters]
     ),
     nodes.DictType: lambda dict_type, mapping: nodes.DictType(
         apply_mapping(dict_type.key_type, mapping), apply_mapping(dict_type.value_type, mapping)

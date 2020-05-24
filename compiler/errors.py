@@ -90,18 +90,18 @@ class AngelInterfaceFieldError(_AngelInterfaceError):
 @dataclass
 class AngelInterfaceMethodError(_AngelInterfaceError):
     method: nodes.Name
-    subject_method_args: nodes.Arguments
+    subject_method_arguments: nodes.Arguments
     subject_method_return_type: nodes.Type
-    interface_method_args: nodes.Arguments
+    interface_method_arguments: nodes.Arguments
     interface_method_return_type: nodes.Type
     inherited_from: t.Optional[nodes.Type] = None
 
     def __str__(self) -> str:
         subject = self.subject.to_code()
         method = self.method.to_code()
-        subject_args = ', '.join(arg.to_code() for arg in self.subject_method_args)
+        subject_arguments = ', '.join(arg.to_code() for arg in self.subject_method_arguments)
         subject_type = self.subject_method_return_type.to_code()
-        interface_args = ', '.join(arg.to_code() for arg in self.interface_method_args)
+        interface_arguments = ', '.join(arg.to_code() for arg in self.interface_method_arguments)
         interface_type = self.interface_method_return_type.to_code()
 
         if self.inherited_from:
@@ -109,8 +109,8 @@ class AngelInterfaceMethodError(_AngelInterfaceError):
         else:
             inheritence = ""
 
-        l2 = f"however, it implemented {method}({subject_args}) -> {subject_type}"
-        l3 = f"and expected implementation is {method}({interface_args}) -> {interface_type}"
+        l2 = f"however, it implemented {method}({subject_arguments}) -> {subject_type}"
+        l3 = f"and expected implementation is {method}({interface_arguments}) -> {interface_type}"
         return "\n".join((
             f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritence}",
             "                                " + l2,
@@ -215,12 +215,12 @@ class AngelUnsatisfiedWhereClause(AngelError):
 class AngelWrongArguments(AngelError):
     expected: str
     code: Code
-    got_args: t.List[nodes.Expression]
+    got_arguments: t.List[nodes.Expression]
 
     def __str__(self):
-        args = "(" + ", ".join(arg.to_code() for arg in self.got_args) + ")"
+        arguments = "(" + ", ".join(arg.to_code() for arg in self.got_arguments) + ")"
         return "\n".join((
-            f"Arguments Error: got '{args}', expected '{self.expected}' in",
+            f"Arguments Error: got '{arguments}', expected '{self.expected}' in",
             "",
             str(self.code),
         ))
