@@ -850,6 +850,7 @@ class FunctionDeclaration(Node):
 @dataclass
 class MethodDeclaration(Node):
     name: Name
+    parameters: Parameters
     arguments: Arguments
     return_type: Type
     body: AST

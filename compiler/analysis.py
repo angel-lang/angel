@@ -244,6 +244,7 @@ class Analyzer(unittest.TestCase):
         return_type = self.check_type(declaration.return_type)
         self.env.add_method(declaration.line, declaration.name, arguments, return_type)
         self.env.inc_nesting()
+        self.env.add_parameters(declaration.line, declaration.parameters)
         self.function_return_types.append(return_type)
         self.env.add_self(declaration.line)
         for arg in arguments:
@@ -252,7 +253,9 @@ class Analyzer(unittest.TestCase):
         self.function_return_types.pop()
         self.env.dec_nesting()
         self.env.update_method_body(declaration.name, body)
-        return nodes.MethodDeclaration(declaration.line, declaration.name, arguments, return_type, body)
+        return nodes.MethodDeclaration(
+            declaration.line, declaration.name, declaration.parameters, arguments, return_type, body
+        )
 
     def analyze_init_declaration(self, declaration: nodes.InitDeclaration) -> nodes.InitDeclaration:
         arguments = []

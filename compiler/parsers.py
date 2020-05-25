@@ -584,7 +584,7 @@ class Parser:
                     public_fields.append(node)
             elif isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.arguments, node.return_type, node.body
+                    node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
                 )
                 if node.name.member.startswith("__") or node.name.member == "as":
                     special_methods.append(method_declaration)
@@ -609,7 +609,7 @@ class Parser:
         for node in body:
             if isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.arguments, node.return_type, node.body
+                    node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
                 )
                 if node.name.member.startswith("__") or node.name.member == "as":
                     special_methods.append(method_declaration)
@@ -632,7 +632,7 @@ class Parser:
                 constructors.append(node)
             elif isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.arguments, node.return_type, node.body
+                    node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
                 )
                 if node.name.member.startswith("_"):
                     private_methods.append(method_declaration)
@@ -650,7 +650,7 @@ class Parser:
         for node in body:
             if isinstance(node, nodes.FunctionDeclaration):
                 method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.arguments, node.return_type, node.body
+                    node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
                 )
                 methods.append(method_declaration)
             elif isinstance(node, nodes.FieldDeclaration):
