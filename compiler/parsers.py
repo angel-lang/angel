@@ -1074,6 +1074,11 @@ class Parser:
     def parse_name(self) -> t.Optional[nodes.Name]:
         identifier = self.parse_identifier()
         if identifier:
+            if self.parse_raw('#'):
+                member = self.parse_identifier()
+                if not member:
+                    raise errors.AngelSyntaxError('expected identifier', self.get_code())
+                return nodes.Name(member, identifier)
             return nodes.Name(identifier)
         return None
 

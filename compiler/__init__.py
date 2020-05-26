@@ -32,7 +32,12 @@ def compile_string(string: str, mangle_names: bool = True) -> str:
     analyzer = analysis.Analyzer(context)
     translator = translators.Translator()
     try:
-        cpp_ast = translator.translate(analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string))))
+        clarified_ast = clarifier.clarify_ast(parser.parse(string))
+        for module_name, module_content in context.imported_lines.items():
+            module_hash = context.module_hashs[module_name]
+            context.main_hash = module_hash
+            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+        cpp_ast = translator.translate(analyzer.analyze_ast(clarified_ast))
     except errors.AngelError as e:
         if DEBUG:
             raise e
@@ -54,7 +59,12 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     analyzer = analysis.Analyzer(context, env=env)
     repl_evaluator = repl_evaluation.REPLEvaluator(context, env=env)
     try:
-        return repl_evaluator.estimate_ast(analyzer.analyze_ast(clarifier.clarify_ast(parser.parse(string))))
+        clarified_ast = clarifier.clarify_ast(parser.parse(string))
+        for module_name, module_content in context.imported_lines.items():
+            module_hash = context.module_hashs[module_name]
+            context.main_hash = module_hash
+            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+        return repl_evaluator.estimate_ast(analyzer.analyze_ast(clarified_ast))
     except errors.AngelError as e:
         if DEBUG:
             raise e

@@ -19,10 +19,24 @@ def get_hash(string: str) -> str:
 
 
 def mangle(name: nodes.Name, context: Context) -> nodes.Name:
-    if name.module:
-        raise NotImplementedError
     if context.mangle_names:
-        return nodes.Name("_".join(["angel", context.main_hash, name.member]), unmangled=name.member)
+        if name.module:
+            module_hash = context.module_hashs.get(name.module)
+            if not module_hash:
+                with open(name.module + '.angel') as file:
+                    content = file.read()
+                module_hash = get_hash(content)
+                context.module_hashs[name.module] = module_hash
+                context.imported_lines[name.module] = content
+            return nodes.Name('_'.join(('angel', module_hash, name.member)), unmangled=name.member)
+        return nodes.Name('_'.join(['angel', context.main_hash, name.member]), unmangled=name.member)
+    return name
+
+
+
+def submangle(name: nodes.Name, context: Context) -> nodes.Name:
+    if context.mangle_names:
+        return nodes.Name('_'.join(['angel', name.member]), unmangled=name.member)
     return name
 
 

@@ -12,7 +12,12 @@ class TestEval(unittest.TestCase):
         clarifier = clarification.Clarifier(context)
         analyzer = analysis.Analyzer(context)
         repl_evaluator = repl_evaluation.REPLEvaluator(context)
-        repl_evaluator.estimate_ast(analyzer.analyze_ast((clarifier.clarify_ast(parser.parse("\n".join(lines))))))
+        clarified_ast = clarifier.clarify_ast(parser.parse('\n'.join(lines)))
+        for module_name, module_content in context.imported_lines.items():
+            module_hash = context.module_hashs[module_name]
+            context.main_hash = module_hash
+            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+        repl_evaluator.estimate_ast(analyzer.analyze_ast(clarified_ast))
         return repl_evaluator.env
 
     def eval(
@@ -34,9 +39,12 @@ class TestEval(unittest.TestCase):
         repl_evaluator = repl_evaluation.REPLEvaluator(context, env=env)
         repl_evaluation.print = print_test
         repl_evaluation.input = input_test
-        result = repl_evaluator.estimate_ast(
-            analyzer.analyze_ast(clarifier.clarify_ast(parser.parse("\n".join(lines))))
-        )
+        clarified_ast = clarifier.clarify_ast(parser.parse('\n'.join(lines)))
+        for module_name, module_content in context.imported_lines.items():
+            module_hash = context.module_hashs[module_name]
+            context.main_hash = module_hash
+            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+        result = repl_evaluator.estimate_ast(analyzer.analyze_ast(clarified_ast))
         return result, output
 
     def test_integer_literal(self):
