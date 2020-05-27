@@ -295,7 +295,7 @@ class TestEval(unittest.TestCase):
 
     def test_stack_struct(self):
         code = [
-            'struct Stack(A):',
+            'struct Stack<A>:',
             '    data: [A]',
 
             '    init(data: [A]):',

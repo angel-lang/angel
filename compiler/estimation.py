@@ -8,7 +8,7 @@ from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .enums import DeclType
-from .utils import mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
+from .utils import submangle, mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
 from .constants import (
     builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields, SELF_NAME, SPEC_LINE
 )
@@ -32,7 +32,7 @@ class Evaluator(unittest.TestCase):
         self.code = errors.Code()
         self.repl_tmp_count = 0
         self.context = context
-        self.type_checker = type_checking.TypeChecker()
+        self.type_checker = type_checking.TypeChecker(context)
         self.type_checker.estimator = self
 
         self.estimated_objs = estimated_objs
@@ -453,7 +453,7 @@ class Evaluator(unittest.TestCase):
         assert xe.type == ye.type
         entry = self.env.get(xe.type)
         assert isinstance(entry, entries.StructEntry)
-        method_entry = entry.methods[method_name.value]
+        method_entry = entry.methods[submangle(nodes.Name(method_name.value), self.context).member]
         result = self.perform_function_call(
             method_entry.to_estimated_function(), [y], nodes.Argument(SELF_NAME, xe.type, x)
         )
@@ -542,7 +542,9 @@ class Evaluator(unittest.TestCase):
             return found
         struct_entry = self.env[base.type.member]
         assert isinstance(struct_entry, entries.StructEntry)
-        method_entry = struct_entry.methods[field.member]
+        field_name = submangle(field, self.context).member
+        method_entry = struct_entry.methods.get(field_name, struct_entry.methods.get(field.member))
+        assert method_entry
         return method_entry.to_estimated_function()
 
     def estimate_ref_field(self, ref: enodes.Ref, field: nodes.Name) -> enodes.Expression:
@@ -805,7 +807,9 @@ class Evaluator(unittest.TestCase):
             if isinstance(value, enodes.Instance):
                 entry = self.env.get(value.type)
                 assert isinstance(entry, entries.StructEntry)
-                method_entry = entry.methods[nodes.SpecialMethods.as_.value]
+                method_entry = entry.methods[
+                    submangle(nodes.Name(nodes.SpecialMethods.as_.value), self.context).member
+                ]
                 result = self.perform_function_call(
                     method_entry.to_estimated_function(), arguments=[],
                     self_argument=nodes.Argument(SELF_NAME, value.type, cast.value)

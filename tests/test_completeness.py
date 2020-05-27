@@ -8,7 +8,7 @@ class TestCompleteness(unittest.TestCase):
     def setUp(self) -> None:
         context = Context(lines=[], main_hash='', mangle_names=False)
         self.analyzer = analysis.Analyzer(context)
-        self.type_checker = type_checking.TypeChecker()
+        self.type_checker = type_checking.TypeChecker(context)
         self.estimator: estimation.Evaluator = estimation.Estimator(context)
         self.repl_evaluator: estimation.Evaluator = repl_evaluation.REPLEvaluator(context)
         self.translator = translators.Translator()

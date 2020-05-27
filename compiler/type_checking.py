@@ -7,8 +7,9 @@ from itertools import zip_longest
 
 from . import nodes, errors, environment, environment_entries as entries, estimation_nodes as enodes
 from .enums import DeclType
+from .context import Context
 from .constants import builtin_interfaces, SPEC_LINE
-from .utils import dispatch, TYPES, EXPRS, apply_mapping, apply_mapping_expression, is_user_defined_type
+from .utils import submangle, dispatch, TYPES, EXPRS, apply_mapping, apply_mapping_expression, is_user_defined_type
 
 
 Mapping = t.Dict[str, nodes.Type]
@@ -73,13 +74,14 @@ def get_possible_float_types_base_on_value(value: str) -> t.List[nodes.Type]:
 
 class TypeChecker(unittest.TestCase):
 
-    def __init__(self):
+    def __init__(self, context: Context):
         super().__init__()
         self.env: environment.Environment = environment.Environment()
         self.code: errors.Code = errors.Code("", 0)
-        self.estimator = None
+        self.estimator: t.Optional[t.Any] = None
+        self.context = context
 
-        self.template_types = []
+        self.template_types: t.List[t.Optional[nodes.Type]] = []
         self.template_type_id = -1
 
         self.infer_type_from_field_of_builtin_type_dispatcher = {
@@ -856,9 +858,16 @@ class TypeChecker(unittest.TestCase):
             if is_user_defined_type(left_result.type):
                 left_type_entry = self.env.get_type(left_result.type)
                 assert isinstance(left_type_entry, (entries.StructEntry, entries.ParameterEntry))
-                method_name = nodes.SpecialMethods.from_operator(value.operator).value
-                method_entry = left_type_entry.methods.get(method_name)
+                method_name = submangle(
+                    nodes.Name(nodes.SpecialMethods.from_operator(value.operator).value), self.context
+                ).member
+                method_entry = left_type_entry.methods.get(
+                    method_name, left_type_entry.methods.get(
+                        nodes.SpecialMethods.from_operator(value.operator).value
+                    )
+                )
                 if method_entry is None:
+                    print("WTF", list(left_type_entry.methods.keys()))
                     raise errors.AngelFieldError(value.left, left_result.type, method_name, self.code)
                 if isinstance(left_result.type, nodes.GenericType):
                     mapping = self.basic_struct_mapping(left_result.type)
@@ -996,7 +1005,9 @@ class TypeChecker(unittest.TestCase):
         if self.template_types[subtype.id] is None:
             self.template_types[subtype.id] = supertype
             return UnificationResult(supertype, mapping)
-        return self.unify_types(self.template_types[subtype.id], supertype, mapping)
+        subt = self.template_types[subtype.id]
+        assert subt
+        return self.unify_types(subt, supertype, mapping)
 
     def unify_vector_with_generic_type(
         self, subtype: nodes.VectorType, supertype: nodes.GenericType, mapping: Mapping

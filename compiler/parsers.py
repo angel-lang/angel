@@ -442,7 +442,7 @@ class Parser:
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
         parameters = self.parse_container(
-            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_name)
+            open_container="<", close_container=">", element_separator=",", element_parser=self.parse_name)
         if parameters is None:
             parameters = []
         backup_state = self.backup_state()
@@ -478,7 +478,7 @@ class Parser:
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
         parameters = self.parse_container(
-            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_name)
+            open_container="<", close_container=">", element_separator=",", element_parser=self.parse_name)
         if parameters is None:
             parameters = []
         backup_state = self.backup_state()
@@ -809,7 +809,7 @@ class Parser:
     def parse_type_trailer(self) -> t.Optional[Trailer]:
         if self.parse_raw("?"):
             return OptionalTypeTrailer(self.position.line)
-        parameters = self.parse_container('(', ')', ',', element_parser=self.parse_type)
+        parameters = self.parse_container('<', '>', ',', element_parser=self.parse_type)
         if parameters:
             return GenericTypeTrailer(self.position.line, parameters)
         return None

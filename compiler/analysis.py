@@ -8,7 +8,7 @@ from . import (
 from .enums import DeclType
 from .context import Context
 from .constants import builtin_interfaces
-from .utils import mangle, dispatch, NODES, ASSIGNMENTS
+from .utils import submangle, mangle, dispatch, NODES, ASSIGNMENTS
 
 
 def is_8bit_int(typ: nodes.Type) -> bool:
@@ -26,7 +26,7 @@ class Analyzer(unittest.TestCase):
         self.line = 0
         self.function_return_types: t.List[nodes.Type] = []
 
-        self.type_checker = type_checking.TypeChecker()
+        self.type_checker = type_checking.TypeChecker(context)
         self.estimator = estimation.Estimator(context)
         self.type_checker.estimator = self.estimator
 
@@ -395,7 +395,7 @@ class Analyzer(unittest.TestCase):
             assert isinstance(field_entry, entries.DeclEntry)
             found = struct_entry.fields.get(
                 field_name,
-                struct_entry.fields.get(mangle(nodes.Name(field_name), self.context).member)
+                struct_entry.fields.get(submangle(nodes.Name(field_name), self.context).member)
             )
             if not found:
                 raise errors.AngelMissingInterfaceMember(
@@ -413,7 +413,7 @@ class Analyzer(unittest.TestCase):
             found = struct_entry.fields.get(
                 field_name,
                 struct_entry.fields.get(
-                    mangle(nodes.Name(field_name), self.context).member
+                    submangle(nodes.Name(field_name), self.context).member
                 )
             )
             if not found:
@@ -432,7 +432,7 @@ class Analyzer(unittest.TestCase):
             found_method: t.Optional[entries.FunctionEntry] = struct_entry.methods.get(
                 method_name,
                 struct_entry.methods.get(
-                    mangle(nodes.Name(method_name), self.context).member
+                    submangle(nodes.Name(method_name), self.context).member
                 )
             )
             if not found_method:
@@ -445,7 +445,7 @@ class Analyzer(unittest.TestCase):
             found_method = struct_entry.methods.get(
                 method_name,
                 struct_entry.methods.get(
-                    mangle(nodes.Name(method_name), self.context).member
+                    submangle(nodes.Name(method_name), self.context).member
                 )
             )
             if not found_method:

@@ -146,7 +146,7 @@ user.makeAdmin()
 print(user.isAdmin)
 
 
-struct Stack(A):
+struct Stack<A>:
     data: [A]
 
     init(data: [A]):
@@ -301,14 +301,14 @@ print(ps.value[0])
 
 
 // Where clause in structs
-struct MyPair(A, B):
+struct MyPair<A, B>:
     x: A
     y: B
 
 
-extension MyPair(A, B) is Eq
+extension MyPair<A, B> is Eq
 where A is Eq and B is Eq:
-    fun __eq__(other: MyPair(A, B)) -> Bool:
+    fun __eq__(other: MyPair<A, B>) -> Bool:
         return self.x == other.x and self.y == other.y
 
 

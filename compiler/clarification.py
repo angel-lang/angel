@@ -38,6 +38,27 @@ class Clarifier:
             return nodes.FieldDeclaration(
                 node.line, submangle(node.name, self.context), self.clarify_node(node.type), value
             )
+        elif isinstance(node, nodes.AlgebraicDeclaration):
+            body = []
+            for statement in node.constructors:
+                if isinstance(statement, nodes.StructDeclaration):
+                    statement = nodes.StructDeclaration(
+                        statement.line, submangle(statement.name, self.context),
+                        self.clarify_node(statement.parameters), self.clarify_node(statement.interfaces),
+                        self.clarify_node(statement.private_fields), self.clarify_node(statement.public_fields),
+                        self.clarify_node(statement.init_declarations), self.clarify_node(statement.private_methods),
+                        self.clarify_node(statement.public_methods), self.clarify_node(statement.special_methods)
+                    )
+                body.append(statement)
+            return nodes.AlgebraicDeclaration(
+                node.line, self.clarify_node(node.name), self.clarify_node(node.parameters),
+                body, self.clarify_node(node.public_methods), self.clarify_node(node.private_methods)
+            )
+        elif isinstance(node, nodes.MethodDeclaration):
+            return nodes.MethodDeclaration(
+                node.line, submangle(node.name, self.context), self.clarify_node(node.parameters),
+                self.clarify_node(node.arguments), self.clarify_node(node.return_type), self.clarify_node(node.body)
+            )
         elif isinstance(node, nodes.Field):
             base = self.clarify_node(node.base)
             if isinstance(base, nodes.BuiltinType) and (
