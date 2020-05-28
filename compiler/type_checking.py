@@ -350,6 +350,7 @@ class TypeChecker(unittest.TestCase):
     def infer_type(
             self, value: nodes.Expression, supertype: t.Optional[nodes.Type] = None, mapping: t.Optional[Mapping] = None
     ) -> InferenceResult:
+        self.context.template_types = self.template_types
         return dispatch(self.type_inference_dispatcher, type(value), value, supertype, mapping or {})
 
     def infer_type_from_name(

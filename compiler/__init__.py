@@ -30,7 +30,7 @@ def compile_string(string: str, mangle_names: bool = True) -> str:
     parser = parsers.Parser()
     clarifier = clarification.Clarifier(context)
     analyzer = analysis.Analyzer(context)
-    translator = translators.Translator()
+    translator = translators.Translator(context)
     try:
         clarified_ast = clarifier.clarify_ast(parser.parse(string))
         for module_name, module_content in context.imported_lines.items():

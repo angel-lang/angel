@@ -11,7 +11,7 @@ class TestCompleteness(unittest.TestCase):
         self.type_checker = type_checking.TypeChecker(context)
         self.estimator: estimation.Evaluator = estimation.Estimator(context)
         self.repl_evaluator: estimation.Evaluator = repl_evaluation.REPLEvaluator(context)
-        self.translator = translators.Translator()
+        self.translator = translators.Translator(context)
 
     def test_all(self):
         self.analyzer.test()

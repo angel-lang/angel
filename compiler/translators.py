@@ -4,6 +4,7 @@ import unittest
 from . import nodes, cpp_nodes, environment, library
 from .utils import dispatch, TYPES, EXPRS, NODES
 from .enums import DeclType
+from .context import Context
 
 
 BUILTIN_TYPE_TO_CPP_TYPE = {
@@ -63,12 +64,14 @@ class Translator(unittest.TestCase):
     nodes_buffer: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
 
-    def __init__(self) -> None:
+    def __init__(self, context: Context) -> None:
         super().__init__()
         self.env = environment.Environment()
         self.current_line = 1
         self.tmp_count = 0
         self.struct_name = ""
+
+        self.context = context
 
         # Translation
         self.translate_builtin_function_dispatcher = {
@@ -176,7 +179,7 @@ class Translator(unittest.TestCase):
             nodes.VectorType: self.translate_vector_type,
             nodes.OptionalType: self.translate_optional_type,
             nodes.DictType: self.translate_dict_type,
-            nodes.TemplateType: lambda type_: cpp_nodes.VoidPtr(),
+            nodes.TemplateType: self.translate_template_type,
             nodes.FunctionType: self.translate_function_type,
             nodes.StructType: self.translate_struct_type,
             nodes.GenericType: self.translate_generic_type,
@@ -742,6 +745,12 @@ class Translator(unittest.TestCase):
         assert len(arguments) == 1
         self.add_library_include(library.Modules.builtins)
         return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.read.value), [self.translate_expression(arguments[0])])
+
+    def translate_template_type(self, template_type: nodes.TemplateType) -> cpp_nodes.Type:
+        result = self.context.template_types[template_type.id]
+        if result:
+            return self.translate_type(result)
+        return cpp_nodes.VoidPtr()
 
     def translate_vector_type(self, vector_type: nodes.VectorType) -> cpp_nodes.Type:
         self.add_include(cpp_nodes.StdModule.vector)
