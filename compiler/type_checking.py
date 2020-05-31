@@ -147,6 +147,9 @@ class TypeChecker(unittest.TestCase):
             nodes.Parentheses: lambda value, supertype, mapping: self.infer_type(
                 value.value, supertype, mapping
             ),
+            nodes.NamedArgument: lambda value, supertype, mapping: self.infer_type(
+                value.value, supertype, mapping
+            ),
 
             nodes.IntegerLiteral: self.infer_type_from_integer_literal,
             nodes.DecimalLiteral: self.infer_type_from_decimal_literal,

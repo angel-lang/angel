@@ -197,6 +197,15 @@ class Id(Type, Expression):
 
 
 @dataclass
+class NamedArgument(Expression):
+    name: Id
+    value: Expression
+
+    def to_code(self) -> str:
+        return f'{self.name.to_code()}={self.value.to_code()}'
+
+
+@dataclass
 class Parentheses(Expression):
     value: Expression
 

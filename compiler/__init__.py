@@ -11,7 +11,7 @@ from .utils import get_hash
 from .context import Context
 
 
-DEBUG = False
+DEBUG = True
 
 
 def compile_file(file_path: str) -> str:

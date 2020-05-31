@@ -51,6 +51,7 @@ class Evaluator(unittest.TestCase):
             nodes.BuiltinFunc: lambda func: self.estimated_objs.builtin_funcs[func.value],
             nodes.PrivateBuiltinFunc: lambda func: self.estimated_objs.private_builtin_funcs[func.value],
             nodes.Decl: self.estimate_decl,
+            nodes.NamedArgument: lambda argument: self.estimate_expression(argument.value),
 
             nodes.OptionalSomeCall: self.estimate_optional_some_call,
             nodes.OptionalSomeValue: self.estimate_optional_some_value,
@@ -355,7 +356,7 @@ class Evaluator(unittest.TestCase):
         return None
 
     def desugar_if_let(
-            self, condition: nodes.Expression, body: nodes.AST
+        self, condition: nodes.Expression, body: nodes.AST
     ) -> t.Tuple[nodes.Expression, nodes.AST, t.Optional[nodes.Assignment]]:
         assignment = None
         if isinstance(condition, nodes.Decl) and condition.is_constant:

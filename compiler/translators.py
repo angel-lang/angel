@@ -169,6 +169,7 @@ class Translator(unittest.TestCase):
             nodes.BuiltinFunc: self.translate_builtin_func,
             nodes.PrivateBuiltinFunc: self.translate_private_builtin_func,
             nodes.Decl: self.translate_declaration,
+            nodes.NamedArgument: self.translate_named_argument,
         }
         self.translate_expression: t.Callable[[nodes.Expression], cpp_nodes.Expression] = lambda value: \
             dispatch(self.expression_dispatcher, type(value), value)
@@ -357,6 +358,13 @@ class Translator(unittest.TestCase):
     def translate_private_builtin_func(self, func: nodes.PrivateBuiltinFunc) -> cpp_nodes.Expression:
         self.add_library_include(library.Modules.builtins)
         return cpp_nodes.Id(func.value)
+
+    def translate_named_argument(self, named_argument: nodes.NamedArgument) -> cpp_nodes.Expression:
+        name = self.translate_expression(named_argument.name)
+        assert isinstance(name, cpp_nodes.Id)
+        return cpp_nodes.NamedArgument(
+            name, self.translate_expression(named_argument.value)
+        )
 
     def translate_function_call(self, function_call: nodes.FunctionCall) -> cpp_nodes.Expression:
         if isinstance(function_call.function_path, nodes.BuiltinFunc):

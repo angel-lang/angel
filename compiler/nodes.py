@@ -511,6 +511,15 @@ class Cast(Expression):
 
 
 @dataclass
+class NamedArgument(Expression):
+    name: Expression
+    value: Expression
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return f"{self.name.to_code()} = {self.value.to_code()}"
+
+
+@dataclass
 class BoolLiteral(Expression, enum.Enum):
     true = "True"
     false = "False"
@@ -598,8 +607,8 @@ class MethodCall(Node, Expression):
     is_algebraic_method: bool = False
 
     def __init__(
-            self, line: int, instance_path: Expression, method: Name, arguments: t.List[Expression],
-            instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
+        self, line: int, instance_path: Expression, method: Name, arguments: t.List[Expression],
+        instance_type: t.Optional[Type] = None, is_algebraic_method: bool = False
     ):
         self.line = line
         self.instance_path = instance_path
@@ -744,7 +753,7 @@ class GenericType(Type):
     parameters: t.List[Type]
 
     def to_code(self, indentation_level: int = 0) -> str:
-        return f"{self.name.to_code()}({', '.join(param.to_code() for param in self.parameters)})"
+        return f"{self.name.to_code()}<{', '.join(param.to_code() for param in self.parameters)}>"
 
 
 Arguments = t.List[Argument]
@@ -910,7 +919,7 @@ class StructDeclaration(Node):
             interfaces = ''
 
         if self.parameters:
-            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+            parameters = '<' + ', '.join(parameter.to_code() for parameter in self.parameters) + '>'
         else:
             parameters = ''
 
@@ -947,7 +956,7 @@ class ExtensionDeclaration(Node):
             interfaces = ''
 
         if self.parameters:
-            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+            parameters = '<' + ', '.join(parameter.to_code() for parameter in self.parameters) + '>'
         else:
             parameters = ''
 
@@ -978,7 +987,7 @@ class AlgebraicDeclaration(Node):
 
     def to_code(self, indentation_level: int = 0) -> str:
         if self.parameters:
-            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+            parameters = '<' + ', '.join(parameter.to_code() for parameter in self.parameters) + '>'
         else:
             parameters = ''
         constructors = '\n'.join(node.to_code(indentation_level + 1) for node in self.constructors)
@@ -1003,7 +1012,7 @@ class InterfaceDeclaration(Node):
             interfaces = ''
 
         if self.parameters:
-            parameters = '(' + ', '.join(parameter.to_code() for parameter in self.parameters) + ')'
+            parameters = '<' + ', '.join(parameter.to_code() for parameter in self.parameters) + '>'
         else:
             parameters = ''
 

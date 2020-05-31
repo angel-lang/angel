@@ -140,6 +140,11 @@ class GenericTypeTrailer(Trailer):
 
 
 @dataclass
+class NamedArgumentTrailer(Trailer):
+    value: nodes.Expression
+
+
+@dataclass
 class State:
     idx: int
     position: nodes.Position
@@ -243,6 +248,8 @@ class Parser:
         left = self.parse_assignment_left()
         if left is None:
             return None
+        elif isinstance(left, nodes.NamedArgument):
+            return nodes.Assignment(line, left.name, nodes.Operator.eq, left.value)
         self.spaces()
         operator = self.parse_assignment_operator()
         if operator is None:
@@ -719,7 +726,7 @@ class Parser:
 
     def parse_assignment_left(self) -> t.Optional[nodes.AssignmentLeft]:
         state = self.backup_state()
-        atom: t.Optional[nodes.AssignmentLeft] = self.parse_name()
+        atom: t.Optional[nodes.Expression] = self.parse_name()
         if atom is None:
             return None
         trailer = self.parse_trailer()
@@ -728,11 +735,13 @@ class Parser:
                 atom = nodes.Field(trailer.line, atom, trailer.field)
             elif isinstance(trailer, SubscriptTrailer):
                 atom = nodes.Subscript(trailer.line, atom, trailer.index)
+            elif isinstance(trailer, NamedArgumentTrailer):
+                atom = nodes.NamedArgument(atom, trailer.value)
             else:
                 self.restore_state(state)
                 return None
             trailer = self.parse_trailer()
-        return atom
+        return t.cast(nodes.AssignmentLeft, atom)
 
     def parse_assignment_operator(self) -> t.Optional[nodes.Operator]:
         for operator in nodes.Operator.assignment_operators():
@@ -906,6 +915,8 @@ class Parser:
                 atom = nodes.Subscript(trailer.line, atom, trailer.index)
             elif isinstance(trailer, CastTrailer):
                 atom = nodes.Cast(atom, trailer.to_type)
+            elif isinstance(trailer, NamedArgumentTrailer):
+                atom = nodes.NamedArgument(atom, trailer.value)
             else:
                 raise errors.AngelNotImplemented
             trailer = self.parse_trailer()
@@ -965,6 +976,12 @@ class Parser:
                 if not to_type:
                     raise errors.AngelSyntaxError("expected type", self.get_code())
                 return CastTrailer(line, to_type)
+            elif self.parse_raw('=') and self.next_char_isspace():
+                self.spaces()
+                value = self.parse_expression()
+                if not value:
+                    raise errors.AngelSyntaxError('expected expression', self.get_code())
+                return NamedArgumentTrailer(line, value)
             else:
                 self.restore_state(state)
             return None
