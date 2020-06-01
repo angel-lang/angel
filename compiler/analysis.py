@@ -60,6 +60,7 @@ class Analyzer(unittest.TestCase):
             nodes.Return: self.analyze_return,
             nodes.Break: self.analyze_break,
             nodes.FunctionCall: self.analyze_function_call,
+            nodes.InitCall: self.analyze_init_call,
             nodes.MethodCall: self.analyze_method_call,
         }
 
@@ -366,6 +367,10 @@ class Analyzer(unittest.TestCase):
             return self.analyze_builtin_function_call(function_call)
         self.infer_type(function_call)
         return function_call
+
+    def analyze_init_call(self, init_call: nodes.InitCall) -> nodes.InitCall:
+        # TODO: analyze init call
+        return init_call
 
     def analyze_method_call(self, method_call: nodes.MethodCall) -> nodes.MethodCall:
         self.infer_type(method_call)

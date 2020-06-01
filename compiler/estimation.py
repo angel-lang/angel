@@ -173,6 +173,7 @@ class Evaluator(unittest.TestCase):
             nodes.AlgebraicDeclaration: self.estimate_algebraic_declaration,
             nodes.InterfaceDeclaration: self.estimate_interface_declaration,
             nodes.FunctionCall: self.estimate_expression,
+            nodes.InitCall: self.estimate_init_call,
             nodes.MethodCall: self.estimate_expression,
 
             nodes.Return: self.estimate_return,
@@ -217,6 +218,9 @@ class Evaluator(unittest.TestCase):
     def estimate_init_declaration(self, declaration: nodes.InitDeclaration) -> None:
         self.env.add_init_declaration(declaration.line, declaration.arguments)
         self.env.update_init_declaration_body(declaration.arguments, declaration.body)
+
+    def estimate_init_call(self, call: nodes.InitCall) -> None:
+        pass
 
     def estimate_struct_declaration(self, declaration: nodes.StructDeclaration) -> None:
         # list(...) for mypy

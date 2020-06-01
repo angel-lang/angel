@@ -497,10 +497,14 @@ class AccessModifier(enum.Enum):
 class InitDeclaration(Node):
     name: str
     arguments: Arguments
+    delegation_arguments: t.Optional[t.List[Expression]]
     body: AST
 
     def to_code(self) -> str:
         arguments = ','.join(arg.to_code() for arg in self.arguments)
+        if self.delegation_arguments is not None:
+            delegation_arguments = ','.join(arg.to_code() for arg in self.delegation_arguments)
+            return f"{self.name}({arguments}):{self.name}({delegation_arguments}){{}}"
         body = ''.join(node.to_code() for node in self.body)
         return f"{self.name}({arguments}){{{body}}}"
 

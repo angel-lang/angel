@@ -347,6 +347,18 @@ class Parser:
                 raise errors.AngelSyntaxError("expected expression or 'let'", self.get_code())
             return condition
 
+    def parse_init_call(self) -> t.Optional[nodes.Node]:
+        line = self.position.line
+        state = self.backup_state()
+        if not self.parse_raw('init'):
+            return None
+        arguments = self.parse_container(
+            open_container="(", close_container=")", element_separator=",", element_parser=self.parse_expression)
+        if arguments is None:
+            self.restore_state(state)
+            return None
+        return nodes.InitCall(line, arguments)
+
     def parse_init_declaration(self) -> t.Optional[nodes.InitDeclaration]:
         line = self.position.line
         if not self.parse_raw("init"):
@@ -357,7 +369,9 @@ class Parser:
             arguments = []
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
+        self.additional_statement_parsers = [self.parse_init_call] + self.additional_statement_parsers
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
+        self.additional_statement_parsers = self.additional_statement_parsers[1:]
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return nodes.InitDeclaration(line, arguments, body)

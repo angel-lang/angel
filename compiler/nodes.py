@@ -587,6 +587,15 @@ class DictLiteral(Expression):
 
 
 @dataclass
+class InitCall(Node):
+    arguments: t.List[Expression]
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        code = f"init({', '.join(arg.to_code() for arg in self.arguments)})"
+        return INDENTATION * indentation_level + code
+
+
+@dataclass
 class FunctionCall(Node, Expression):
     function_path: Expression
     arguments: t.List[Expression]

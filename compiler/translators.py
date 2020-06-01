@@ -136,6 +136,7 @@ class Translator(unittest.TestCase):
             nodes.MethodDeclaration: self.translate_method_declaration,
             nodes.InitDeclaration: self.translate_init_declaration,
             nodes.Assignment: self.translate_assignment,
+            nodes.InitCall: lambda node: None,
             nodes.FunctionCall: lambda node: cpp_nodes.Semicolon(self.translate_function_call(node)),
             nodes.MethodCall: lambda node: cpp_nodes.Semicolon(self.translate_method_call(node)),
             nodes.While: self.translate_while_statement,
@@ -567,7 +568,7 @@ class Translator(unittest.TestCase):
         ]
         public: t.List[cpp_nodes.Node] = []
         if not has_default_constructor(node.init_declarations):
-            public.append(cpp_nodes.InitDeclaration(node.name.member, [], []))
+            public.append(cpp_nodes.InitDeclaration(node.name.member, [], delegation_arguments=None, body=[]))
         public.extend(
             self.translate_body(list(node.public_fields)) +
             self.translate_body(list(node.init_declarations)) +
@@ -630,8 +631,20 @@ class Translator(unittest.TestCase):
             else:
                 value = None
             arguments.append(cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member, value))
+        if len(declaration.body) == 1 and isinstance(declaration.body[0], nodes.InitCall):
+            delegation_arguments = [
+                # TODO: rearrange named arguments if needed
+                self.translate_expression(argument.value)
+                if isinstance(argument, nodes.NamedArgument) else self.translate_expression(argument)
+                for argument in declaration.body[0].arguments
+            ]
+            return cpp_nodes.InitDeclaration(
+                self.struct_name, arguments, delegation_arguments=delegation_arguments, body=[]
+            )
         body = self.translate_body(declaration.body)
-        return cpp_nodes.InitDeclaration(self.struct_name, arguments, body)
+        return cpp_nodes.InitDeclaration(
+            self.struct_name, arguments, delegation_arguments=None, body=body
+        )
 
     def translate_field_declaration(self, node: nodes.FieldDeclaration) -> cpp_nodes.Declaration:
         return cpp_nodes.Declaration(self.translate_type(node.type), node.name.member, value=None)
