@@ -672,6 +672,10 @@ class Evaluator(unittest.TestCase):
                 self.env.add_declaration(
                     nodes.Decl(0, DeclType.constant, arg.name, arg_type, value), estimated_value=estimated
                 )
+            if len(init_entry.body) == 1 and isinstance(init_entry.body[0], nodes.InitCall):
+                return self.match_init_declaration(
+                    struct, init_declarations, init_entry.body[0].arguments, algebraic
+                )
             self.estimate_ast(init_entry.body)
             self_entry = self.env[nodes.SpecialName.self.value]
             assert isinstance(self_entry, entries.DeclEntry) and self_entry.is_variable
