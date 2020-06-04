@@ -77,6 +77,15 @@ def vector_append(v: enodes.Vector) -> enodes.Function:
     )
 
 
+def vector_pop(v: enodes.Vector) -> enodes.Function:
+    def func(s: enodes.Vector) -> enodes.Expression:
+        return s.elements.pop()
+
+    return enodes.Function(
+        nodes.VectorFields.pop.value, [], [], v.element_type, [], specification=func
+    )
+
+
 # Dict
 def dict_length(d: enodes.Dict) -> enodes.Int:
     return enodes.Int(len(d.keys), nodes.BuiltinType.u64)
@@ -92,6 +101,7 @@ string_fields = {
 
 vector_fields = {
     nodes.VectorFields.length.value: vector_length,
+    nodes.VectorFields.pop.value: vector_pop,
     # TODO: consider pointing to Function object instead of a function
     nodes.VectorFields.append.value: vector_append,
 }

@@ -826,6 +826,7 @@ class StringFields(enum.Enum):
 
 class VectorFields(enum.Enum):
     append = "append"
+    pop = "pop"
     length = "length"
 
     def as_type(self, element_type: Type) -> Type:
@@ -833,6 +834,9 @@ class VectorFields(enum.Enum):
         return apply_mapping({
             VectorFields.append.value: FunctionType(
                 [], [Argument('element', Name('A'))], return_type=Name('A')
+            ),
+            VectorFields.pop.value: FunctionType(
+                [], [], return_type=Name('A')
             ),
             VectorFields.length.value: BuiltinType.u64,
         }[self.value], mapping={'A': element_type})

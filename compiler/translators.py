@@ -207,6 +207,9 @@ class Translator(unittest.TestCase):
             self.add_include(cpp_nodes.StdModule.vector)
             arguments = [self.translate_expression(arg) for arg in method_call.arguments]
             return cpp_nodes.MethodCall(self.translate_expression(method_call.instance_path), "push_back", arguments)
+        elif method == nodes.VectorFields.pop.value:
+            self.add_include(cpp_nodes.StdModule.vector)
+            return cpp_nodes.MethodCall(self.translate_expression(method_call.instance_path), "pop_back", [])
         else:
             assert 0, f"Cannot translate method '{method_call.method}' call on Vector type"
 

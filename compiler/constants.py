@@ -155,6 +155,18 @@ def vector_append(v: enodes.Expression) -> enodes.Function:
     )
 
 
+def vector_pop(v: enodes.Expression) -> enodes.Function:
+    assert isinstance(v, enodes.Vector)
+
+    def func(s: enodes.Vector) -> enodes.Expression:
+        return s.elements.pop()
+
+    # We don't need to pass an environment because `self` will be added when calling the method
+    return enodes.Function(
+        nodes.VectorFields.pop.value, [], [], v.element_type, [], specification=func
+    )
+
+
 # Dict
 def dict_length(d: enodes.Expression) -> enodes.Expression:
     if isinstance(d, enodes.Dict):
@@ -173,6 +185,7 @@ string_fields = {
 
 vector_fields = {
     nodes.VectorFields.length.value: vector_length,
+    nodes.VectorFields.pop.value: vector_pop,
     # TODO: consider returning Function object instead of a function
     nodes.VectorFields.append.value: vector_append,
 }
