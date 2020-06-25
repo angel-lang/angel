@@ -103,7 +103,7 @@ class TestEval(unittest.TestCase):
             'while i < 10:',
             '    print(i)',
             '    i += 1'
-        ], env=self.get_env(['var i = 0']))
+        ], env=self.get_env(['var i: I8 = 0']))
         self.assertEqual(output, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
 
     def test_if(self):
@@ -198,7 +198,7 @@ class TestEval(unittest.TestCase):
             '    if i <= 3:',
             '        return Optional.Some(i)',
             '    return Optional.None',
-            'var i = 0',
+            'var i: I8 = 0',
             'while let n = getN(i):',
             '    print(n)',
             '    i += 1'

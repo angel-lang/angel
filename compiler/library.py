@@ -25,6 +25,8 @@ class Modules(Enum):
     string = "angel_string"
     builtins = "angel_builtins"
 
+    tommath = "tommath"
+
     @property
     def header(self) -> str:
         return self.value + ".h"
@@ -38,6 +40,11 @@ class Modules(Enum):
             ],
             Modules.builtins.value: [
                 cpp_nodes.StdModule.string,
-                cpp_nodes.StdModule.iostream
+                cpp_nodes.StdModule.iostream,
             ],
+            Modules.tommath.value: [
+                # These libraries are used in code that uses tommath, but not in tommath inself.
+                cpp_nodes.StdModule.iostream,
+                cpp_nodes.StdModule.cstdlib,
+            ]
         }[self.value]

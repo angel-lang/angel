@@ -29,6 +29,7 @@ AST = t.List[Node]
 class StdModule(enum.Enum):
     iostream = "iostream"
     cstdint = "cstdint"
+    cstdlib = "cstdlib"
     string = "string"
     vector = "vector"
     map = "map"
@@ -91,6 +92,17 @@ class StdName(Type, Expression, enum.Enum):
     def to_code(self) -> str:
         assert isinstance(self.value, str)
         return "std::" + self.value
+
+
+class MpName(Type, Expression, enum.Enum):
+    int_ = "mp_int"
+    init = "mp_init"
+    read_radix = "mp_read_radix"
+    okay = "MP_OKAY"
+
+    def to_code(self) -> str:
+        assert isinstance(self.value, str)
+        return self.value
 
 
 class PrimitiveTypes(Type, enum.Enum):
@@ -211,6 +223,18 @@ class Parentheses(Expression):
 
     def to_code(self) -> str:
         return '(' + self.value.to_code() + ')'
+
+
+@dataclass
+class ArrayType(Type):
+    element_type: Type
+    max_length: int
+
+    def to_code(self) -> str:
+        return f"{self.element_type.to_code()}[{self.max_length}]"
+
+    def fmt_name(self, name: str) -> str:
+        return f"{self.element_type.to_code()} {name}[{self.max_length}]"
 
 
 @dataclass
@@ -385,7 +409,11 @@ class SubDeclaration(Node):
     value: Expression
 
     def to_code(self) -> str:
-        return f"{self.type.to_code()} {self.name}={self.value.to_code()}"
+        if isinstance(self.type, ArrayType):
+            type_and_name = self.type.fmt_name(self.name)
+        else:
+            type_and_name = f"{self.type.to_code()} {self.name}"
+        return f"{type_and_name}={self.value.to_code()}"
 
 
 @dataclass
@@ -395,9 +423,14 @@ class Declaration(Node):
     value: t.Optional[Expression]
 
     def to_code(self) -> str:
+        if isinstance(self.type, ArrayType):
+            type_and_name = self.type.fmt_name(self.name)
+        else:
+            type_and_name = f"{self.type.to_code()} {self.name}"
+
         if self.value is None:
-            return f"{self.type.to_code()} {self.name};"
-        return f"{self.type.to_code()} {self.name}={self.value.to_code()};"
+            return f"{type_and_name};"
+        return f"{type_and_name}={self.value.to_code()};"
 
     def to_sub_declaration(self) -> SubDeclaration:
         assert self.value is not None

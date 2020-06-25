@@ -13,6 +13,8 @@ BUILTIN_TYPE_TO_CPP_TYPE = {
     nodes.BuiltinType.i32.value: cpp_nodes.StdName.int_fast32_t,
     nodes.BuiltinType.i64.value: cpp_nodes.StdName.int_fast64_t,
 
+    nodes.BuiltinType.int_.value: cpp_nodes.MpName.int_,
+
     nodes.BuiltinType.u8.value: cpp_nodes.StdName.uint_fast8_t,
     nodes.BuiltinType.u16.value: cpp_nodes.StdName.uint_fast16_t,
     nodes.BuiltinType.u32.value: cpp_nodes.StdName.uint_fast32_t,
@@ -41,6 +43,9 @@ SPECIAL_METHOD_TO_OPERATOR = {
 
 TMP_PREFIX = "__tmp_"
 
+# These names are used only as dict keys.
+MP_RESULT = "result"
+
 
 def algebraic_constructor_name(algebraic: nodes.Name, constructor: nodes.Name) -> str:
     return algebraic.member + "_a_" + constructor.member
@@ -63,6 +68,9 @@ class Translator(unittest.TestCase):
     main_function_body: cpp_nodes.AST
     nodes_buffer: cpp_nodes.AST
     includes: t.Dict[str, cpp_nodes.Include]
+
+    # Env-like objects that holds multiple precision variables.
+    mp_variables: t.List[t.Dict[str, cpp_nodes.Id]] = [{}]
 
     def __init__(self, context: Context) -> None:
         super().__init__()
@@ -147,7 +155,7 @@ class Translator(unittest.TestCase):
         }
 
         self.expression_dispatcher = {
-            nodes.IntegerLiteral: lambda value: cpp_nodes.IntegerLiteral(value.value),
+            nodes.IntegerLiteral: self.translate_integer_literal,
             nodes.DecimalLiteral: lambda value: cpp_nodes.DecimalLiteral(value.value),
             nodes.StringLiteral: lambda value: cpp_nodes.StringLiteral(value.value),
             nodes.VectorLiteral: self.translate_vector_literal,
@@ -190,6 +198,52 @@ class Translator(unittest.TestCase):
         }
         self.translate_type: t.Callable[[nodes.Type], cpp_nodes.Type] = lambda type_: \
             dispatch(self.type_dispatcher, type(type_), type_)
+
+    def translate_integer_literal(self, integer_literal: nodes.IntegerLiteral) -> cpp_nodes.Expression:
+        assert integer_literal.type_annotation, f"No type annotation for {integer_literal}."
+        if integer_literal.type_annotation == nodes.BuiltinType.int_:
+            # Include needed libraries and get needed mp variables
+            self.add_library_include(library.Modules.tommath)
+            mp_result_tmp = self.mp_result_tmp()
+            # Create a temporary variable
+            _, cpp_tmp_name = self.create_tmp(cpp_nodes.MpName.int_)
+            # Initialize it and handle possible errors
+            init_stmt = cpp_nodes.Assignment(
+                mp_result_tmp, cpp_nodes.Operator.eq, cpp_nodes.FunctionCall(
+                    cpp_nodes.MpName.init, [cpp_nodes.AddrExpression(cpp_tmp_name)]
+                )
+            )
+            self.nodes_buffer.append(init_stmt)
+
+            init_check = cpp_nodes.If(
+                cpp_nodes.BinaryExpression(mp_result_tmp, cpp_nodes.Operator.neq, cpp_nodes.MpName.okay),
+                self.mp_failed(), [], []
+            )
+            self.nodes_buffer.append(init_check)
+
+            # Set the value
+            string_length = len(integer_literal.value) + 1  # one more character for the null char
+            _, cpp_buffer_name = self.create_tmp(
+                cpp_nodes.ArrayType(cpp_nodes.PrimitiveTypes.char, string_length),
+                cpp_nodes.StringLiteral(integer_literal.value)
+            )
+
+            set_stmt = cpp_nodes.Assignment(
+                mp_result_tmp, cpp_nodes.Operator.eq, cpp_nodes.FunctionCall(
+                    cpp_nodes.MpName.read_radix,
+                    [cpp_nodes.AddrExpression(cpp_tmp_name), cpp_buffer_name, cpp_nodes.IntegerLiteral("10")]
+                )
+            )
+            self.nodes_buffer.append(set_stmt)
+
+            set_check = cpp_nodes.If(
+                cpp_nodes.BinaryExpression(mp_result_tmp, cpp_nodes.Operator.neq, cpp_nodes.MpName.okay),
+                self.mp_failed(), [], []
+            )
+            self.nodes_buffer.append(set_check)
+
+            return cpp_tmp_name
+        return cpp_nodes.IntegerLiteral(integer_literal.value)
 
     def translate_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         assert method_call.instance_type is not None
@@ -517,9 +571,9 @@ class Translator(unittest.TestCase):
     def translate_function_declaration(self, node: nodes.FunctionDeclaration) -> cpp_nodes.Node:
         return_type = self.translate_type(node.return_type)
         arguments = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.arguments]
-        self.env.inc_nesting()
+        self.inc_nesting()
         body = self.translate_body(node.body)
-        self.env.dec_nesting()
+        self.dec_nesting()
         func_decl = cpp_nodes.FunctionDeclaration(return_type, node.name.member, arguments, body)
         if node.parameters:
             return cpp_nodes.Template([self.translate_type(param) for param in node.parameters], func_decl)
@@ -528,9 +582,9 @@ class Translator(unittest.TestCase):
     def translate_method_declaration(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
         return_type = self.translate_type(node.return_type)
         arguments = [cpp_nodes.Argument(self.translate_type(arg.type), arg.name.member) for arg in node.arguments]
-        self.env.inc_nesting()
+        self.inc_nesting()
         body = self.translate_body(node.body)
-        self.env.dec_nesting()
+        self.dec_nesting()
         return cpp_nodes.FunctionDeclaration(return_type, node.name.member, arguments, body)
 
     def translate_special_method(self, node: nodes.MethodDeclaration) -> cpp_nodes.FunctionDeclaration:
@@ -690,12 +744,12 @@ class Translator(unittest.TestCase):
             iterator_tmp, cpp_nodes.Operator.neq, cpp_nodes.MethodCall(container_tmp, 'end', [])
         )
         end_condition = cpp_nodes.UnaryExpression(cpp_nodes.Operator.increment, iterator_tmp)
-        self.env.inc_nesting()
+        self.inc_nesting()
         nodes_buffer = self.nodes_buffer
         self.nodes_buffer = []
         body = self.translate_body(node.body)
         self.nodes_buffer = nodes_buffer
-        self.env.dec_nesting()
+        self.dec_nesting()
         element_declaration: cpp_nodes.Node = cpp_nodes.Declaration(
             self.translate_type(element_type), node.element.member, cpp_nodes.Deref(iterator_tmp)
         )
@@ -706,12 +760,12 @@ class Translator(unittest.TestCase):
         if assignment is not None:
             body.append(assignment)
         assert translated_condition is not None
-        self.env.inc_nesting()
+        self.inc_nesting()
         nodes_buffer = self.nodes_buffer
         self.nodes_buffer = []
         translated_body = self.translate_body(body)
         self.nodes_buffer = nodes_buffer
-        self.env.dec_nesting()
+        self.dec_nesting()
         return cpp_nodes.While(translated_condition, translated_body)
 
     def translate_declaration(self, node: nodes.Decl) -> cpp_nodes.Declaration:
@@ -724,28 +778,28 @@ class Translator(unittest.TestCase):
 
     def translate_if_statement(self, node: nodes.If) -> cpp_nodes.If:
         condition, new_body, _ = self.desugar_if_condition(node.condition, node.body)
-        self.env.inc_nesting()
+        self.inc_nesting()
         nodes_buffer = self.nodes_buffer
         self.nodes_buffer = []
         body = self.translate_body(new_body)
         self.nodes_buffer = nodes_buffer
-        self.env.dec_nesting()
+        self.dec_nesting()
         else_ifs = []
         for elif_condition, elif_body in node.elifs:
             else_if_condition, new_elif_body, _ = self.desugar_if_condition(elif_condition, elif_body)
-            self.env.inc_nesting()
+            self.inc_nesting()
             nodes_buffer = self.nodes_buffer
             self.nodes_buffer = []
             else_if_body = self.translate_body(new_elif_body)
             self.nodes_buffer = nodes_buffer
-            self.env.dec_nesting()
+            self.dec_nesting()
             else_ifs.append((else_if_condition, else_if_body))
-        self.env.inc_nesting()
+        self.inc_nesting()
         nodes_buffer = self.nodes_buffer
         self.nodes_buffer = []
         else_ = self.translate_body(node.else_)
         self.nodes_buffer = nodes_buffer
-        self.env.dec_nesting()
+        self.dec_nesting()
         return cpp_nodes.If(condition, body, else_ifs, else_)
 
     def desugar_if_condition(
@@ -861,6 +915,38 @@ class Translator(unittest.TestCase):
         tmp_name = self.create_tmp_name()
         self.nodes_buffer.append(cpp_nodes.Declaration(type_, tmp_name.value, value=value))
         return nodes.Name(tmp_name.value), tmp_name
+
+    def mp_result_tmp(self) -> cpp_nodes.Id:
+        """Return variable that will hold result codes for multiple precision arithmetic."""
+        result = self.mp_variables[self.env.nesting_level].get(MP_RESULT)
+        if result:
+            return result
+        _, tmp_name = self.create_tmp(cpp_nodes.PrimitiveTypes.int)
+        self.mp_variables[self.env.nesting_level][MP_RESULT] = tmp_name
+        return tmp_name
+
+    def mp_failed(self) -> cpp_nodes.AST:
+        """General error handling for multiple precision arithmetic."""
+        print_ = cpp_nodes.Semicolon(
+            cpp_nodes.BinaryExpression(
+                cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, cpp_nodes.BinaryExpression(
+                    cpp_nodes.StringLiteral("MP FAILED"), cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
+                )
+            )
+        )
+        # TODO: use constant strings
+        exit_ = cpp_nodes.Semicolon(
+            cpp_nodes.FunctionCall(cpp_nodes.Id("exit"), [cpp_nodes.Id("EXIT_FAILURE")])
+        )
+        return [print_, exit_]
+
+    def inc_nesting(self):
+        self.env.inc_nesting()
+        self.mp_variables.append({})
+
+    def dec_nesting(self):
+        self.env.dec_nesting()
+        self.mp_variables.pop()
 
     def add_include(self, module: cpp_nodes.StdModule):
         self.includes[module.value] = cpp_nodes.Include(module.value)

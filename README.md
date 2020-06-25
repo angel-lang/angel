@@ -1,11 +1,8 @@
-# Challenge
-Goal: finish Angel 1.0 compiler in 100 days
-
-Progress: every commit has the format of `Day {current day}: {commit description}`
-
-Start: 07.03.2020
-
-Finish: 15.06.2020
+# Installing dependencies
+## Libtommath
+1. Clone it
+2. `make`
+3. Copy `libtommath.a` to `Angel/library` folder
 
 # About Angel
 Angel is a programming language that is being developed to be the best.

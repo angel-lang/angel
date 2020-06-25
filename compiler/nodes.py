@@ -202,6 +202,7 @@ class BuiltinType(Type, enum.Enum):
     i16 = "I16"
     i32 = "I32"
     i64 = "I64"
+    int_ = "Int"
 
     u8 = "U8"
     u16 = "U16"
@@ -343,6 +344,11 @@ class BuiltinType(Type, enum.Enum):
             BuiltinType.i64.value: [
                 BuiltinType.i64.value, BuiltinType.convertible_to_string.value, BuiltinType.object_.value,
                 BuiltinType.eq.value, BuiltinType.convertible_to_i64.value,
+            ],
+
+            BuiltinType.int_.value: [
+                BuiltinType.int_.value, BuiltinType.convertible_to_string.value,
+                BuiltinType.object_.value,
             ],
 
             BuiltinType.u8.value: [
@@ -531,6 +537,7 @@ class BoolLiteral(Expression, enum.Enum):
 @dataclass
 class IntegerLiteral(Expression):
     value: str
+    type_annotation: t.Optional[Type] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
         return self.value

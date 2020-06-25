@@ -54,7 +54,12 @@ def get_possible_signed_int_types_based_on_value(value: int) -> t.List[nodes.Typ
 
 
 def get_possible_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
-    return get_possible_signed_int_types_based_on_value(value) + get_possible_unsigned_int_types_based_on_value(value)
+    base: t.List[nodes.Type] = [nodes.BuiltinType.int_]
+    return (
+        base
+        + get_possible_signed_int_types_based_on_value(value)
+        + get_possible_unsigned_int_types_based_on_value(value)
+    )
 
 
 MAX_FLOAT32 = Decimal('3.402823700000000000000000000E+38')
@@ -793,6 +798,7 @@ class TypeChecker(unittest.TestCase):
                 message = f"'{supertype.to_code()}' is not a possible type for {value.value}"
             raise errors.AngelTypeError(message, self.code, possible_types)
         else:
+            value.type_annotation = result.type
             return to_inference_result(result)
 
     def infer_type_from_decimal_literal(
