@@ -97,6 +97,7 @@ class StdName(Type, Expression, enum.Enum):
 class MpName(Type, Expression, enum.Enum):
     int_ = "mp_int"
     init = "mp_init"
+    to_radix = "mp_to_radix"
     read_radix = "mp_read_radix"
     okay = "MP_OKAY"
 

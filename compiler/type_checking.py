@@ -366,7 +366,9 @@ class TypeChecker(unittest.TestCase):
     ) -> InferenceResult:
         entry = self.env.get(name)
         if isinstance(entry, entries.DeclEntry):
-            return to_inference_result(self.unify_types(entry.type, supertype, mapping))
+            result = to_inference_result(self.unify_types(entry.type, supertype, mapping))
+            name.type_annotation = result.type
+            return result
         elif isinstance(entry, entries.FunctionEntry):
             return to_inference_result(self.unify_types(entry.to_function_type(), supertype, mapping))
         elif isinstance(entry, entries.StructEntry):

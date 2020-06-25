@@ -2,7 +2,7 @@ import typing as t
 import unittest
 
 from . import nodes, cpp_nodes, environment, library
-from .utils import dispatch, TYPES, EXPRS, NODES
+from .utils import compare_types, dispatch, TYPES, EXPRS, NODES
 from .enums import DeclType
 from .context import Context
 
@@ -200,8 +200,9 @@ class Translator(unittest.TestCase):
             dispatch(self.type_dispatcher, type(type_), type_)
 
     def translate_integer_literal(self, integer_literal: nodes.IntegerLiteral) -> cpp_nodes.Expression:
-        assert integer_literal.type_annotation, f"No type annotation for {integer_literal}."
-        if integer_literal.type_annotation == nodes.BuiltinType.int_:
+        type_annotation = getattr(integer_literal, "type_annotation", None)
+        assert type_annotation, f"No type annotation for {integer_literal}."
+        if type_annotation == nodes.BuiltinType.int_:
             # Include needed libraries and get needed mp variables
             self.add_library_include(library.Modules.tommath)
             mp_result_tmp = self.mp_result_tmp()
@@ -215,10 +216,7 @@ class Translator(unittest.TestCase):
             )
             self.nodes_buffer.append(init_stmt)
 
-            init_check = cpp_nodes.If(
-                cpp_nodes.BinaryExpression(mp_result_tmp, cpp_nodes.Operator.neq, cpp_nodes.MpName.okay),
-                self.mp_failed(), [], []
-            )
+            init_check = self.mp_check(mp_result_tmp)
             self.nodes_buffer.append(init_check)
 
             # Set the value
@@ -236,14 +234,42 @@ class Translator(unittest.TestCase):
             )
             self.nodes_buffer.append(set_stmt)
 
-            set_check = cpp_nodes.If(
-                cpp_nodes.BinaryExpression(mp_result_tmp, cpp_nodes.Operator.neq, cpp_nodes.MpName.okay),
-                self.mp_failed(), [], []
-            )
+            set_check = self.mp_check(mp_result_tmp)
             self.nodes_buffer.append(set_check)
 
             return cpp_tmp_name
         return cpp_nodes.IntegerLiteral(integer_literal.value)
+
+    def mp_print(self, value: cpp_nodes.Expression) -> cpp_nodes.Expression:
+        # Include needed libraries and get needed mp variables
+        self.add_library_include(library.Modules.tommath)
+        mp_result_tmp = self.mp_result_tmp()
+
+        # Create a string
+        # TODO: allow bigger numbers and optimise the length
+        string_length = 1001  # one more character for the null char
+        _, cpp_buffer_name = self.create_tmp(cpp_nodes.ArrayType(cpp_nodes.PrimitiveTypes.char, string_length))
+
+        # Write to string and handle errors
+        write_stmt = cpp_nodes.Assignment(
+            mp_result_tmp, cpp_nodes.Operator.eq, cpp_nodes.FunctionCall(
+                cpp_nodes.MpName.to_radix, [
+                    cpp_nodes.AddrExpression(value), cpp_buffer_name, cpp_nodes.IntegerLiteral(str(string_length)),
+                    # TODO: use constant strings
+                    cpp_nodes.Id("NULL"), cpp_nodes.IntegerLiteral("10")
+                ]
+            )
+        )
+        self.nodes_buffer.append(write_stmt)
+
+        write_check = self.mp_check(mp_result_tmp)
+        self.nodes_buffer.append(write_check)
+
+        return cpp_nodes.BinaryExpression(
+            cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, cpp_nodes.BinaryExpression(
+                cpp_buffer_name, cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
+            )
+        )
 
     def translate_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         assert method_call.instance_type is not None
@@ -830,7 +856,10 @@ class Translator(unittest.TestCase):
     def translate_print_function_call(self, arguments: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(arguments) == 1
         self.add_library_include(library.Modules.builtins)
-        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.print.value), [self.translate_expression(arguments[0])])
+        argument = arguments[0]
+        if compare_types(argument, nodes.BuiltinType.int_):
+            return self.mp_print(self.translate_expression(argument))
+        return cpp_nodes.FunctionCall(cpp_nodes.Id(library.Builtins.print.value), [self.translate_expression(argument)])
 
     def translate_read_function_call(self, arguments: t.List[nodes.Expression]) -> cpp_nodes.Expression:
         assert len(arguments) == 1
@@ -924,6 +953,12 @@ class Translator(unittest.TestCase):
         _, tmp_name = self.create_tmp(cpp_nodes.PrimitiveTypes.int)
         self.mp_variables[self.env.nesting_level][MP_RESULT] = tmp_name
         return tmp_name
+
+    def mp_check(self, mp_result_tmp: cpp_nodes.Id) -> cpp_nodes.Node:
+        return cpp_nodes.If(
+            cpp_nodes.BinaryExpression(mp_result_tmp, cpp_nodes.Operator.neq, cpp_nodes.MpName.okay),
+            self.mp_failed(), [], []
+        )
 
     def mp_failed(self) -> cpp_nodes.AST:
         """General error handling for multiple precision arithmetic."""

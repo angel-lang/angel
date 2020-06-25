@@ -34,6 +34,13 @@ class Position:
     __repr__ = __str__
 
 
+class Type:
+    """Base class for types."""
+
+    def to_code(self, indentation_level: int = 0) -> str:
+        return ""
+
+
 class Expression:
     """Base class for expressions."""
 
@@ -50,13 +57,6 @@ class Node:
     """Base class for statements."""
 
     line: int
-
-    def to_code(self, indentation_level: int = 0) -> str:
-        return ""
-
-
-class Type:
-    """Base class for types."""
 
     def to_code(self, indentation_level: int = 0) -> str:
         return ""
@@ -111,6 +111,7 @@ class Name(Type, AssignmentLeft):
     member: str
     module: t.Optional[str] = None
     unmangled: str = ''
+    type_annotation: t.Optional[Type] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
         member = self.unmangled or self.member

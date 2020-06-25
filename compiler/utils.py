@@ -5,6 +5,10 @@ from . import errors, nodes
 from .context import Context
 
 
+def compare_types(expression: nodes.Expression, expected_type: nodes.Type) -> bool:
+    return getattr(expression, "type_annotation", None) == expected_type
+
+
 def dispatch(dispatcher, key, *arguments):
     func = dispatcher.get(key)
     if func is None:
@@ -31,7 +35,6 @@ def mangle(name: nodes.Name, context: Context) -> nodes.Name:
             return nodes.Name('_'.join(('angel', module_hash, name.member)), unmangled=name.member)
         return nodes.Name('_'.join(['angel', context.main_hash, name.member]), unmangled=name.member)
     return name
-
 
 
 def submangle(name: nodes.Name, context: Context) -> nodes.Name:
