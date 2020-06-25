@@ -1,8 +1,16 @@
-# Installing dependencies
-## Libtommath
-1. Clone it
-2. `make`
-3. Copy `libtommath.a` to `Angel/library` folder
+# Running
+## Setting up libtommath
+1. Go to `/vendor/libtommath`
+2. Run `make`
+3. Copy `libtommath.a` into `/library` folder
+
+## Running the compiler
+1. Get C++17 code by running `./runnable your_file.angel > output_file.cpp`
+2. To compile the output code run `clang++ -std=c++17 -Ilibrary/ library/*.cpp library/*.a -o out output_file.cpp`
+3. To run the program run `./out`
+
+## Running the tests
+Use `./test-all` to run the tests.
 
 # About Angel
 Angel is a programming language that is being developed to be the best.
