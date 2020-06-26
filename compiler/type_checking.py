@@ -149,9 +149,7 @@ class TypeChecker(unittest.TestCase):
                 value.value, supertype, mapping
             ),
             nodes.Ref: self.infer_type_from_ref,
-            nodes.Parentheses: lambda value, supertype, mapping: self.infer_type(
-                value.value, supertype, mapping
-            ),
+            nodes.Parentheses: self.infer_type_from_parentheses,
             nodes.NamedArgument: lambda value, supertype, mapping: self.infer_type(
                 value.value, supertype, mapping
             ),
@@ -578,6 +576,13 @@ class TypeChecker(unittest.TestCase):
             cast.is_builtin = False
             return to_inference_result(self.unify_types(cast.to_type, supertype, mapping))
         raise NotImplementedError
+
+    def infer_type_from_parentheses(
+        self, parens: nodes.Parentheses, supertype: t.Optional[nodes.Type], mapping: Mapping
+    ) -> InferenceResult:
+        result = self.infer_type(parens.value, supertype, mapping)
+        parens.type_annotation = result.type
+        return result
 
     def infer_type_from_ref(
         self, ref: nodes.Ref, supertype: t.Optional[nodes.Type], mapping: Mapping

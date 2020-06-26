@@ -161,6 +161,7 @@ class Ref(Expression):
 @dataclass
 class Parentheses(Expression):
     value: Expression
+    type_annotation: t.Optional[Type] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"({self.value.to_code()})"

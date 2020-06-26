@@ -104,6 +104,7 @@ class MpName(Type, Expression, enum.Enum):
     add = "mp_add"
     sub = "mp_sub"
     mul = "mp_mul"
+    div = "mp_div"
 
     def to_code(self) -> str:
         assert isinstance(self.value, str)

@@ -259,12 +259,16 @@ class Translator(unittest.TestCase):
         self.nodes_buffer.append(init_check)
 
         # Set the value and handle possible errors
+        arguments: t.List[cpp_nodes.Expression] = [
+            cpp_nodes.AddrExpression(left), cpp_nodes.AddrExpression(right),
+            cpp_nodes.AddrExpression(cpp_tmp_name)
+        ]
+        if operator == nodes.Operator.div:
+            # TODO: use constant strings
+            arguments.append(cpp_nodes.Id("NULL"))
         set_stmt = cpp_nodes.Assignment(
             mp_result_tmp, cpp_nodes.Operator.eq, cpp_nodes.FunctionCall(
-                self.mp_func_from_operator(operator), [
-                    cpp_nodes.AddrExpression(left), cpp_nodes.AddrExpression(right),
-                    cpp_nodes.AddrExpression(cpp_tmp_name)
-                ]
+                self.mp_func_from_operator(operator), arguments
             )
         )
         self.nodes_buffer.append(set_stmt)
@@ -278,6 +282,7 @@ class Translator(unittest.TestCase):
             nodes.Operator.add.value: cpp_nodes.MpName.add,
             nodes.Operator.sub.value: cpp_nodes.MpName.sub,
             nodes.Operator.mul.value: cpp_nodes.MpName.mul,
+            nodes.Operator.div.value: cpp_nodes.MpName.div,
         }[operator.value]
 
     def mp_print(self, value: cpp_nodes.Expression) -> cpp_nodes.Expression:
