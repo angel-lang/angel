@@ -864,7 +864,9 @@ class TypeChecker(unittest.TestCase):
         self, value: nodes.BinaryExpression, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> InferenceResult:
         if value.operator.value == nodes.Operator.is_.value:
-            return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+            result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+            value.type_annotation = result.type
+            return result
         left_result = self.infer_type(value.left, mapping=mapping)
         if value.operator.value in nodes.Operator.comparison_operators_names():
             if is_user_defined_type(left_result.type):
@@ -879,18 +881,24 @@ class TypeChecker(unittest.TestCase):
                     )
                 )
                 if method_entry is None:
-                    print("WTF", list(left_type_entry.methods.keys()))
                     raise errors.AngelFieldError(value.left, left_result.type, method_name, self.code)
                 if isinstance(left_result.type, nodes.GenericType):
                     mapping = self.basic_struct_mapping(left_result.type)
                 self.satisfy_where_clauses(method_entry.where_clauses, mapping)
                 # TODO: design sandbox for type checking: Self can map to different types (nested)
                 self.infer_type(value.right, supertype=None, mapping=left_result.mapping)
-                return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+                result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+                value.type_annotation = result.type
+                return result
             self.infer_type(value.right, left_result.type, mapping=mapping)
-            return to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
-        result = self.infer_type(value.right, left_result.type, mapping=mapping)
-        return to_inference_result(self.unify_types(result.type, supertype, mapping))
+            result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
+            value.type_annotation = result.type
+            return result
+        result = to_inference_result(
+            self.unify_types(self.infer_type(value.right, left_result.type, mapping=mapping).type, supertype, mapping)
+        )
+        value.type_annotation = result.type
+        return result
 
     def infer_type_from_read_function_call(
         self, _: t.List[nodes.Expression], supertype: t.Optional[nodes.Type], mapping: Mapping

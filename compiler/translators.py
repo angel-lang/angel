@@ -41,7 +41,7 @@ SPECIAL_METHOD_TO_OPERATOR = {
 }
 
 
-TMP_PREFIX = "__tmp_"
+TMP_PREFIX = "tmp_"
 
 # These names are used only as dict keys.
 MP_RESULT = "result"
@@ -239,6 +239,46 @@ class Translator(unittest.TestCase):
 
             return cpp_tmp_name
         return cpp_nodes.IntegerLiteral(integer_literal.value)
+
+    def mp_arithmetic(
+        self, left: cpp_nodes.Expression, right: cpp_nodes.Expression, operator: nodes.Operator
+    ) -> cpp_nodes.Expression:
+        # Include needed libraries and get needed mp variables
+        self.add_library_include(library.Modules.tommath)
+        mp_result_tmp = self.mp_result_tmp()
+        # Create a temporary variable
+        _, cpp_tmp_name = self.create_tmp(cpp_nodes.MpName.int_)
+        # Initialize it and handle possible errors
+        init_stmt = cpp_nodes.Assignment(
+            mp_result_tmp, cpp_nodes.Operator.eq, cpp_nodes.FunctionCall(
+                cpp_nodes.MpName.init, [cpp_nodes.AddrExpression(cpp_tmp_name)]
+            )
+        )
+        self.nodes_buffer.append(init_stmt)
+        init_check = self.mp_check(mp_result_tmp)
+        self.nodes_buffer.append(init_check)
+
+        # Set the value and handle possible errors
+        set_stmt = cpp_nodes.Assignment(
+            mp_result_tmp, cpp_nodes.Operator.eq, cpp_nodes.FunctionCall(
+                self.mp_func_from_operator(operator), [
+                    cpp_nodes.AddrExpression(left), cpp_nodes.AddrExpression(right),
+                    cpp_nodes.AddrExpression(cpp_tmp_name)
+                ]
+            )
+        )
+        self.nodes_buffer.append(set_stmt)
+        set_check = self.mp_check(mp_result_tmp)
+        self.nodes_buffer.append(set_check)
+
+        return cpp_tmp_name
+
+    def mp_func_from_operator(self, operator: nodes.Operator) -> cpp_nodes.MpName:
+        return {
+            nodes.Operator.add.value: cpp_nodes.MpName.add,
+            nodes.Operator.sub.value: cpp_nodes.MpName.sub,
+            nodes.Operator.mul.value: cpp_nodes.MpName.mul,
+        }[operator.value]
 
     def mp_print(self, value: cpp_nodes.Expression) -> cpp_nodes.Expression:
         # Include needed libraries and get needed mp variables
@@ -506,6 +546,8 @@ class Translator(unittest.TestCase):
         assert left is not None
         right = self.translate_expression(value.right)
         assert right is not None
+        if compare_types(value.left, nodes.BuiltinType.int_) and compare_types(value.right, nodes.BuiltinType.int_):
+            return self.mp_arithmetic(left, right, value.operator)
         if isinstance(left, cpp_nodes.ArrayLiteral) and value.operator.value == nodes.Operator.add.value:
             assert isinstance(right, cpp_nodes.ArrayLiteral)
             assert isinstance(value.left, nodes.VectorLiteral) and isinstance(value.right, nodes.VectorLiteral)

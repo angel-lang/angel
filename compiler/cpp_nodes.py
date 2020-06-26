@@ -101,6 +101,10 @@ class MpName(Type, Expression, enum.Enum):
     read_radix = "mp_read_radix"
     okay = "MP_OKAY"
 
+    add = "mp_add"
+    sub = "mp_sub"
+    mul = "mp_mul"
+
     def to_code(self) -> str:
         assert isinstance(self.value, str)
         return self.value

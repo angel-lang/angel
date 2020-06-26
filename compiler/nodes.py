@@ -502,6 +502,7 @@ class BinaryExpression(Expression):
     left: Expression
     operator: Operator
     right: Expression
+    type_annotation: t.Optional[Type] = None
 
     def to_code(self, indentation_level: int = 0) -> str:
         return f"{self.left.to_code()} {self.operator.value} {self.right.to_code()}"
