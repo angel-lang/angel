@@ -872,36 +872,41 @@ class TypeChecker(unittest.TestCase):
             result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
             value.type_annotation = result.type
             return result
+
         left_result = self.infer_type(value.left, mapping=mapping)
-        if value.operator.value in nodes.Operator.comparison_operators_names():
-            if is_user_defined_type(left_result.type):
-                left_type_entry = self.env.get_type(left_result.type)
-                assert isinstance(left_type_entry, (entries.StructEntry, entries.ParameterEntry))
-                method_name = submangle(
-                    nodes.Name(nodes.SpecialMethods.from_operator(value.operator).value), self.context
-                ).member
-                method_entry = left_type_entry.methods.get(
-                    method_name, left_type_entry.methods.get(
-                        nodes.SpecialMethods.from_operator(value.operator).value
-                    )
+        if value.operator not in nodes.Operator.comparison_operators():
+            result = to_inference_result(
+                self.unify_types(
+                    self.infer_type(value.right, left_result.type, mapping=mapping).type, supertype, mapping
                 )
-                if method_entry is None:
-                    raise errors.AngelFieldError(value.left, left_result.type, method_name, self.code)
-                if isinstance(left_result.type, nodes.GenericType):
-                    mapping = self.basic_struct_mapping(left_result.type)
-                self.satisfy_where_clauses(method_entry.where_clauses, mapping)
-                # TODO: design sandbox for type checking: Self can map to different types (nested)
-                self.infer_type(value.right, supertype=None, mapping=left_result.mapping)
-                result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
-                value.type_annotation = result.type
-                return result
+            )
+            value.type_annotation = result.type
+            return result
+
+        if not is_user_defined_type(left_result.type):
             self.infer_type(value.right, left_result.type, mapping=mapping)
             result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
             value.type_annotation = result.type
             return result
-        result = to_inference_result(
-            self.unify_types(self.infer_type(value.right, left_result.type, mapping=mapping).type, supertype, mapping)
+
+        left_type_entry = self.env.get_type(left_result.type)
+        assert isinstance(left_type_entry, (entries.StructEntry, entries.ParameterEntry))
+        method_name = submangle(
+            nodes.Name(nodes.SpecialMethods.from_operator(value.operator).value), self.context
+        ).member
+        method_entry = left_type_entry.methods.get(
+            method_name, left_type_entry.methods.get(
+                nodes.SpecialMethods.from_operator(value.operator).value
+            )
         )
+        if method_entry is None:
+            raise errors.AngelFieldError(value.left, left_result.type, method_name, self.code)
+        if isinstance(left_result.type, nodes.GenericType):
+            mapping = self.basic_struct_mapping(left_result.type)
+        self.satisfy_where_clauses(method_entry.where_clauses, mapping)
+        # TODO: design sandbox for type checking: Self can map to different types (nested)
+        self.infer_type(value.right, supertype=None, mapping=left_result.mapping)
+        result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
         value.type_annotation = result.type
         return result
 
@@ -934,13 +939,16 @@ class TypeChecker(unittest.TestCase):
         self, subtype: nodes.Type, supertype: t.Optional[nodes.Type], mapping: Mapping
     ) -> UnificationResult:
         subtype = apply_mapping(subtype, mapping)
-        if supertype is None:
-            if isinstance(subtype, nodes.Name):
-                return UnificationResult(self.build_specific_name_type(subtype), mapping)
-            return UnificationResult(self.replace_template_types(subtype), mapping)
-        supertype = apply_mapping(supertype, mapping)
-        result = dispatch(self.unification_dispatcher, (type(subtype), type(supertype)), subtype, supertype, mapping)
-        return UnificationResult(self.replace_template_types(result.type), result.mapping)
+        if supertype:
+            supertype = apply_mapping(supertype, mapping)
+            result = dispatch(
+                self.unification_dispatcher, (type(subtype), type(supertype)), subtype, supertype, mapping
+            )
+            return UnificationResult(self.replace_template_types(result.type), result.mapping)
+
+        if isinstance(subtype, nodes.Name):
+            return UnificationResult(self.build_specific_name_type(subtype), mapping)
+        return UnificationResult(self.replace_template_types(subtype), mapping)
 
     def build_specific_name_type(self, name: nodes.Name) -> nodes.Type:
         entry = self.env.get(name)

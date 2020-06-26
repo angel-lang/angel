@@ -22,6 +22,10 @@ class Expression:
     def to_code(self) -> str:
         pass
 
+    def __lshift__(self, other):
+        assert isinstance(other, Expression)
+        return BinaryExpression(self, Operator.lshift, other)
+
 
 AST = t.List[Node]
 

@@ -310,11 +310,7 @@ class Translator(unittest.TestCase):
         write_check = self.mp_check(mp_result_tmp)
         self.nodes_buffer.append(write_check)
 
-        return cpp_nodes.BinaryExpression(
-            cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, cpp_nodes.BinaryExpression(
-                cpp_buffer_name, cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
-            )
-        )
+        return cpp_nodes.StdName.cout << cpp_buffer_name << cpp_nodes.StdName.endl
 
     def translate_method_call(self, method_call: nodes.MethodCall) -> cpp_nodes.Expression:
         assert method_call.instance_type is not None
@@ -676,10 +672,7 @@ class Translator(unittest.TestCase):
             printing_override: cpp_nodes.Node = cpp_nodes.FunctionDeclaration(
                 cpp_nodes.Addr(cpp_nodes.StdName.ostream), 'operator<<', printing_override_arguments, body=[
                     cpp_nodes.Semicolon(
-                        cpp_nodes.BinaryExpression(
-                            cpp_nodes.Id('_arg1'), cpp_nodes.Operator.lshift,
-                            cpp_nodes.MethodCall(cpp_nodes.Id('_arg2'), 'toString', [])
-                        )
+                        cpp_nodes.Id('_arg1') << cpp_nodes.MethodCall(cpp_nodes.Id('_arg2'), 'toString', [])
                     ),
                     cpp_nodes.Return(cpp_nodes.Id('_arg1'))
                 ]
@@ -1010,11 +1003,7 @@ class Translator(unittest.TestCase):
     def mp_failed(self) -> cpp_nodes.AST:
         """General error handling for multiple precision arithmetic."""
         print_ = cpp_nodes.Semicolon(
-            cpp_nodes.BinaryExpression(
-                cpp_nodes.StdName.cout, cpp_nodes.Operator.lshift, cpp_nodes.BinaryExpression(
-                    cpp_nodes.StringLiteral("MP FAILED"), cpp_nodes.Operator.lshift, cpp_nodes.StdName.endl
-                )
-            )
+            cpp_nodes.StdName.cout << cpp_nodes.StringLiteral("MP FAILED") << cpp_nodes.StdName.endl
         )
         # TODO: use constant strings
         exit_ = cpp_nodes.Semicolon(
