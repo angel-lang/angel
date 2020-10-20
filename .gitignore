@@ -4,6 +4,7 @@ __pycache__/
 
 # Utils
 .mypy_cache/
+.coverage
 
 # Compiled Object files
 library/*.a

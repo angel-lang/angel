@@ -54,7 +54,7 @@ def get_possible_signed_int_types_based_on_value(value: int) -> t.List[nodes.Typ
 
 
 def get_possible_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
-    base: t.List[nodes.Type] = [nodes.BuiltinType.int_]
+    base: t.List[nodes.Type] = []   #nodes.BuiltinType.int_]
     return (
         base
         + get_possible_signed_int_types_based_on_value(value)
@@ -547,6 +547,10 @@ class TypeChecker(unittest.TestCase):
             call.is_algebraic_method = method_result.type.is_algebraic_method
             return self.match_with_function_type(method_result.type, call.arguments, supertype, mapping)
         elif isinstance(method_result.type, nodes.AlgebraicType) and method_result.type.constructor:
+            # TODO: check types from declarations
+            for argument in call.arguments:
+                # For type annotations
+                self.infer_type(argument)
             instance_result = self.infer_type(call.instance_path, mapping=mapping)
             call.instance_type = instance_result.type
             return to_inference_result(self.unify_types(method_result.type, supertype, mapping))

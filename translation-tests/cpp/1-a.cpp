@@ -199,20 +199,20 @@ int main() {
   std::vector<std::int_fast8_t> emptyVectorWithType = {};
   std::vector<std::int_fast16_t> vectorWithoutType = {1, 260};
   std::vector<std::int_fast8_t> vectorWithType = {1};
-  std::vector<std::int_fast8_t> __tmp_0 = {1, 2, 3};
-  std::vector<std::int_fast8_t> __tmp_1 = {4};
-  __tmp_0.insert(__tmp_0.end(), __tmp_1.begin(), __tmp_1.end());
-  std::vector<std::int_fast8_t> l = __tmp_0;
+  std::vector<std::int_fast8_t> tmp_0 = {1, 2, 3};
+  std::vector<std::int_fast8_t> tmp_1 = {4};
+  tmp_0.insert(tmp_0.end(), tmp_1.begin(), tmp_1.end());
+  std::vector<std::int_fast8_t> l = tmp_0;
   std::map<void*, void*> emptyDictWithoutType;
   std::map<std::string, std::int_fast8_t> emptyDictWithType;
-  std::map<std::string, std::int_fast8_t> __tmp_2;
-  __tmp_2["a"] = 1;
-  __tmp_2["c"] = 0;
-  __tmp_2["b"] = 3;
-  std::map<std::string, std::int_fast8_t> dictWithoutType = __tmp_2;
-  std::map<std::string, std::int_fast8_t> __tmp_3;
-  __tmp_3["a"] = 1;
-  std::map<std::string, std::int_fast8_t> dictWithType = __tmp_3;
+  std::map<std::string, std::int_fast8_t> tmp_2;
+  tmp_2["a"] = 1;
+  tmp_2["c"] = 0;
+  tmp_2["b"] = 3;
+  std::map<std::string, std::int_fast8_t> dictWithoutType = tmp_2;
+  std::map<std::string, std::int_fast8_t> tmp_3;
+  tmp_3["a"] = 1;
+  std::map<std::string, std::int_fast8_t> dictWithType = tmp_3;
   __print((std::int_fast16_t)(dictWithoutType["a"]));
   __print(dictWithoutType.size());
   std::optional<void*> someOptional = std::nullopt;
@@ -222,20 +222,20 @@ int main() {
   } else {
     __print("YES");
   }
-  auto __tmp_4 = optionalName;
-  if (__tmp_4 != std::nullopt) {
-    std::string realName = *__tmp_4;
+  auto tmp_4 = optionalName;
+  if (tmp_4 != std::nullopt) {
+    std::string realName = *tmp_4;
     __print(realName);
   } else {
     __print("No name");
   }
   std::int_fast8_t lol = 0;
-  auto __tmp_5 = getN(lol);
-  while (__tmp_5 != std::nullopt) {
-    std::int_fast8_t n = *__tmp_5;
+  auto tmp_5 = getN(lol);
+  while (tmp_5 != std::nullopt) {
+    std::int_fast8_t n = *tmp_5;
     __print(n);
     lol = lol + 1;
-    __tmp_5 = getN(lol);
+    tmp_5 = getN(lol);
   }
   std::string names = "John,Mike,Kale";
   std::vector<std::string> parts = __string_split_char(names, ',');
@@ -302,28 +302,28 @@ int main() {
   __print(((Vec)(Vec(1, 2))).toString());
   __print(__vector_to_string<std::int_fast16_t>({1, 2, 3}));
   __print(__vector_to_string<std::string>({"John", "Mike"}));
-  std::vector<std::int_fast8_t> __tmp_6 = {1, 2, 3};
-  for (std::vector<std::int_fast8_t>::iterator __tmp_7 = __tmp_6.begin();
-       __tmp_7 != __tmp_6.end(); ++__tmp_7) {
-    std::int_fast8_t element = *__tmp_7;
+  std::vector<std::int_fast8_t> tmp_6 = {1, 2, 3};
+  for (std::vector<std::int_fast8_t>::iterator tmp_7 = tmp_6.begin();
+       tmp_7 != tmp_6.end(); ++tmp_7) {
+    std::int_fast8_t element = *tmp_7;
     __print((std::int_fast16_t)(element));
   }
-  std::string __tmp_8 = "John";
-  for (std::string::iterator __tmp_9 = __tmp_8.begin();
-       __tmp_9 != __tmp_8.end(); ++__tmp_9) {
-    char element = *__tmp_9;
+  std::string tmp_8 = "John";
+  for (std::string::iterator tmp_9 = tmp_8.begin(); tmp_9 != tmp_8.end();
+       ++tmp_9) {
+    char element = *tmp_9;
     __print(element);
   }
-  std::int_fast8_t __tmp_10 = 1;
-  std::int_fast8_t* p = &__tmp_10;
+  std::int_fast8_t tmp_10 = 1;
+  std::int_fast8_t* p = &tmp_10;
   std::int_fast8_t* r = p;
   __print((std::int_fast16_t)(*p));
   __print((std::int_fast16_t)(*r));
   *p = 2;
   __print((std::int_fast16_t)(*p));
   __print((std::int_fast16_t)(*r));
-  std::string __tmp_11 = "Hello";
-  std::string* ps = &__tmp_11;
+  std::string tmp_11 = "Hello";
+  std::string* ps = &tmp_11;
   change(ps);
   __print((*ps)[0]);
   MyPair<std::int_fast8_t, std::string> myPair1 =
