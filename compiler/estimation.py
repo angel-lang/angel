@@ -8,7 +8,7 @@ from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .enums import DeclType
-from .utils import submangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
+from .utils import submangle, dispatch, NODES, EXPRESSIONS, ASSIGNMENTS, apply_mapping
 from .constants import (
     builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields, SELF_NAME, SPEC_LINE
 )
@@ -895,7 +895,7 @@ class Evaluator(unittest.TestCase):
 
     def test(self):
         self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))
-        self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
+        self.assertEqual(EXPRESSIONS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
         self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.assignment_dispatcher.keys()))
 
 

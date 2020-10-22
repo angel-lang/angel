@@ -3,7 +3,7 @@ import unittest
 from dataclasses import dataclass
 
 from . import nodes
-from .utils import dispatch, submangle, mangle, EXPRS
+from .utils import dispatch, submangle, mangle, EXPRESSIONS
 from .context import Context
 
 
@@ -91,4 +91,4 @@ class Clarifier(unittest.TestCase):
 
     def test(self):
         # TODO: test Clarifier completeness
-        self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.get_module_from_expr_dispatcher.keys()))
+        self.assertEqual(EXPRESSIONS, set(subclass.__name__ for subclass in self.get_module_from_expr_dispatcher.keys()))

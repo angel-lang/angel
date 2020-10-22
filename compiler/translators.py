@@ -2,7 +2,7 @@ import typing as t
 import unittest
 
 from . import nodes, cpp_nodes, environment, library
-from .utils import compare_types, dispatch, TYPES, EXPRS, NODES
+from .utils import compare_types, dispatch, TYPES, EXPRESSIONS, NODES
 from .enums import DeclType
 from .context import Context
 
@@ -1027,7 +1027,7 @@ class Translator(unittest.TestCase):
 
     def test(self):
         self.assertEqual(TYPES, set(subclass.__name__ for subclass in self.type_dispatcher.keys()))
-        self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
+        self.assertEqual(EXPRESSIONS, set(subclass.__name__ for subclass in self.expression_dispatcher.keys()))
         self.assertEqual(
             NODES.difference([nodes.ExtensionDeclaration.__name__]),
             set(subclass.__name__ for subclass in self.node_dispatcher.keys())

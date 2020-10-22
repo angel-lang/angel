@@ -9,7 +9,7 @@ from . import nodes, errors, environment, environment_entries as entries, estima
 from .enums import DeclType
 from .context import Context
 from .constants import builtin_interfaces, SPEC_LINE
-from .utils import submangle, dispatch, TYPES, EXPRS, apply_mapping, apply_mapping_expression, is_user_defined_type
+from .utils import submangle, dispatch, TYPES, EXPRESSIONS, apply_mapping, apply_mapping_expression, is_user_defined_type
 
 
 Mapping = t.Dict[str, nodes.Type]
@@ -1319,7 +1319,7 @@ class TypeChecker(unittest.TestCase):
                 assert 0, f"Cannot satisfy where clause with {condition} clause"
 
     def test(self):
-        self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.type_inference_dispatcher.keys()))
+        self.assertEqual(EXPRESSIONS, set(subclass.__name__ for subclass in self.type_inference_dispatcher.keys()))
         type_pairs = set()
         for type1 in TYPES:
             for type2 in TYPES:

@@ -56,7 +56,7 @@ def get_all_subclasses(cls):
 
 
 NODES = get_all_subclasses(nodes.Node)
-EXPRS = get_all_subclasses(nodes.Expression)
+EXPRESSIONS = get_all_subclasses(nodes.Expression)
 TYPES = get_all_subclasses(nodes.Type)
 ASSIGNMENTS = get_all_subclasses(nodes.AssignmentLeft)
 

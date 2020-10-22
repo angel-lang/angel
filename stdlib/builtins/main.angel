@@ -1,0 +1,40 @@
+interface Object
+
+
+interface Eq:
+    fun __eq__(other: Self) -> Bool
+
+
+interface Lt:
+    fun __lt__(other: Self) -> Bool
+
+
+interface Gt:
+    fun __gt__(other: Self) -> Bool
+
+
+interface ConvertibleToString:
+    fun as -> String
+
+
+interface Addable:
+    fun __add__(other: Self) -> Self
+
+
+interface Subtractable:
+    fun __sub__(other: Self) -> Self
+
+
+interface Multipliable:
+    fun __mul__(other: Self) -> Self
+
+
+interface Divisible:
+    fun __div__(other: Self) -> Self
+
+
+interface ArithmeticObject is Addable, Subtractable, Multipliable, Divisible
+
+
+fun print(value: ConvertibleToString)
+fun read(prompt: String) -> String

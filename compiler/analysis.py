@@ -1,5 +1,4 @@
 import typing as t
-import unittest
 from itertools import zip_longest
 
 from . import (
@@ -9,9 +8,10 @@ from .enums import DeclType
 from .context import Context
 from .constants import builtin_interfaces
 from .utils import submangle, dispatch, NODES, ASSIGNMENTS
+from .testutils import CompilerStageTestCase
 
 
-class Analyzer(unittest.TestCase):
+class Analyzer(CompilerStageTestCase):
 
     def __init__(self, context: Context, env: t.Optional[environment.Environment] = None):
         super().__init__()
@@ -575,6 +575,5 @@ class Analyzer(unittest.TestCase):
         entry.implemented_interfaces.append(clause.right)
 
     def test(self):
-        self.assertEqual(NODES, set(subclass.__name__ for subclass in self.node_dispatcher.keys()))
-        self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.assignment_dispatcher.keys()))
-        self.assertEqual(ASSIGNMENTS, set(subclass.__name__ for subclass in self.change_type_dispatcher.keys()))
+        self.check_completeness(NODES, self.node_dispatcher)
+        self.check_completeness(ASSIGNMENTS, (self.assignment_dispatcher, self.change_type_dispatcher))
