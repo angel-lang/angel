@@ -43,7 +43,7 @@ class Modules(Enum):
                 cpp_nodes.StdModule.iostream,
             ],
             Modules.tommath.value: [
-                # These libraries are used in code that uses tommath, but not in tommath inself.
+                # These libraries are used in code that uses tommath, but not in tommath itself.
                 cpp_nodes.StdModule.iostream,
                 cpp_nodes.StdModule.cstdlib,
             ]

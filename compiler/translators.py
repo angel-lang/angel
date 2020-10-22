@@ -605,9 +605,7 @@ class Translator(unittest.TestCase):
                 entry = to_be_translated[node.name.member]
                 assert isinstance(entry, nodes.StructDeclaration)
                 entry.interfaces += node.interfaces
-                entry.private_methods += node.private_methods
-                entry.public_methods += node.public_methods
-                entry.special_methods += node.special_methods
+                entry.methods.merge(node.methods)
             else:
                 translated_list = self.translate_body([node])
                 for n in translated_list:
@@ -689,21 +687,21 @@ class Translator(unittest.TestCase):
 
     def translate_struct_declaration(self, node: nodes.StructDeclaration) -> cpp_nodes.Node:
         # list(...) for mypy
-        private = self.translate_body(list(node.private_fields)) + self.translate_body(list(node.private_methods))
+        private = self.translate_body(list(node.fields.private)) + self.translate_body(list(node.methods.private))
         if node.parameters:
             self.struct_type = nodes.GenericType(node.name, list(node.parameters))
         else:
             self.struct_type = node.name
         special_methods: t.List[cpp_nodes.Node] = [
-            self.translate_special_method(method) for method in node.special_methods
+            self.translate_special_method(method) for method in node.methods.special
         ]
         public: t.List[cpp_nodes.Node] = []
         if not has_default_constructor(node.init_declarations):
             public.append(cpp_nodes.InitDeclaration(node.name.member, [], delegation_arguments=None, body=[]))
         public.extend(
-            self.translate_body(list(node.public_fields)) +
+            self.translate_body(list(node.fields.public)) +
             self.translate_body(list(node.init_declarations)) +
-            self.translate_body(list(node.public_methods)) + special_methods
+            self.translate_body(list(node.methods.public)) + special_methods
         )
         parents = []
         for interface in node.interfaces:
@@ -742,7 +740,7 @@ class Translator(unittest.TestCase):
             constructor_types={name.member: name for name in constructor_names}
         )
         self_arg = nodes.Argument("self", self_type)
-        for method in node.private_methods + node.public_methods:
+        for method in node.methods.all:
             funcs.append(
                 nodes.FunctionDeclaration(
                     method.line, nodes.Name(algebraic_method_name(node.name, method.name)), [],

@@ -33,16 +33,16 @@ def compile_string(string: str, mangle_names: bool = True) -> str:
     lines = string.split("\n")
     hash_ = get_hash(string)
 
-    context = Context(lines, hash_, mangle_names)
+    compilation_context = Context(lines, hash_, mangle_names)
     parser = parsers.Parser()
-    clarifier = clarification.Clarifier(context)
-    analyzer = analysis.Analyzer(context)
-    translator = translators.Translator(context)
+    clarifier = clarification.Clarifier(compilation_context)
+    analyzer = analysis.Analyzer(compilation_context)
+    translator = translators.Translator(compilation_context)
     try:
         clarified_ast = clarifier.clarify_ast(parser.parse(string))
-        for module_name, module_content in context.imported_lines.items():
-            module_hash = context.module_hashs[module_name]
-            context.main_hash = module_hash
+        for module_name, module_content in compilation_context.imported_lines.items():
+            module_hash = compilation_context.module_hashs[module_name]
+            compilation_context.main_hash = module_hash
             clarified_ast = (
                 clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
             )
@@ -61,17 +61,17 @@ def compile_string(string: str, mangle_names: bool = True) -> str:
 def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     """Evaluate Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
-    context = Context(lines, main_hash="", mangle_names=False)
+    compilation_context = Context(lines, main_hash="", mangle_names=False)
 
     parser = parsers.Parser()
-    clarifier = clarification.Clarifier(context)
-    analyzer = analysis.Analyzer(context, env=env)
-    repl_evaluator = repl_evaluation.REPLEvaluator(context, env=env)
+    clarifier = clarification.Clarifier(compilation_context)
+    analyzer = analysis.Analyzer(compilation_context, env=env)
+    repl_evaluator = repl_evaluation.REPLEvaluator(compilation_context, env=env)
     try:
         clarified_ast = clarifier.clarify_ast(parser.parse(string))
-        for module_name, module_content in context.imported_lines.items():
-            module_hash = context.module_hashs[module_name]
-            context.main_hash = module_hash
+        for module_name, module_content in compilation_context.imported_lines.items():
+            module_hash = compilation_context.module_hashs[module_name]
+            compilation_context.main_hash = module_hash
             clarified_ast = (
                 clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
             )

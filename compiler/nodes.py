@@ -924,16 +924,45 @@ class InitDeclaration(Node):
 
 
 @dataclass
+class DeclaredFields:
+    private: t.List[FieldDeclaration] = field(default_factory=list)
+    public: t.List[FieldDeclaration] = field(default_factory=list)
+
+    @property
+    def all(self) -> t.List[FieldDeclaration]:
+        return self.private + self.public
+
+    def to_code(self, indentation_level: int) -> str:
+        return '\n'.join(node.to_code(indentation_level) for node in self.all)
+
+
+@dataclass
+class DeclaredMethods:
+    private: t.List[MethodDeclaration] = field(default_factory=list)
+    public: t.List[MethodDeclaration] = field(default_factory=list)
+    special: t.List[MethodDeclaration] = field(default_factory=list)
+
+    @property
+    def all(self) -> t.List[MethodDeclaration]:
+        return self.private + self.public + self.special
+
+    def to_code(self, indentation_level: int) -> str:
+        return '\n'.join(node.to_code(indentation_level) for node in self.all)
+
+    def merge(self, methods):
+        self.private += methods.private
+        self.public += methods.public
+        self.special += methods.special
+
+
+@dataclass
 class StructDeclaration(Node):
     name: Name
     parameters: Parameters
     interfaces: Interfaces
-    private_fields: t.List[FieldDeclaration]
-    public_fields: t.List[FieldDeclaration]
+    fields: DeclaredFields
     init_declarations: t.List[InitDeclaration]
-    private_methods: t.List[MethodDeclaration]
-    public_methods: t.List[MethodDeclaration]
-    special_methods: t.List[MethodDeclaration]
+    methods: DeclaredMethods
 
     def to_code(self, indentation_level: int = 0) -> str:
         if self.interfaces:
@@ -946,19 +975,14 @@ class StructDeclaration(Node):
         else:
             parameters = ''
 
-        private_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_fields)
-        public_fields = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_fields)
+        fields = self.fields.to_code(indentation_level + 1)
         init_declarations = '\n'.join(node.to_code(indentation_level + 1) for node in self.init_declarations)
-        private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
-        public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
-        fields = private_fields + public_fields
+        methods = self.methods.to_code(indentation_level + 1)
 
-        if not fields and not init_declarations and not private_methods and not public_methods:
+        if not fields and not init_declarations and not methods:
             return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}{interfaces}"
 
-        body = (
-            fields + "\n" + init_declarations + "\n" + private_methods + "\n" + public_methods
-        )
+        body = fields + "\n" + init_declarations + "\n" + methods
         return INDENTATION * indentation_level + f"struct {self.name.to_code()}{parameters}{interfaces}:\n{body}"
 
 
@@ -968,9 +992,7 @@ class ExtensionDeclaration(Node):
     parameters: Parameters
     interfaces: Interfaces
     where_clause: t.Optional[Expression]
-    private_methods: t.List[MethodDeclaration]
-    public_methods: t.List[MethodDeclaration]
-    special_methods: t.List[MethodDeclaration]
+    methods: DeclaredMethods
 
     def to_code(self, indentation_level: int = 0) -> str:
         if self.interfaces:
@@ -988,15 +1010,13 @@ class ExtensionDeclaration(Node):
         else:
             where = ''
 
-        private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
-        public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
+        methods = self.methods.to_code(indentation_level + 1)
 
-        if not private_methods and not public_methods:
+        if not methods:
             return INDENTATION * indentation_level + f"extension {self.name.to_code()}{parameters}{interfaces}{where}"
 
-        body = private_methods + "\n" + public_methods
         return (
-            INDENTATION * indentation_level + f"extension {self.name.to_code()}{parameters}{interfaces}{where}:\n{body}"
+            INDENTATION * indentation_level + f"extension {self.name.to_code()}{parameters}{interfaces}{where}:\n{methods}"
         )
 
 
@@ -1005,8 +1025,7 @@ class AlgebraicDeclaration(Node):
     name: Name
     parameters: Parameters
     constructors: t.List[StructDeclaration]
-    public_methods: t.List[MethodDeclaration]
-    private_methods: t.List[MethodDeclaration]
+    methods: DeclaredMethods
 
     def to_code(self, indentation_level: int = 0) -> str:
         if self.parameters:
@@ -1014,9 +1033,8 @@ class AlgebraicDeclaration(Node):
         else:
             parameters = ''
         constructors = '\n'.join(node.to_code(indentation_level + 1) for node in self.constructors)
-        private_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.private_methods)
-        public_methods = '\n'.join(node.to_code(indentation_level + 1) for node in self.public_methods)
-        body = constructors + "\n" + private_methods + "\n" + public_methods
+        methods = self.methods.to_code(indentation_level + 1)
+        body = constructors + "\n" + methods
         return INDENTATION * indentation_level + f"algebraic {self.name.to_code()}{parameters}:\n{body}"
 
 

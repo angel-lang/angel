@@ -567,78 +567,64 @@ class Parser:
         parse_while_statement, parse_for_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
 
-    def _decide_method_scope(
-        self, node: nodes.FunctionDeclaration, special_methods: t.List[nodes.MethodDeclaration],
-        private_methods: t.List[nodes.MethodDeclaration], public_methods: t.List[nodes.MethodDeclaration]
-    ):
+    def _decide_method_scope(self, node: nodes.FunctionDeclaration, methods: nodes.DeclaredMethods):
         method_declaration = nodes.MethodDeclaration(
             node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
         )
         if node.name.member.startswith("__") or node.name.member == "as":
-            special_methods.append(method_declaration)
+            methods.special.append(method_declaration)
         elif node.name.member.startswith("_"):
-            private_methods.append(method_declaration)
+            methods.private.append(method_declaration)
         else:
-            public_methods.append(method_declaration)
+            methods.public.append(method_declaration)
 
     def make_struct_declaration(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces, body: nodes.AST
     ) -> nodes.StructDeclaration:
-        private_fields, public_fields, init_declarations = [], [], []
-        private_methods: t.List[nodes.MethodDeclaration] = []
-        public_methods: t.List[nodes.MethodDeclaration] = []
-        special_methods: t.List[nodes.MethodDeclaration] = []
+        init_declarations = []
+        fields = nodes.DeclaredFields()
+        methods = nodes.DeclaredMethods()
         for node in body:
             if isinstance(node, nodes.FieldDeclaration):
                 if node.name.member.startswith("_"):
-                    private_fields.append(node)
+                    fields.private.append(node)
                 else:
-                    public_fields.append(node)
+                    fields.public.append(node)
             elif isinstance(node, nodes.FunctionDeclaration):
-                self._decide_method_scope(node, special_methods, private_methods, public_methods)
+                self._decide_method_scope(node, methods)
             elif isinstance(node, nodes.InitDeclaration):
                 init_declarations.append(node)
             else:
                 raise errors.AngelSyntaxError("expected method, field or init declaration", self.get_code(node.line))
         return nodes.StructDeclaration(
-            line, name, parameters, interfaces, private_fields, public_fields, init_declarations,
-            private_methods, public_methods, special_methods
+            line, name, parameters, interfaces, fields, init_declarations, methods
         )
 
     def make_extension_declaration(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces,
         where_clause: t.Optional[nodes.Expression], body: nodes.AST
     ) -> nodes.ExtensionDeclaration:
-        private_methods: t.List[nodes.MethodDeclaration] = []
-        public_methods: t.List[nodes.MethodDeclaration] = []
-        special_methods: t.List[nodes.MethodDeclaration] = []
+        methods = nodes.DeclaredMethods()
         for node in body:
             if isinstance(node, nodes.FunctionDeclaration):
-                self._decide_method_scope(node, special_methods, private_methods, public_methods)
+                self._decide_method_scope(node, methods)
             else:
                 raise errors.AngelSyntaxError("expected method declaration", self.get_code(node.line))
-        return nodes.ExtensionDeclaration(
-            line, name, parameters, interfaces, where_clause, private_methods, public_methods, special_methods
-        )
+        return nodes.ExtensionDeclaration(line, name, parameters, interfaces, where_clause, methods)
 
     def make_algebraic_declaration(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, body: nodes.AST
     ) -> nodes.AlgebraicDeclaration:
-        public_methods, private_methods, constructors = [], [], []
+        constructors = []
+        methods = nodes.DeclaredMethods()
         for node in body:
             if isinstance(node, nodes.StructDeclaration):
                 constructors.append(node)
             elif isinstance(node, nodes.FunctionDeclaration):
-                method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
-                )
-                if node.name.member.startswith("_"):
-                    private_methods.append(method_declaration)
-                else:
-                    public_methods.append(method_declaration)
+                self._decide_method_scope(node, methods)
             else:
                 raise errors.AngelSyntaxError("expected method or constructor declaration", self.get_code(node.line))
-        return nodes.AlgebraicDeclaration(line, name, parameters, constructors, public_methods, private_methods)
+        return nodes.AlgebraicDeclaration(line, name, parameters, constructors, methods)
 
     def make_interface_declaration(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, implemented_interfaces: nodes.Interfaces,

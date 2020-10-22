@@ -54,7 +54,7 @@ def get_possible_signed_int_types_based_on_value(value: int) -> t.List[nodes.Typ
 
 
 def get_possible_int_types_based_on_value(value: int) -> t.List[nodes.Type]:
-    base: t.List[nodes.Type] = []   #nodes.BuiltinType.int_]
+    base: t.List[nodes.Type] = []   # nodes.BuiltinType.int_]
     return (
         base
         + get_possible_signed_int_types_based_on_value(value)
@@ -909,7 +909,7 @@ class TypeChecker(unittest.TestCase):
             mapping = self.basic_struct_mapping(left_result.type)
         self.satisfy_where_clauses(method_entry.where_clauses, mapping)
         # TODO: design sandbox for type checking: Self can map to different types (nested)
-        self.infer_type(value.right, supertype=None, mapping=left_result.mapping)
+        self.infer_type(value.right, mapping=left_result.mapping)
         result = to_inference_result(self.unify_types(nodes.BuiltinType.bool, supertype, mapping))
         value.type_annotation = result.type
         return result

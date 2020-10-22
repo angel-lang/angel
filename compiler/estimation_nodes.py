@@ -127,7 +127,7 @@ class Function(Expression):
     return_type: nodes.Type
     where_clauses: t.List[nodes.Expression]
     specification: t.Union[t.Callable[..., Expression], nodes.AST]
-    # Actually, saved_environment dict's values are envrionment entries, but we use Any because of circular imports
+    # Actually, saved_environment dict values are environment entries, but we use Any because of circular imports
     saved_environment: t.List[t.Dict[str, t.Any]]
 
     def __init__(

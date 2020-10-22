@@ -126,25 +126,34 @@ class Analyzer(unittest.TestCase):
             declaration.where_clause, body
         )
 
+    def _analyze_struct_methods(self, methods: nodes.DeclaredMethods) -> nodes.DeclaredMethods:
+        return nodes.DeclaredMethods(
+            private=t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(methods.private))),
+            public=t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(methods.public))),
+            special=t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(methods.special))),
+        )
+
+    def _analyze_struct_fields(self, fields: nodes.DeclaredFields) -> nodes.DeclaredFields:
+        return nodes.DeclaredFields(
+            private=t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(fields.private))),
+            public=t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(fields.public))),
+        )
+
     def analyze_struct_declaration(self, declaration: nodes.StructDeclaration) -> nodes.StructDeclaration:
         self.env.add_struct(declaration.line, declaration.name, declaration.parameters, declaration.interfaces)
         self.env.inc_nesting(declaration.name)
         self.env.add_parameters(declaration.line, declaration.parameters)
-        # list(...) for mypy
-        private_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.private_fields)))
-        public_fields = t.cast(t.List[nodes.FieldDeclaration], self.analyze_ast(list(declaration.public_fields)))
+        fields = self._analyze_struct_fields(declaration.fields)
         init_declarations = self.generate_default_init(
-            declaration.line, private_fields, public_fields, list(declaration.init_declarations)
+            declaration.line, fields, list(declaration.init_declarations)
         )
         init_declarations = t.cast(t.List[nodes.InitDeclaration], self.analyze_ast(init_declarations))
-        private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
-        public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
-        special_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.special_methods)))
+        methods = self._analyze_struct_methods(declaration.methods)
         self.check_interface_implementations(declaration.interfaces, declaration.name)
         self.env.dec_nesting(declaration.name)
         return nodes.StructDeclaration(
-            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, private_fields,
-            public_fields, init_declarations, private_methods, public_methods, special_methods
+            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, fields,
+            init_declarations, methods
         )
 
     def analyze_extension_declaration(self, declaration: nodes.ExtensionDeclaration) -> nodes.ExtensionDeclaration:
@@ -156,17 +165,14 @@ class Analyzer(unittest.TestCase):
             self.env.add_where_clause(declaration.where_clause)
         self.env.add_parameters(declaration.line, declaration.parameters)
         # list(...) for mypy
-        private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
-        public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
-        special_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.special_methods)))
+        methods = self._analyze_struct_methods(declaration.methods)
         self.check_interface_implementations(declaration.interfaces, declaration.name)
         if declaration.where_clause:
             self.env.remove_where_clause()
         self.env.dec_nesting(declaration.name)
         where_clause = declaration.where_clause
         return nodes.ExtensionDeclaration(
-            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, where_clause,
-            private_methods, public_methods, special_methods
+            declaration.line, declaration.name, declaration.parameters, declaration.interfaces, where_clause, methods
         )
 
     def analyze_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> nodes.AlgebraicDeclaration:
@@ -175,11 +181,10 @@ class Analyzer(unittest.TestCase):
         self.env.add_parameters(declaration.line, declaration.parameters)
         # list(...) for mypy
         constructors = t.cast(t.List[nodes.StructDeclaration], self.analyze_ast(list(declaration.constructors)))
-        private_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.private_methods)))
-        public_methods = t.cast(t.List[nodes.MethodDeclaration], self.analyze_ast(list(declaration.public_methods)))
+        methods = self._analyze_struct_methods(declaration.methods)
         self.env.dec_nesting(declaration.name)
         return nodes.AlgebraicDeclaration(
-            declaration.line, declaration.name, declaration.parameters, constructors, private_methods, public_methods
+            declaration.line, declaration.name, declaration.parameters, constructors, methods,
         )
 
     def analyze_interface_declaration(self, declaration: nodes.InterfaceDeclaration) -> nodes.InterfaceDeclaration:
@@ -197,19 +202,19 @@ class Analyzer(unittest.TestCase):
         )
 
     def generate_default_init(
-        self, struct_declaration_line: int, private_fields, public_fields, init_declarations: t.List[nodes.InitDeclaration]
+        self, struct_declaration_line: int, fields: nodes.DeclaredFields, init_declarations: t.List[nodes.InitDeclaration]
     ):
         if not init_declarations:
             init_declaration_body: nodes.AST = []
             arguments = []
-            for field in public_fields:
+            for field in fields.public:
                 arguments.append(nodes.Argument(field.name, field.type, field.value))
                 init_declaration_body.append(
                     nodes.Assignment(
                         field.line, nodes.Field(field.line, nodes.SpecialName.self, field.name), nodes.Operator.eq, field.name
                     )
                 )
-            for field in private_fields:
+            for field in fields.private:
                 if field.value is None:
                     raise errors.AngelPrivateFieldsNotInitializedAndNoInit(field.name, self.get_code(field.line))
                 init_declaration_body.append(
@@ -229,14 +234,18 @@ class Analyzer(unittest.TestCase):
         self.env.add_field(declaration.line, declaration.name, field_type)
         return nodes.FieldDeclaration(declaration.line, declaration.name, field_type, declaration.value)
 
-    def analyze_method_declaration(self, declaration: nodes.MethodDeclaration) -> nodes.MethodDeclaration:
-        arguments = []
-        for arg in declaration.arguments:
+    def _analyze_declared_arguments(self, arguments: nodes.Arguments) -> nodes.Arguments:
+        result = []
+        for arg in arguments:
             if arg.value is not None:
                 argument = nodes.Argument(arg.name, self.infer_type(arg.value, arg.type), arg.value)
             else:
                 argument = nodes.Argument(arg.name, self.check_type(arg.type), arg.value)
-            arguments.append(argument)
+            result.append(argument)
+        return result
+
+    def analyze_method_declaration(self, declaration: nodes.MethodDeclaration) -> nodes.MethodDeclaration:
+        arguments = self._analyze_declared_arguments(declaration.arguments)
         return_type = self.check_type(declaration.return_type)
         self.env.add_method(declaration.line, declaration.name, arguments, return_type)
         self.env.inc_nesting()
@@ -254,13 +263,7 @@ class Analyzer(unittest.TestCase):
         )
 
     def analyze_init_declaration(self, declaration: nodes.InitDeclaration) -> nodes.InitDeclaration:
-        arguments = []
-        for arg in declaration.arguments:
-            if arg.value is not None:
-                argument = nodes.Argument(arg.name, self.infer_type(arg.value, arg.type), arg.value)
-            else:
-                argument = nodes.Argument(arg.name, self.check_type(arg.type), arg.value)
-            arguments.append(argument)
+        arguments = self._analyze_declared_arguments(declaration.arguments)
         self.env.add_init_declaration(declaration.line, arguments)
         self.env.inc_nesting()
         self.env.add_self(declaration.line, is_variable=True)
@@ -282,25 +285,20 @@ class Analyzer(unittest.TestCase):
         dispatch(self.assignment_dispatcher, type(statement.left), statement.left)
         return nodes.Assignment(statement.line, statement.left, nodes.Operator.eq, right)
 
-    def analyze_if_statement(self, statement: nodes.If) -> nodes.If:
-        if isinstance(statement.condition, nodes.Decl) and statement.condition.is_constant:
-            condition: nodes.Expression = self.analyze_declaration(statement.condition)
+    def _analyze_conditional(self, condition: nodes.Expression, body: nodes.AST) -> t.Tuple[nodes.Expression, nodes.AST]:
+        if isinstance(condition, nodes.Decl) and condition.is_constant:
+            result_condition: nodes.Expression = self.analyze_declaration(condition)
         else:
-            condition = statement.condition
+            result_condition = condition
             self.infer_type(condition, supertype=nodes.BuiltinType.bool)
         self.env.inc_nesting()
-        body = self.analyze_ast(statement.body)
+        result_body = self.analyze_ast(body)
         self.env.dec_nesting()
-        elifs = []
-        for elif_condition, elif_body in statement.elifs:
-            if isinstance(elif_condition, nodes.Decl) and elif_condition.is_constant:
-                cond: nodes.Expression = self.analyze_declaration(elif_condition)
-            else:
-                cond = elif_condition
-                self.infer_type(cond, supertype=nodes.BuiltinType.bool)
-            self.env.inc_nesting()
-            elifs.append((cond, self.analyze_ast(elif_body)))
-            self.env.dec_nesting()
+        return result_condition, result_body
+
+    def analyze_if_statement(self, statement: nodes.If) -> nodes.If:
+        condition, body = self._analyze_conditional(statement.condition, statement.body)
+        elifs = [self._analyze_conditional(elif_condition, elif_body) for elif_condition, elif_body in statement.elifs]
         self.env.inc_nesting()
         else_ = self.analyze_ast(statement.else_)
         self.env.dec_nesting()
@@ -322,14 +320,7 @@ class Analyzer(unittest.TestCase):
         return statement
 
     def analyze_while_statement(self, statement: nodes.While) -> nodes.While:
-        if isinstance(statement.condition, nodes.Decl) and statement.condition.is_constant:
-            condition: nodes.Expression = self.analyze_declaration(statement.condition)
-        else:
-            condition = statement.condition
-            self.infer_type(condition, supertype=nodes.BuiltinType.bool)
-        self.env.inc_nesting()
-        body = self.analyze_ast(statement.body)
-        self.env.dec_nesting()
+        condition, body = self._analyze_conditional(statement.condition, statement.body)
         return nodes.While(statement.line, condition, body)
 
     def analyze_return(self, statement: nodes.Return) -> nodes.Return:

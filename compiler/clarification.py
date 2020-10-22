@@ -1,4 +1,5 @@
 import enum
+import unittest
 from dataclasses import dataclass
 
 from . import nodes
@@ -7,7 +8,7 @@ from .context import Context
 
 
 @dataclass
-class Clarifier:
+class Clarifier(unittest.TestCase):
     context: Context
 
     def __post_init__(self):
@@ -45,14 +46,13 @@ class Clarifier:
                     statement = nodes.StructDeclaration(
                         statement.line, submangle(statement.name, self.context),
                         self.clarify_node(statement.parameters), self.clarify_node(statement.interfaces),
-                        self.clarify_node(statement.private_fields), self.clarify_node(statement.public_fields),
-                        self.clarify_node(statement.init_declarations), self.clarify_node(statement.private_methods),
-                        self.clarify_node(statement.public_methods), self.clarify_node(statement.special_methods)
+                        self.clarify_node(statement.fields), self.clarify_node(statement.init_declarations),
+                        self.clarify_node(statement.methods),
                     )
                 body.append(statement)
             return nodes.AlgebraicDeclaration(
-                node.line, self.clarify_node(node.name), self.clarify_node(node.parameters),
-                body, self.clarify_node(node.public_methods), self.clarify_node(node.private_methods)
+                node.line, self.clarify_node(node.name), self.clarify_node(node.parameters), body,
+                self.clarify_node(node.methods),
             )
         elif isinstance(node, nodes.MethodDeclaration):
             return nodes.MethodDeclaration(
@@ -90,4 +90,5 @@ class Clarifier:
         return dispatch(self.get_module_from_expr_dispatcher, type(expr), expr)
 
     def test(self):
+        # TODO: test Clarifier completeness
         self.assertEqual(EXPRS, set(subclass.__name__ for subclass in self.get_module_from_expr_dispatcher.keys()))

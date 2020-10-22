@@ -1,7 +1,5 @@
 import typing as t
-
 from dataclasses import dataclass, field
-from enum import Enum
 
 from . import nodes
 from .enums import DeclType

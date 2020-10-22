@@ -8,7 +8,7 @@ from itertools import zip_longest
 
 from . import estimation_nodes as enodes, nodes, environment, errors, type_checking, environment_entries as entries
 from .enums import DeclType
-from .utils import submangle, mangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
+from .utils import submangle, dispatch, NODES, EXPRS, ASSIGNMENTS, apply_mapping
 from .constants import (
     builtin_funcs, private_builtin_funcs, string_fields, vector_fields, dict_fields, SELF_NAME, SPEC_LINE
 )
@@ -226,28 +226,22 @@ class Evaluator(unittest.TestCase):
         # list(...) for mypy
         self.env.add_struct(declaration.line, declaration.name, declaration.parameters, declaration.interfaces)
         self.env.inc_nesting(declaration.name)
-        self.estimate_ast(list(declaration.private_fields))
-        self.estimate_ast(list(declaration.public_fields))
+        self.estimate_ast(list(declaration.fields.all))
         self.estimate_ast(list(declaration.init_declarations))
-        self.estimate_ast(list(declaration.private_methods))
-        self.estimate_ast(list(declaration.public_methods))
-        self.estimate_ast(list(declaration.special_methods))
+        self.estimate_ast(list(declaration.methods.all))
         self.env.dec_nesting(declaration.name)
 
     def estimate_extension_declaration(self, declaration: nodes.ExtensionDeclaration) -> None:
         # list(...) for mypy
         self.env.inc_nesting(declaration.name)
-        self.estimate_ast(list(declaration.private_methods))
-        self.estimate_ast(list(declaration.public_methods))
-        self.estimate_ast(list(declaration.special_methods))
+        self.estimate_ast(list(declaration.methods.all))
         self.env.dec_nesting(declaration.name)
 
     def estimate_algebraic_declaration(self, declaration: nodes.AlgebraicDeclaration) -> None:
         self.env.add_algebraic(declaration.line, declaration.name, declaration.parameters)
         self.env.inc_nesting(declaration.name)
         self.estimate_ast(list(declaration.constructors))
-        self.estimate_ast(list(declaration.private_methods))
-        self.estimate_ast(list(declaration.public_methods))
+        self.estimate_ast(list(declaration.methods.all))
         self.env.dec_nesting(declaration.name)
 
     def estimate_interface_declaration(self, declaration: nodes.InterfaceDeclaration) -> None:
@@ -650,7 +644,7 @@ class Evaluator(unittest.TestCase):
                 arg_type = apply_mapping(arg.type, struct_mapping)
                 try:
                     self.infer_type(value, arg_type)
-                except errors.AngelTypeError as e:
+                except errors.AngelTypeError:
                     matched = False
                     break
                 else:
