@@ -79,9 +79,9 @@ def get_possible_float_types_base_on_value(value: str) -> t.List[nodes.Type]:
 
 class TypeChecker(unittest.TestCase):
 
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, env: environment.Environment):
         super().__init__()
-        self.env: environment.Environment = environment.Environment()
+        self.env = env
         self.code: errors.Code = errors.Code("", 0)
         self.estimator: t.Optional[t.Any] = None
         self.context = context

@@ -25,14 +25,14 @@ EstimatedFields = t.Dict[str, t.Union[t.Callable[..., enodes.Expression], enodes
 
 class Evaluator(unittest.TestCase):
     def __init__(
-        self, estimated_objs: EstimatedObjects, context: Context, env: t.Optional[environment.Environment] = None
+        self, estimated_objs: EstimatedObjects, context: Context, env: environment.Environment
     ) -> None:
         super().__init__()
-        self.env = env or environment.Environment()
+        self.env = env
         self.code = errors.Code()
         self.repl_tmp_count = 0
         self.context = context
-        self.type_checker = type_checking.TypeChecker(context)
+        self.type_checker = type_checking.TypeChecker(context, self.env)
         self.type_checker.estimator = self
 
         self.estimated_objs = estimated_objs

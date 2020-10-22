@@ -15,14 +15,14 @@ class Analyzer(CompilerStageTestCase):
 
     def __init__(self, context: Context, env: t.Optional[environment.Environment] = None):
         super().__init__()
-        self.env = env or environment.Environment()
+        self.env = env or environment.Environment(load_builtins=True)
         self.context = context
 
         self.line = 0
         self.function_return_types: t.List[nodes.Type] = []
 
-        self.type_checker = type_checking.TypeChecker(context)
-        self.estimator = estimation.Estimator(context)
+        self.type_checker = type_checking.TypeChecker(context, self.env)
+        self.estimator = estimation.Estimator(context, self.env)
         self.type_checker.estimator = self.estimator
 
         self.assignment_dispatcher = {
@@ -449,7 +449,7 @@ class Analyzer(CompilerStageTestCase):
             )
 
     def match_method_implementation(
-        self, interface: nodes.Name, subject: nodes.Name, interface_method: entries.FunctionEntry,
+        self, interface: t.Union[nodes.Name, nodes.BuiltinType], subject: nodes.Name, interface_method: entries.FunctionEntry,
         subject_method: entries.FunctionEntry, inherited_from: t.Optional[nodes.Type] = None
     ) -> None:
         try:

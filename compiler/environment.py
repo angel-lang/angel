@@ -3,6 +3,7 @@ import typing as t
 from . import nodes, environment_entries as entries, estimation_nodes as enodes, errors
 from .enums import DeclType
 from .constants import builtin_interfaces, SELF_NAME
+from .utils import dispatch
 
 
 def copy_environment(to_copy):
@@ -20,16 +21,24 @@ def copy_environment(to_copy):
 
 class Environment:
 
-    def __init__(self, space: t.Optional[t.List[t.Dict[str, entries.Entry]]] = None):
+    def __init__(self, space: t.Optional[t.List[t.Dict[str, entries.Entry]]] = None, load_builtins: bool = False):
+        self._load_node_dispatcher: t.Dict[type, t.Callable[[nodes.Node], None]] = {
+            nodes.InterfaceDeclaration: self._load_interface,
+            nodes.FunctionDeclaration: self._load_function,
+        }
+
+        self.space = space or [{}]
         if space:
             self.nesting_level = len(space) - 1
         else:
             self.nesting_level = 0
 
-        self.space = space or [{}]
         self.parents: t.List[nodes.Name] = []
         self.where_clauses: t.List[nodes.Expression] = []
         self.code = errors.Code()
+
+        if load_builtins:
+            self.load_builtins()
 
     def __getitem__(self, key) -> t.Optional[entries.Entry]:
         """Get entry. Return None if not found."""
@@ -79,7 +88,7 @@ class Environment:
             "estimated_value": estimated_value
         }
         parameters.update(kwarguments)
-        self.space[self.nesting_level][parameters["name"].member] = entries.DeclEntry(**parameters) # type: ignore
+        self.space[self.nesting_level][parameters["name"].member] = entries.DeclEntry(**parameters)      # type: ignore
 
     def add_arguments(self, line: int, arguments: t.List[nodes.Argument]) -> None:
         for arg in arguments:
@@ -89,15 +98,17 @@ class Environment:
             )
 
     def add_function(
-        self, line: int, name: nodes.Name, parameters: nodes.Parameters, arguments: t.List[nodes.Argument],
+        self, line: int, name: t.Union[nodes.Name, nodes.BuiltinFunc], parameters: nodes.Parameters, arguments: t.List[nodes.Argument],
         return_type: nodes.Type, where_clause: t.Optional[nodes.Expression]
     ) -> None:
         space_copy = copy_environment(self).space
         clauses = list(self.where_clauses)
         if where_clause:
             clauses.append(where_clause)
-        self.space[self.nesting_level][name.member] = entries.FunctionEntry(
-            line, name, parameters, arguments, return_type, body=[], where_clauses=clauses, saved_environment=space_copy
+        name_string = name.member if isinstance(name, nodes.Name) else name.value
+        # TODO: BuiltinFunc name should be BuiltinFunc in object
+        self.space[self.nesting_level][name_string] = entries.FunctionEntry(
+            line, nodes.Name(name_string), parameters, arguments, return_type, body=[], where_clauses=clauses, saved_environment=space_copy
         )
 
     # TODO: add parameters to method declarations
@@ -175,15 +186,18 @@ class Environment:
         )
 
     def add_interface(
-        self, line: int, name: nodes.Name, parameters: nodes.Parameters, implemented_interfaces: nodes.Interfaces
+        self, line: int, name: t.Union[nodes.BuiltinType, nodes.Name], parameters: nodes.Parameters,
+        implemented_interfaces: nodes.Interfaces
     ) -> None:
         inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, entries.Entry]] = {}
         inherited_methods: t.Dict[str, t.Tuple[nodes.Interface, entries.FunctionEntry]] = {}
         for interface in implemented_interfaces:
             if isinstance(interface, nodes.Name):
                 interface_entry = self.get(interface)
+            elif isinstance(interface, nodes.BuiltinType):
+                interface_entry = self.get(nodes.Name(interface.value))
             else:
-                # TODO: support inheritence from builtin interfaces
+                # TODO: support inheritance from builtin interfaces
                 assert isinstance(interface.name, nodes.Name)
                 interface_entry = self.get(interface.name)
             assert isinstance(interface_entry, entries.InterfaceEntry)
@@ -196,7 +210,8 @@ class Environment:
                 inherited_methods[method_name] = (interface, method_entry)
             inherited_methods.update(interface_entry.inherited_methods)
 
-        self.space[self.nesting_level][name.member] = entries.InterfaceEntry(
+        name_string = name.member if isinstance(name, nodes.Name) else name.value
+        self.space[self.nesting_level][name_string] = entries.InterfaceEntry(
             line, name, parameters, implemented_interfaces=implemented_interfaces, fields={}, methods={},
             inherited_fields=inherited_fields, inherited_methods=inherited_methods
         )
@@ -293,3 +308,26 @@ class Environment:
             fields.update(sub_fields)
             methods.update(sub_methods)
         return interfaces, fields, methods
+
+    def _load_interface(self, node: nodes.Node):
+        assert isinstance(node, nodes.InterfaceDeclaration)
+        self.add_interface(
+            line=node.line, name=node.name, parameters=node.parameters,
+            implemented_interfaces=node.implemented_interfaces
+        )
+
+    def _load_function(self, node: nodes.Node):
+        assert isinstance(node, nodes.FunctionDeclaration)
+        self.add_function(
+            line=node.line, name=node.name, parameters=node.parameters, arguments=node.arguments,
+            return_type=node.return_type, where_clause=node.where_clause
+        )
+
+    def load_builtins(self):
+        from . import parsers, clarification, context
+        with open("stdlib/builtins/main.angel", "r") as file:
+            contents = file.read()
+        parser = parsers.Parser()
+        clarifier = clarification.Clarifier(context.Context(contents.splitlines(), main_hash="", mangle_names=False))
+        for node in clarifier.clarify_ast(parser.parse(contents)):
+            dispatch(self._load_node_dispatcher, type(node), node)

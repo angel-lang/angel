@@ -40,23 +40,23 @@ class AngelDivByZero(AngelError):
 @dataclass
 class _AngelInterfaceError(AngelError):
     subject: nodes.Name
-    interface: nodes.Name
+    interface: t.Union[nodes.Name, nodes.BuiltinType]
     code: Code
 
 
 @dataclass
 class AngelMissingInterfaceMember(_AngelInterfaceError):
-    missing_member: nodes.Name
+    missing_member: t.Union[nodes.Name, nodes.BuiltinType]
     inherited_from: t.Optional[nodes.Type] = None
 
     def __str__(self) -> str:
         subject = self.subject.to_code()
         if self.inherited_from:
-            inheritence = f" (which inherits from '{self.inherited_from.to_code()}')"
+            inheritance = f" (which inherits from '{self.inherited_from.to_code()}')"
         else:
-            inheritence = ""
+            inheritance = ""
         return "\n".join((
-            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritence}",
+            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritance}",
             f"                                however, member '{self.missing_member.to_code()}' is missing",
             "",
             str(self.code),
@@ -75,11 +75,11 @@ class AngelInterfaceFieldError(_AngelInterfaceError):
         l2 = f"however, '{self.field.to_code()}' has type '{self.subject_field_type.to_code()}'"
         l3 = f"and expected type is '{self.interface_field_type.to_code()}'"
         if self.inherited_from:
-            inheritence = f" (which inherits from '{self.inherited_from.to_code()}')"
+            inheritance = f" (which inherits from '{self.inherited_from.to_code()}')"
         else:
-            inheritence = ""
+            inheritance = ""
         return "\n".join((
-            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritence}",
+            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritance}",
             "                                " + l2,
             "                                " + l3,
             "",
@@ -105,14 +105,14 @@ class AngelInterfaceMethodError(_AngelInterfaceError):
         interface_type = self.interface_method_return_type.to_code()
 
         if self.inherited_from:
-            inheritence = f" (which inherits from '{self.inherited_from.to_code()}')"
+            inheritance = f" (which inherits from '{self.inherited_from.to_code()}')"
         else:
-            inheritence = ""
+            inheritance = ""
 
         l2 = f"however, it implemented {method}({subject_arguments}) -> {subject_type}"
         l3 = f"and expected implementation is {method}({interface_arguments}) -> {interface_type}"
         return "\n".join((
-            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritence}",
+            f"Interface Implementation Error: '{subject}' implements '{self.interface.to_code()}'{inheritance}",
             "                                " + l2,
             "                                " + l3,
             "",
@@ -175,7 +175,7 @@ class AngelSubscriptError(AngelError):
     def __str__(self) -> str:
         return "\n".join((
             (f"Subscript Error: '{self.instance.to_code()}' of type '{self.instance_type.to_code()}' "
-             f"cannot be subscripted by '{self.index.to_code()}'"),
+             f"cannot be subscribed by '{self.index.to_code()}'"),
             "",
             str(self.code),
         ))

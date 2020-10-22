@@ -62,7 +62,7 @@ class AlgebraicEntry(Entry):
 
 @dataclass
 class InterfaceEntry(Entry):
-    name: nodes.Name
+    name: t.Union[nodes.BuiltinType, nodes.Name]
     parameters: nodes.Parameters
     implemented_interfaces: nodes.Interfaces
     fields: t.Dict[str, Entry]

@@ -8,10 +8,11 @@ from compiler.context import Context
 class TestEval(unittest.TestCase):
     def get_env(self, lines: t.List[str]) -> environment.Environment:
         context = Context(lines, main_hash='', mangle_names=False)
+        env = environment.Environment()
         parser = parsers.Parser()
         clarifier = clarification.Clarifier(context)
         analyzer = analysis.Analyzer(context)
-        repl_evaluator = repl_evaluation.REPLEvaluator(context)
+        repl_evaluator = repl_evaluation.REPLEvaluator(context, env)
         clarified_ast = clarifier.clarify_ast(parser.parse('\n'.join(lines)))
         for module_name, module_content in context.imported_lines.items():
             module_hash = context.module_hashs[module_name]
@@ -32,6 +33,7 @@ class TestEval(unittest.TestCase):
         def input_test(_):
             return inp
 
+        env = env or environment.Environment()
         context = Context(lines, main_hash='', mangle_names=False)
         parser = parsers.Parser()
         clarifier = clarification.Clarifier(context)

@@ -371,7 +371,7 @@ class Parser:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
         return nodes.InitDeclaration(line, arguments, body)
 
-    def parse_function_declaration(self, body_required: bool = True) -> t.Optional[nodes.FunctionDeclaration]:
+    def parse_function_declaration(self) -> t.Optional[nodes.FunctionDeclaration]:
         line = self.position.line
         if not self.parse_raw("fun"):
             return None
@@ -399,8 +399,6 @@ class Parser:
             return_type = nodes.BuiltinType.void
         where_clause = self.parse_where_clause()
         if not self.parse_raw(":"):
-            if body_required:
-                raise errors.AngelSyntaxError("expected ':'", self.get_code())
             return nodes.FunctionDeclaration(line, name, parameters, arguments, return_type, where_clause, [])
         self.additional_statement_parsers.append(self.parse_return_statement)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
@@ -553,7 +551,7 @@ class Parser:
         if not self.parse_raw(":"):
             return self.make_interface_declaration(line, name, parameters, implemented_interfaces, [])
         self.additional_statement_parsers.append(self.parse_field_declaration)
-        self.additional_statement_parsers.append(partial(self.parse_function_declaration, False))
+        self.additional_statement_parsers.append(self.parse_function_declaration)
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         self.additional_statement_parsers.pop()
         self.additional_statement_parsers.pop()
