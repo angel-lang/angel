@@ -8,7 +8,7 @@ from . import nodes, errors
 from .enums import DeclType
 
 
-IDENTIFIER_REGEX = re.compile("[_]?[_]?[a-zA-Z][a-zA-Z0-9]*(__)?")
+IDENTIFIER_REGEX = re.compile("[_]?[_]?[a-zA-Z][a-zA-Z0-9]*(?:__)?")
 INTEGER_REGEX = re.compile("[0-9]+")
 
 
@@ -47,7 +47,7 @@ def build_binary_expression(
             # (a * b) + (c * d)
             # (a + b) + (c * d)
             return nodes.BinaryExpression(left, operator, right)
-        elif left_priority >= op_priority and right_priority <= op_priority:
+        elif left_priority >= op_priority >= right_priority:
             # ((a + b) + c) + d
             # ((a * b) + c) + d
             # ((a ** b) * c) + d
@@ -62,7 +62,7 @@ def build_binary_expression(
                     right.operator, right.right
                 )
             )
-        elif left_priority < op_priority and right_priority > op_priority:
+        elif left_priority < op_priority < right_priority:
             # a + (b * (c ** d))
             return nodes.BinaryExpression(
                 left.left, left.operator, nodes.BinaryExpression(left.right, operator, right)
@@ -276,6 +276,10 @@ class Parser:
         container = self.parse_expression()
         if not container:
             raise errors.AngelSyntaxError("expected expression", self.get_code())
+        body = self._parse_loop_body()
+        return nodes.For(line, element, container, body)
+
+    def _parse_loop_body(self) -> nodes.AST:
         if not self.parse_raw(":"):
             raise errors.AngelSyntaxError("expected ':'", self.get_code())
         self.additional_statement_parsers.append(self.parse_break)
@@ -283,7 +287,7 @@ class Parser:
         self.additional_statement_parsers.pop()
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
-        return nodes.For(line, element, container, body)
+        return body
 
     def parse_while_statement(self) -> t.Optional[nodes.While]:
         line = self.position.line
@@ -291,19 +295,10 @@ class Parser:
             return None
         self.spaces()
         condition = self.parse_if_condition()
-        if not self.parse_raw(":"):
-            raise errors.AngelSyntaxError("expected ':'", self.get_code())
-        self.additional_statement_parsers.append(self.parse_break)
-        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
-        self.additional_statement_parsers.pop()
-        if not body:
-            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        body = self._parse_loop_body()
         return nodes.While(line, condition, body)
 
-    def parse_if_statement(self) -> t.Optional[nodes.If]:
-        line = self.position.line
-        if not self.parse_raw("if"):
-            return None
+    def _parse_conditional_common(self) -> t.Tuple[nodes.Expression, nodes.AST]:
         self.spaces()
         condition = self.parse_if_condition()
         if not self.parse_raw(":"):
@@ -311,18 +306,18 @@ class Parser:
         body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
         if not body:
             raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return condition, body
+
+    def parse_if_statement(self) -> t.Optional[nodes.If]:
+        line = self.position.line
+        if not self.parse_raw("if"):
+            return None
+        condition, body = self._parse_conditional_common()
         elifs = []
         state = self.backup_state()
         self.spaces()
         while self.parse_raw("elif"):
-            self.spaces()
-            elif_condition = self.parse_if_condition()
-            if not self.parse_raw(":"):
-                raise errors.AngelSyntaxError("expected ':'", self.get_code())
-            elif_body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
-            if not elif_body:
-                raise errors.AngelSyntaxError("expected statement", self.get_code())
-            elifs.append((elif_condition, elif_body))
+            elifs.append(self._parse_conditional_common())
             state = self.backup_state()
             self.spaces()
         else_: nodes.AST = []
@@ -454,18 +449,7 @@ class Parser:
             raise errors.AngelSyntaxError("expected expression", self.get_code())
         return nodes.FieldDeclaration(line, name, type_, value)
 
-    def parse_struct_declaration(self) -> t.Optional[nodes.StructDeclaration]:
-        line = self.position.line
-        if not self.parse_raw("struct"):
-            return None
-        self.spaces()
-        name = self.parse_name()
-        if name is None:
-            raise errors.AngelSyntaxError("expected name", self.get_code())
-        parameters = self.parse_container(
-            open_container="<", close_container=">", element_separator=",", element_parser=self.parse_name)
-        if parameters is None:
-            parameters = []
+    def _parse_implemented_interfaces(self) -> t.List[nodes.Interface]:
         backup_state = self.backup_state()
         self.spaces()
         if self.parse_raw("is"):
@@ -477,6 +461,25 @@ class Parser:
         else:
             self.restore_state(backup_state)
             interfaces = []
+        return interfaces
+
+    def _parse_struct_common(self) -> t.Tuple[nodes.Name, t.List[nodes.Name], t.List[nodes.Interface]]:
+        self.spaces()
+        name = self.parse_name()
+        if name is None:
+            raise errors.AngelSyntaxError("expected name", self.get_code())
+        parameters = self.parse_container(
+            open_container="<", close_container=">", element_separator=",", element_parser=self.parse_name)
+        if parameters is None:
+            parameters = []
+        interfaces = self._parse_implemented_interfaces()
+        return name, parameters, interfaces
+
+    def parse_struct_declaration(self) -> t.Optional[nodes.StructDeclaration]:
+        line = self.position.line
+        if not self.parse_raw("struct"):
+            return None
+        name, parameters, interfaces = self._parse_struct_common()
         if not self.parse_raw(":"):
             return self.make_struct_declaration(line, name, parameters, interfaces, [])
         self.additional_statement_parsers.append(self.parse_init_declaration)
@@ -494,25 +497,7 @@ class Parser:
         line = self.position.line
         if not self.parse_raw("extension"):
             return None
-        self.spaces()
-        name = self.parse_name()
-        if name is None:
-            raise errors.AngelSyntaxError("expected name", self.get_code())
-        parameters = self.parse_container(
-            open_container="<", close_container=">", element_separator=",", element_parser=self.parse_name)
-        if parameters is None:
-            parameters = []
-        backup_state = self.backup_state()
-        self.spaces()
-        if self.parse_raw("is"):
-            self.spaces()
-            interfaces = self.parse_elements(
-                element_separator=",", element_parser=self.parse_parent_interface, chars_ending_sequence=":",
-                raise_error=False
-            )
-        else:
-            self.restore_state(backup_state)
-            interfaces = []
+        name, parameters, interfaces = self._parse_struct_common()
         where_clause = self.parse_where_clause()
         if not self.parse_raw(":"):
             return self.make_extension_declaration(line, name, parameters, interfaces, where_clause, [])
@@ -564,17 +549,7 @@ class Parser:
         if name is None:
             raise errors.AngelSyntaxError("expected name", self.get_code())
         parameters: nodes.Parameters = []
-        backup_state = self.backup_state()
-        self.spaces()
-        if self.parse_raw("is"):
-            self.spaces()
-            implemented_interfaces = self.parse_elements(
-                element_separator=",", element_parser=self.parse_parent_interface, chars_ending_sequence=":",
-                raise_error=False
-            )
-        else:
-            self.restore_state(backup_state)
-            implemented_interfaces = []
+        implemented_interfaces = self._parse_implemented_interfaces()
         if not self.parse_raw(":"):
             return self.make_interface_declaration(line, name, parameters, implemented_interfaces, [])
         self.additional_statement_parsers.append(self.parse_field_declaration)
@@ -592,11 +567,27 @@ class Parser:
         parse_while_statement, parse_for_statement, parse_if_statement, parse_assignment, parse_function_call
     ]
 
+    def _decide_method_scope(
+        self, node: nodes.FunctionDeclaration, special_methods: t.List[nodes.MethodDeclaration],
+        private_methods: t.List[nodes.MethodDeclaration], public_methods: t.List[nodes.MethodDeclaration]
+    ):
+        method_declaration = nodes.MethodDeclaration(
+            node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
+        )
+        if node.name.member.startswith("__") or node.name.member == "as":
+            special_methods.append(method_declaration)
+        elif node.name.member.startswith("_"):
+            private_methods.append(method_declaration)
+        else:
+            public_methods.append(method_declaration)
+
     def make_struct_declaration(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces, body: nodes.AST
     ) -> nodes.StructDeclaration:
-        private_fields, public_fields, init_declarations, private_methods, public_methods = [], [], [], [], []
-        special_methods = []
+        private_fields, public_fields, init_declarations = [], [], []
+        private_methods: t.List[nodes.MethodDeclaration] = []
+        public_methods: t.List[nodes.MethodDeclaration] = []
+        special_methods: t.List[nodes.MethodDeclaration] = []
         for node in body:
             if isinstance(node, nodes.FieldDeclaration):
                 if node.name.member.startswith("_"):
@@ -604,15 +595,7 @@ class Parser:
                 else:
                     public_fields.append(node)
             elif isinstance(node, nodes.FunctionDeclaration):
-                method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
-                )
-                if node.name.member.startswith("__") or node.name.member == "as":
-                    special_methods.append(method_declaration)
-                elif node.name.member.startswith("_"):
-                    private_methods.append(method_declaration)
-                else:
-                    public_methods.append(method_declaration)
+                self._decide_method_scope(node, special_methods, private_methods, public_methods)
             elif isinstance(node, nodes.InitDeclaration):
                 init_declarations.append(node)
             else:
@@ -626,18 +609,12 @@ class Parser:
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, interfaces: nodes.Interfaces,
         where_clause: t.Optional[nodes.Expression], body: nodes.AST
     ) -> nodes.ExtensionDeclaration:
-        private_methods, public_methods, special_methods = [], [], []
+        private_methods: t.List[nodes.MethodDeclaration] = []
+        public_methods: t.List[nodes.MethodDeclaration] = []
+        special_methods: t.List[nodes.MethodDeclaration] = []
         for node in body:
             if isinstance(node, nodes.FunctionDeclaration):
-                method_declaration = nodes.MethodDeclaration(
-                    node.line, node.name, node.parameters, node.arguments, node.return_type, node.body
-                )
-                if node.name.member.startswith("__") or node.name.member == "as":
-                    special_methods.append(method_declaration)
-                elif node.name.member.startswith("_"):
-                    private_methods.append(method_declaration)
-                else:
-                    public_methods.append(method_declaration)
+                self._decide_method_scope(node, special_methods, private_methods, public_methods)
             else:
                 raise errors.AngelSyntaxError("expected method declaration", self.get_code(node.line))
         return nodes.ExtensionDeclaration(
@@ -750,6 +727,7 @@ class Parser:
             elif isinstance(trailer, SubscriptTrailer):
                 atom = nodes.Subscript(trailer.line, atom, trailer.index)
             elif isinstance(trailer, NamedArgumentTrailer):
+                assert isinstance(atom, nodes.AssignmentLeft)
                 atom = nodes.NamedArgument(atom, trailer.value)
             else:
                 self.restore_state(state)
@@ -930,6 +908,7 @@ class Parser:
             elif isinstance(trailer, CastTrailer):
                 atom = nodes.Cast(atom, trailer.to_type)
             elif isinstance(trailer, NamedArgumentTrailer):
+                assert isinstance(atom, nodes.AssignmentLeft)
                 atom = nodes.NamedArgument(atom, trailer.value)
             else:
                 raise errors.AngelNotImplemented

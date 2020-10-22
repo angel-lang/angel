@@ -8,12 +8,7 @@ from . import (
 from .enums import DeclType
 from .context import Context
 from .constants import builtin_interfaces
-from .utils import submangle, mangle, dispatch, NODES, ASSIGNMENTS
-
-
-def is_8bit_int(typ: nodes.Type) -> bool:
-    return isinstance(
-        typ, nodes.BuiltinType) and typ.value in (nodes.BuiltinType.i8.value, nodes.BuiltinType.u8.value)
+from .utils import submangle, dispatch, NODES, ASSIGNMENTS
 
 
 class Analyzer(unittest.TestCase):
@@ -353,11 +348,11 @@ class Analyzer(unittest.TestCase):
         self.infer_type(function_call)
         value = function_call.arguments[0]
         value_type = self.infer_type(value)
-        if is_8bit_int(value_type):
+        if value_type == nodes.BuiltinType.i8:
             value = nodes.Cast(value, nodes.BuiltinType.i16)
         elif isinstance(value_type, nodes.VectorType):
             element_type = value_type.subtype
-            if is_8bit_int(element_type):
+            if element_type == nodes.BuiltinType.i8:
                 element_type = nodes.BuiltinType.i16
             value = nodes.FunctionCall(0, nodes.PrivateBuiltinFunc.vector_to_string, [value], [element_type])
         return nodes.FunctionCall(function_call.line, function_call.function_path, [value])

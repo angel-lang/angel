@@ -5,13 +5,20 @@ import typing as t
 import subprocess
 
 from . import (
-    parsers, translators, generators, environment, errors, clarification, repl_evaluation, analysis
+    parsers,
+    translators,
+    generators,
+    environment,
+    errors,
+    clarification,
+    repl_evaluation,
+    analysis,
 )
 from .utils import get_hash
 from .context import Context
 
 
-DEBUG = True
+DEBUG = False
 
 
 def compile_file(file_path: str) -> str:
@@ -36,7 +43,9 @@ def compile_string(string: str, mangle_names: bool = True) -> str:
         for module_name, module_content in context.imported_lines.items():
             module_hash = context.module_hashs[module_name]
             context.main_hash = module_hash
-            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+            clarified_ast = (
+                clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+            )
         cpp_ast = translator.translate(analyzer.analyze_ast(clarified_ast))
     except errors.AngelError as e:
         if DEBUG:
@@ -52,7 +61,7 @@ def compile_string(string: str, mangle_names: bool = True) -> str:
 def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     """Evaluate Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
-    context = Context(lines, main_hash='', mangle_names=False)
+    context = Context(lines, main_hash="", mangle_names=False)
 
     parser = parsers.Parser()
     clarifier = clarification.Clarifier(context)
@@ -63,7 +72,9 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
         for module_name, module_content in context.imported_lines.items():
             module_hash = context.module_hashs[module_name]
             context.main_hash = module_hash
-            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+            clarified_ast = (
+                clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
+            )
         return repl_evaluator.estimate_ast(analyzer.analyze_ast(clarified_ast))
     except errors.AngelError as e:
         if DEBUG:
@@ -96,9 +107,10 @@ class REPL(cmd.Cmd):
     def do_eval(self):
         try:
             proc = subprocess.run(
-                ['clang-format', '--assume-filename=a.cpp'],
-                input=compile_string("\n".join(self.input_), mangle_names=False), encoding="utf-8",
-                stdout=subprocess.PIPE
+                ["clang-format", "--assume-filename=a.cpp"],
+                input=compile_string("\n".join(self.input_), mangle_names=False),
+                encoding="utf-8",
+                stdout=subprocess.PIPE,
             )
             print(proc.stdout)
         except Exception:

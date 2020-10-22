@@ -177,7 +177,8 @@ class Environment:
     def add_interface(
         self, line: int, name: nodes.Name, parameters: nodes.Parameters, implemented_interfaces: nodes.Interfaces
     ) -> None:
-        inherited_fields, inherited_methods = {}, {}
+        inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, entries.Entry]] = {}
+        inherited_methods: t.Dict[str, t.Tuple[nodes.Interface, entries.FunctionEntry]] = {}
         for interface in implemented_interfaces:
             if isinstance(interface, nodes.Name):
                 interface_entry = self.get(interface)

@@ -521,7 +521,7 @@ class Cast(Expression):
 
 @dataclass
 class NamedArgument(Expression):
-    name: Expression
+    name: AssignmentLeft
     value: Expression
 
     def to_code(self, indentation_level: int = 0) -> str:
