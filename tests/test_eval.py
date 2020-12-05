@@ -1,24 +1,28 @@
 import typing as t
 import unittest
+from itertools import chain
 
 from compiler import parsers, analysis, environment, clarification, repl_evaluation
 from compiler.context import Context
 
 
 class TestEval(unittest.TestCase):
-    def get_env(self, lines: t.List[str]) -> environment.Environment:
-        context = Context(lines, main_hash='', mangle_names=False)
-        env = environment.Environment()
+    def run_frontend(self, lines, context, env=None):
         parser = parsers.Parser()
         clarifier = clarification.Clarifier(context)
-        analyzer = analysis.Analyzer(context)
-        repl_evaluator = repl_evaluation.REPLEvaluator(context, env)
+        analyzer = analysis.Analyzer(context, env=env)
         clarified_ast = clarifier.clarify_ast(parser.parse('\n'.join(lines)))
         for module_name, module_content in context.imported_lines.items():
             module_hash = context.module_hashs[module_name]
             context.main_hash = module_hash
-            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
-        repl_evaluator.estimate_ast(analyzer.analyze_ast(clarified_ast))
+            clarified_ast = chain(clarifier.clarify_ast(parser.parse(module_content)), clarified_ast)
+        return analyzer.analyze_ast(clarified_ast)
+
+    def get_env(self, lines: t.List[str]) -> environment.Environment:
+        context = Context(lines, main_hash='', mangle_names=False)
+        env = environment.Environment()
+        repl_evaluator = repl_evaluation.REPLEvaluator(context, env)
+        repl_evaluator.estimate_ast(self.run_frontend(lines, context))
         return repl_evaluator.env
 
     def eval(
@@ -35,18 +39,10 @@ class TestEval(unittest.TestCase):
 
         env = env or environment.Environment(load_builtins=True)
         context = Context(lines, main_hash='', mangle_names=False)
-        parser = parsers.Parser()
-        clarifier = clarification.Clarifier(context)
-        analyzer = analysis.Analyzer(context, env=env)
         repl_evaluator = repl_evaluation.REPLEvaluator(context, env=env)
         repl_evaluation.print = print_test
         repl_evaluation.input = input_test
-        clarified_ast = clarifier.clarify_ast(parser.parse('\n'.join(lines)))
-        for module_name, module_content in context.imported_lines.items():
-            module_hash = context.module_hashs[module_name]
-            context.main_hash = module_hash
-            clarified_ast = clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
-        result = repl_evaluator.estimate_ast(analyzer.analyze_ast(clarified_ast))
+        result = repl_evaluator.estimate_ast(self.run_frontend(lines, context, env=env))
         return result, output
 
     def test_integer_literal(self):

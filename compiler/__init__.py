@@ -3,8 +3,10 @@ import sys
 import traceback
 import typing as t
 import subprocess
+import itertools
 
 from . import (
+    nodes,
     parsers,
     translators,
     generators,
@@ -28,32 +30,40 @@ def compile_file(file_path: str) -> str:
     return compile_string(contents)
 
 
+def _handle_angel_error(exception: errors.AngelError) -> t.NoReturn:
+    if DEBUG:
+        raise exception
+    else:
+        print(str(exception))
+        print()
+        sys.exit(1)
+
+
+def _run_frontend(string: str, compilation_context: Context, env: t.Optional[environment.Environment] = None) -> nodes.AST:
+    parser = parsers.Parser()
+    clarifier = clarification.Clarifier(compilation_context)
+    analyzer = analysis.Analyzer(compilation_context, env=env)
+    clarified_ast: t.Iterable[nodes.Node] = clarifier.clarify_ast(parser.parse(string))
+    for module_name, module_content in compilation_context.imported_lines.items():
+        module_hash = compilation_context.module_hashs[module_name]
+        compilation_context.main_hash = module_hash
+        clarified_ast = itertools.chain(
+            clarifier.clarify_ast(parser.parse(module_content)), clarified_ast
+        )
+    return analyzer.analyze_ast(clarified_ast)
+
+
 def compile_string(string: str, mangle_names: bool = True) -> str:
     """Translate Angel code represented by `string` into C++ code and returns it."""
     lines = string.split("\n")
     hash_ = get_hash(string)
 
     compilation_context = Context(lines, hash_, mangle_names)
-    parser = parsers.Parser()
-    clarifier = clarification.Clarifier(compilation_context)
-    analyzer = analysis.Analyzer(compilation_context)
     translator = translators.Translator(compilation_context)
     try:
-        clarified_ast = clarifier.clarify_ast(parser.parse(string))
-        for module_name, module_content in compilation_context.imported_lines.items():
-            module_hash = compilation_context.module_hashs[module_name]
-            compilation_context.main_hash = module_hash
-            clarified_ast = (
-                clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
-            )
-        cpp_ast = translator.translate(analyzer.analyze_ast(clarified_ast))
+        cpp_ast = translator.translate(_run_frontend(string, compilation_context))
     except errors.AngelError as e:
-        if DEBUG:
-            raise e
-        else:
-            print(str(e))
-            print()
-            sys.exit(1)
+        _handle_angel_error(e)
     else:
         return generators.generate_cpp(cpp_ast)
 
@@ -62,27 +72,11 @@ def angel_repl_eval(string: str, env: environment.Environment) -> t.Any:
     """Evaluate Angel code represented by `string` and returns the result."""
     lines = string.split("\n")
     compilation_context = Context(lines, main_hash="", mangle_names=False)
-
-    parser = parsers.Parser()
-    clarifier = clarification.Clarifier(compilation_context)
-    analyzer = analysis.Analyzer(compilation_context, env=env)
     repl_evaluator = repl_evaluation.REPLEvaluator(compilation_context, env=env)
     try:
-        clarified_ast = clarifier.clarify_ast(parser.parse(string))
-        for module_name, module_content in compilation_context.imported_lines.items():
-            module_hash = compilation_context.module_hashs[module_name]
-            compilation_context.main_hash = module_hash
-            clarified_ast = (
-                clarifier.clarify_ast(parser.parse(module_content)) + clarified_ast
-            )
-        return repl_evaluator.estimate_ast(analyzer.analyze_ast(clarified_ast))
+        return repl_evaluator.estimate_ast(_run_frontend(string, compilation_context, env=env))
     except errors.AngelError as e:
-        if DEBUG:
-            raise e
-        else:
-            print(str(e))
-            print()
-            sys.exit(1)
+        _handle_angel_error(e)
 
 
 class REPL(cmd.Cmd):

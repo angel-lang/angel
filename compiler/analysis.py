@@ -74,7 +74,7 @@ class Analyzer(CompilerStageTestCase):
             nodes.Operator.gt.value: lambda _: None,
         }
 
-    def analyze_ast(self, ast: nodes.AST) -> nodes.AST:
+    def analyze_ast(self, ast: t.Iterable[nodes.Node]) -> nodes.AST:
         return [self.analyze_node(node) for node in ast]
 
     def analyze_node(self, node: nodes.Node) -> nodes.Node:

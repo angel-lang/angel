@@ -1,4 +1,5 @@
 import enum
+from typing import Iterable
 from dataclasses import dataclass
 
 from . import nodes
@@ -10,8 +11,8 @@ from .context import Context
 class Clarifier:
     context: Context
 
-    def clarify_ast(self, ast: nodes.AST) -> nodes.AST:
-        return [self.clarify_node(node) for node in ast]
+    def clarify_ast(self, ast: nodes.AST) -> Iterable[nodes.Node]:
+        yield from (self.clarify_node(node) for node in ast)
 
     def clarify_node(self, node):
         if node is None:
