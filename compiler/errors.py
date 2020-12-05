@@ -254,7 +254,7 @@ class AngelSyntaxError(AngelError):
 
 @dataclass
 class AngelNameError(AngelError):
-    name: nodes.Name
+    name: t.Union[nodes.Name, nodes.BuiltinType]
     code: Code
 
     def __str__(self) -> str:

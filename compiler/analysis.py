@@ -6,7 +6,6 @@ from . import (
 )
 from .enums import DeclType
 from .context import Context
-from .constants import builtin_interfaces
 from .utils import submangle, dispatch, NODES, ASSIGNMENTS
 from .testutils import CompilerStageTestCase
 
@@ -545,7 +544,8 @@ class Analyzer(CompilerStageTestCase):
         return errors.Code(self.context.lines[line - 1], line)
 
     def get_builtin_interface_entry(self, interface: nodes.BuiltinType) -> entries.InterfaceEntry:
-        entry = builtin_interfaces[interface.value]
+        entry = self.env.get(interface)
+        assert isinstance(entry, entries.InterfaceEntry)
         inherited_fields: t.Dict[str, t.Tuple[nodes.Interface, entries.Entry]] = {}
         inherited_methods: t.Dict[str, t.Tuple[nodes.Interface, entries.FunctionEntry]] = {}
         for parent_interface in entry.implemented_interfaces:

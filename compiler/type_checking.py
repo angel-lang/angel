@@ -8,7 +8,7 @@ from itertools import zip_longest
 from . import nodes, errors, environment, environment_entries as entries, estimation_nodes as enodes
 from .enums import DeclType
 from .context import Context
-from .constants import builtin_interfaces, SPEC_LINE
+from .constants import SPEC_LINE
 from .utils import submangle, dispatch, TYPES, EXPRESSIONS, apply_mapping, apply_mapping_expression, is_user_defined_type
 
 
@@ -1241,7 +1241,9 @@ class TypeChecker(unittest.TestCase):
 
     def is_operator(self, implemented_interfaces: nodes.Interfaces, interface: nodes.BuiltinType) -> bool:
         def get_interface(interface: nodes.BuiltinType) -> entries.InterfaceEntry:
-            return builtin_interfaces[interface.value]
+            interface_entry = self.env.get(interface)
+            assert isinstance(interface_entry, entries.InterfaceEntry)
+            return interface_entry
 
         for implemented_interface in implemented_interfaces:
             assert isinstance(implemented_interface, nodes.BuiltinType)

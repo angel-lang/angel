@@ -2,7 +2,7 @@ import typing as t
 
 from . import nodes, environment_entries as entries, estimation_nodes as enodes, errors
 from .enums import DeclType
-from .constants import builtin_interfaces, SELF_NAME
+from .constants import SELF_NAME
 from .utils import dispatch
 
 
@@ -50,10 +50,15 @@ class Environment:
             nesting_level -= 1
         return None
 
-    def get(self, key: nodes.Name) -> entries.Entry:
+    def get(self, key: t.Union[nodes.Name, nodes.BuiltinType]) -> entries.Entry:
         """Get entry of name. Raise NameError if name is not found."""
-        assert not key.module
-        entry = self[key.member]
+        if isinstance(key, nodes.BuiltinType):
+            id_ = key.value
+        else:
+            assert not key.module
+            id_ = key.member
+
+        entry = self[id_]
         if entry is None:
             raise errors.AngelNameError(key, self.code)
         return entry
@@ -61,10 +66,8 @@ class Environment:
     def get_type(self, key: t.Union[nodes.BuiltinType, nodes.GenericType, nodes.Name]) -> entries.Entry:
         if isinstance(key, nodes.GenericType):
             return self.get_type(key.name)
-        elif isinstance(key, nodes.Name):
+        elif isinstance(key, (nodes.Name, nodes.BuiltinType)):
             return self.get(key)
-        elif isinstance(key, nodes.BuiltinType):
-            return builtin_interfaces[key.value]
 
     def get_algebraic(self, algebraic: nodes.AlgebraicType) -> t.Union[entries.AlgebraicEntry, entries.StructEntry]:
         """Get entry of algebraic data type or its constructor if algebraic.constructor."""
@@ -315,6 +318,17 @@ class Environment:
             line=node.line, name=node.name, parameters=node.parameters,
             implemented_interfaces=node.implemented_interfaces
         )
+        if isinstance(node.name, nodes.BuiltinType):
+            self.parents.append(nodes.Name(node.name.value))
+        else:
+            self.parents.append(node.name)
+        for method_declaration in node.methods:
+            self.add_method(
+                line=method_declaration.line, name=method_declaration.name,
+                arguments=method_declaration.arguments, return_type=method_declaration.return_type
+            )
+        self.parents.pop()
+        # TODO: add fields
 
     def _load_function(self, node: nodes.Node):
         assert isinstance(node, nodes.FunctionDeclaration)

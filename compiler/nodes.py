@@ -195,8 +195,7 @@ class BuiltinType(Type, enum.Enum):
     """How to add a builtin type:
     1. Add it as a member:
         type = "Type"
-    2. If it is an interface, add it to the list of interfaces (classmethod) and to builtin_interfaces mapping
-        in constants
+    2. If it is an interface, add it to the list of interfaces (classmethod)
     3. If it is a "Convertible" interface, add it to as_convertible_interface mapping
     3. Add supertypes of this type to get_builtin_supertypes mapping
     """
