@@ -1,21 +1,14 @@
 import enum
-import unittest
 from dataclasses import dataclass
 
 from . import nodes
-from .utils import dispatch, submangle, mangle, EXPRESSIONS
+from .utils import submangle, mangle
 from .context import Context
 
 
 @dataclass
-class Clarifier(unittest.TestCase):
+class Clarifier:
     context: Context
-
-    def __post_init__(self):
-        self.get_module_from_expr_dispatcher = {
-            nodes.Name: lambda name: name.module,
-            nodes.FunctionCall: lambda call: self.get_module_from_expr(call.function_path),
-        }
 
     def clarify_ast(self, ast: nodes.AST) -> nodes.AST:
         return [self.clarify_node(node) for node in ast]
@@ -85,10 +78,3 @@ class Clarifier(unittest.TestCase):
             for key, value in vars(node).items():
                 values.append(self.clarify_node(value))
             return type(node)(*values)
-
-    def get_module_from_expr(self, expr: nodes.Expression) -> str:
-        return dispatch(self.get_module_from_expr_dispatcher, type(expr), expr)
-
-    def test(self):
-        # TODO: test Clarifier completeness
-        self.assertEqual(EXPRESSIONS, set(subclass.__name__ for subclass in self.get_module_from_expr_dispatcher.keys()))
