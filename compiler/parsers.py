@@ -2,7 +2,6 @@ import re
 import typing as t
 from dataclasses import dataclass
 from itertools import zip_longest
-from functools import partial
 
 from . import nodes, errors
 from .enums import DeclType
@@ -518,6 +517,15 @@ class Parser:
             raise errors.AngelSyntaxError("expected condition after 'where'", self.get_code())
         return condition
 
+    def parse_body_with_additional_parsers(self, extra_parsers: t.List[t.Callable[[], t.Optional[nodes.Node]]]) -> t.List[nodes.Node]:
+        self.additional_statement_parsers.extend(extra_parsers)
+        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
+        for _ in range(len(extra_parsers)):
+            self.additional_statement_parsers.pop()
+        if not body:
+            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        return body
+
     def parse_algebraic_declaration(self) -> t.Optional[nodes.AlgebraicDeclaration]:
         line = self.position.line
         if not self.parse_raw("algebraic"):
@@ -529,13 +537,7 @@ class Parser:
         parameters: nodes.Parameters = []
         if not self.parse_raw(":"):
             return self.make_algebraic_declaration(line, name, parameters, [])
-        self.additional_statement_parsers.append(self.parse_struct_declaration)
-        self.additional_statement_parsers.append(self.parse_function_declaration)
-        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
-        self.additional_statement_parsers.pop()
-        self.additional_statement_parsers.pop()
-        if not body:
-            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        body = self.parse_body_with_additional_parsers([self.parse_struct_declaration, self.parse_function_declaration])
         return self.make_algebraic_declaration(line, name, parameters, body)
 
     def parse_interface_declaration(self) -> t.Optional[nodes.InterfaceDeclaration]:
@@ -550,13 +552,7 @@ class Parser:
         implemented_interfaces = self._parse_implemented_interfaces()
         if not self.parse_raw(":"):
             return self.make_interface_declaration(line, name, parameters, implemented_interfaces, [])
-        self.additional_statement_parsers.append(self.parse_field_declaration)
-        self.additional_statement_parsers.append(self.parse_function_declaration)
-        body = self.parse_body(self.additional_statement_parsers + self.base_body_parsers)
-        self.additional_statement_parsers.pop()
-        self.additional_statement_parsers.pop()
-        if not body:
-            raise errors.AngelSyntaxError("expected statement", self.get_code())
+        body = self.parse_body_with_additional_parsers([self.parse_field_declaration, self.parse_function_declaration])
         return self.make_interface_declaration(line, name, parameters, implemented_interfaces, body)
 
     NODE_PARSERS = [
