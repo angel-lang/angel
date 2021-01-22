@@ -39,7 +39,7 @@ def _handle_angel_error(exception: errors.AngelError) -> t.NoReturn:
         sys.exit(1)
 
 
-def _run_frontend(string: str, compilation_context: Context, env: t.Optional[environment.Environment] = None) -> nodes.AST:
+def _run_frontend(string: str, compilation_context: Context, env: t.Optional[environment.Environment] = None) -> t.Iterable[nodes.Node]:
     parser = parsers.Parser()
     clarifier = clarification.Clarifier(compilation_context)
     analyzer = analysis.Analyzer(compilation_context, env=env)
@@ -50,7 +50,7 @@ def _run_frontend(string: str, compilation_context: Context, env: t.Optional[env
         clarified_ast = itertools.chain(
             clarifier.clarify_ast(parser.parse(module_content)), clarified_ast
         )
-    return analyzer.analyze_ast(clarified_ast)
+    yield from analyzer.analyze_ast(clarified_ast)
 
 
 def compile_string(string: str, mangle_names: bool = True) -> str:

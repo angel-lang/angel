@@ -1,4 +1,5 @@
 import typing as t
+from typing import Iterable
 import unittest
 
 from . import nodes, cpp_nodes, environment, library
@@ -575,7 +576,7 @@ class Translator(unittest.TestCase):
             operator = cpp_nodes.Operator(value.operator.value)
         return cpp_nodes.BinaryExpression(left, operator, right)
 
-    def translate(self, ast: nodes.AST) -> cpp_nodes.AST:
+    def translate(self, ast: Iterable[nodes.Node]) -> cpp_nodes.AST:
         def add_node(node: cpp_nodes.Node):
             buf = self.nodes_buffer
             self.nodes_buffer = []

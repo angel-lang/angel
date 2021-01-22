@@ -7,6 +7,8 @@ from .context import Context
 
 
 class Clarifier:
+    """Provides in-place node context by traversing the AST and replacing node objects with more specific ones."""
+
     def __init__(self, context: Context):
         self.context = context
         self._clarify_node_dispatcher = {
@@ -17,13 +19,25 @@ class Clarifier:
             nodes.MethodDeclaration: self._clarify_method_declaration,
             nodes.AlgebraicDeclaration: self._clarify_algebraic_declaration,
 
-            list: lambda node: [self.clarify_node(element) for element in node],
-            tuple: lambda node: tuple(self.clarify_node(element) for element in node),
+            (list, tuple): lambda node: type(node)(self.clarify_node(element) for element in node),
             (str, int, enum.Enum): lambda node: node,
         }
         self._name_enums = (
             nodes.BuiltinType, nodes.BuiltinFunc, nodes.BoolLiteral, nodes.SpecialName, nodes.SpecialMethods
         )
+
+    def clarify_ast(self, ast: nodes.AST) -> Iterable[nodes.Node]:
+        yield from (self.clarify_node(node) for node in ast)
+
+    def clarify_node(self, node):
+        if node is None:
+            return None
+
+        for types, handler in self._clarify_node_dispatcher.items():
+            if isinstance(node, types):
+                return handler(node)
+
+        return type(node)(*(self.clarify_node(value) for value in vars(node).values()))
 
     def _clarify_name(self, node: nodes.Name):
         for cls in self._name_enums:
@@ -45,7 +59,7 @@ class Clarifier:
         function_path = self.clarify_node(node.function_path)
         arguments = self.clarify_node(node.arguments)
         if isinstance(function_path, nodes.OptionalTypeConstructor):
-            # TODO: replace assert with meaningful error handling with user-friendly message
+            # TODO: replace assert with meaningful error handling and user-friendly message
             assert len(arguments) == 1
             return nodes.OptionalSomeCall(arguments[0])
         elif isinstance(function_path, nodes.Field):
@@ -78,19 +92,3 @@ class Clarifier:
             node.line, self.clarify_node(node.name), self.clarify_node(node.parameters), body,
             self.clarify_node(node.methods)
         )
-
-    def clarify_ast(self, ast: nodes.AST) -> Iterable[nodes.Node]:
-        yield from (self.clarify_node(node) for node in ast)
-
-    def clarify_node(self, node):
-        if node is None:
-            return None
-
-        for types, handler in self._clarify_node_dispatcher.items():
-            if isinstance(node, types):
-                return handler(node)
-
-        values = []
-        for key, value in vars(node).items():
-            values.append(self.clarify_node(value))
-        return type(node)(*values)

@@ -16,7 +16,7 @@ class TestEval(unittest.TestCase):
             module_hash = context.module_hashs[module_name]
             context.main_hash = module_hash
             clarified_ast = chain(clarifier.clarify_ast(parser.parse(module_content)), clarified_ast)
-        return analyzer.analyze_ast(clarified_ast)
+        return list(analyzer.analyze_ast(clarified_ast))
 
     def get_env(self, lines: t.List[str]) -> environment.Environment:
         context = Context(lines, main_hash='', mangle_names=False)

@@ -1,4 +1,5 @@
 import typing as t
+from typing import Iterable
 import unittest
 from copy import copy
 from collections import namedtuple
@@ -189,7 +190,7 @@ class Evaluator(unittest.TestCase):
     def estimate_node(self, node: nodes.Node) -> t.Optional[enodes.Expression]:
         return dispatch(self.node_dispatcher, type(node), node)
 
-    def estimate_ast(self, ast: nodes.AST) -> t.Optional[enodes.Expression]:
+    def estimate_ast(self, ast: Iterable[nodes.Node]) -> t.Optional[enodes.Expression]:
         result = None
         for node in ast:
             result = self.estimate_node(node)
