@@ -1,3 +1,5 @@
+import re
+
 from typing import Optional, Union, Dict, List, Tuple, Iterable, cast
 from itertools import zip_longest
 
@@ -8,6 +10,9 @@ from .enums import DeclType
 from .context import Context
 from .utils import submangle, dispatch, NODES, ASSIGNMENTS
 from .testutils import CompilerStageTestCase
+
+
+CAMEL_CASE_REGEX = re.compile("[_]?[a-z][a-zA-Z0-9]*")
 
 
 class Analyzer(CompilerStageTestCase):
@@ -98,6 +103,8 @@ class Analyzer(CompilerStageTestCase):
         After all checks were successfully passed, the value, if present, is estimated based on current environment.
         In the end, the name is added to the environment.
         """
+        self._check_naming_camel_case(node.name)
+
         if node.value:
             type_ = self._infer_type(node.value, supertype=node.type)
             estimated = self._estimate_value(node.value)
@@ -107,6 +114,11 @@ class Analyzer(CompilerStageTestCase):
             estimated = enodes.DynamicValue(type_)
         self.env.add_declaration(node, estimated_value=estimated, type=type_)
         return nodes.Decl(node.line, node.decl_type, node.name, type_, node.value)
+
+    def _check_naming_camel_case(self, name: nodes.Name):
+        """Check name is named according to camel case naming guidelines."""
+        if CAMEL_CASE_REGEX.match(name.unmangled or name.member) is None:
+            raise errors.AngelNamingError(name, str(CAMEL_CASE_REGEX), self._get_code())
 
     def _analyze_function_declaration(self, declaration: nodes.FunctionDeclaration) -> nodes.FunctionDeclaration:
         arguments = [nodes.Argument(arg.name, self._check_type(arg.type)) for arg in declaration.arguments]

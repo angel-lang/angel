@@ -266,6 +266,20 @@ class AngelNameError(AngelError):
 
 
 @dataclass
+class AngelNamingError(AngelError):
+    name: nodes.Name
+    expected_regex: str
+    code: Code
+
+    def __str__(self) -> str:
+        return "\n".join((
+            f"Naming Error: '{self.name.to_code()}' is not named according to regex '{self.expected_regex}'",
+            "",
+            str(self.code),
+        ))
+
+
+@dataclass
 class AngelConstantReassignment(AngelError):
     cannot_reassign: nodes.Expression
     reassignment_code: Code
